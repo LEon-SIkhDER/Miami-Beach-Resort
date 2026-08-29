@@ -1,222 +1,102 @@
-
-import { useEffect, useState } from "react";
+import axios from 'axios';
+import { Eye, Pencil, Plus, Trash2 } from 'lucide-react';
+import React, { useRef } from 'react';
+import toast from 'react-hot-toast';
+import AddCategory from './AddCategory';
+import { useQuery } from '@tanstack/react-query'
+import EditCategory from './EditCategory';
+import DeleteCategory from './DeleteCategory';
 
 const CategoryAndPricing = () => {
-    const [categories, setCategories] = useState([]);
-    const [loading, setLoading] = useState(true);
 
-    const [formData, setFormData] = useState({
-        category: "",
-        price: "",
-        description: "",
-    });
-
-    const getCategories = async () => {
-        try {
-            setLoading(true);
-
-            const res = await fetch("http://localhost:5000/categoryandpricing");
-            const data = await res.json();
-
-            setCategories(data);
-        } catch (error) {
-            console.log(error);
-        } finally {
-            setLoading(false);
+    const { data: categories, refetch } = useQuery({
+        queryKey: ["categories"],
+        queryFn: async () => {
+            const { data: result } = await axios.get("http://localhost:5000/categoryandpricing")
+            return result
         }
-    };
-
-    useEffect(() => {
-        getCategories();
-    }, []);
-
-    const handleChange = (e) => {
-        const { name, value } = e.target;
-
-        setFormData({
-            ...formData,
-            [name]: value,
-        });
-    };
-
-    const handleSubmit = async (e) => {
-        e.preventDefault();
-
-        try {
-            const res = await fetch(
-                "http://localhost:5000/categoryandpricing",
-                {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json",
-                    },
-                    body: JSON.stringify({
-                        category: formData.category,
-                        price: Number(formData.price),
-                        description: formData.description,
-                    }),
-                }
-            );
-
-            const data = await res.json();
-
-            if (res.ok) {
-                setCategories([...categories, data]);
-
-                setFormData({
-                    category: "",
-                    price: "",
-                    description: "",
-                });
-            }
-        } catch (error) {
-            console.log(error);
-        }
-    };
-
-    const handleDelete = async (id) => {
-        try {
-            const res = await fetch(
-                `http://localhost:5000/categoryandpricing/${id}`,
-                {
-                    method: "DELETE",
-                }
-            );
-
-            if (res.ok) {
-                setCategories(
-                    categories.filter((category) => category._id !== id)
-                );
-            }
-        } catch (error) {
-            console.log(error);
-        }
-    };
+    })
+    console.log(categories);
 
     return (
-        <div className="w-full p-6">
-
-            {/* Add Category */}
-            <div className="mb-8 rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
-                <h2 className="mb-5 text-xl font-semibold text-gray-800">
-                    Add Category & Pricing
-                </h2>
-
-                <form
-                    onSubmit={handleSubmit}
-                    className="grid grid-cols-1 gap-4 md:grid-cols-2"
-                >
-                    {/* Category */}
-                    <div>
-                        <label className="mb-2 block text-sm font-medium text-gray-700">
-                            Category
-                        </label>
-
-                        <input
-                            type="text"
-                            name="category"
-                            value={formData.category}
-                            onChange={handleChange}
-                            placeholder="Enter category"
-                            required
-                            className="w-full rounded-lg border border-gray-300 px-4 py-2.5 outline-none focus:border-blue-500"
-                        />
-                    </div>
-
-                    {/* Price */}
-                    <div>
-                        <label className="mb-2 block text-sm font-medium text-gray-700">
-                            Price
-                        </label>
-
-                        <input
-                            type="number"
-                            name="price"
-                            value={formData.price}
-                            onChange={handleChange}
-                            placeholder="Enter price"
-                            required
-                            className="w-full rounded-lg border border-gray-300 px-4 py-2.5 outline-none focus:border-blue-500"
-                        />
-                    </div>
-
-                    {/* Description */}
-                    <div className="md:col-span-2">
-                        <label className="mb-2 block text-sm font-medium text-gray-700">
-                            Description
-                        </label>
-
-                        <textarea
-                            name="description"
-                            value={formData.description}
-                            onChange={handleChange}
-                            placeholder="Enter description"
-                            rows="4"
-                            required
-                            className="w-full resize-none rounded-lg border border-gray-300 px-4 py-2.5 outline-none focus:border-blue-500"
-                        ></textarea>
-                    </div>
-
-                    <div className="md:col-span-2">
-                        <button
-                            type="submit"
-                            className="rounded-lg bg-blue-600 px-6 py-2.5 font-medium text-white transition hover:bg-blue-700"
-                        >
-                            Add Category
-                        </button>
-                    </div>
-                </form>
+        <div>
+            <div className='flex justify-between'>
+                <div>
+                    <h1>Category and pricing</h1>
+                    <p>All category here</p>
+                </div>
+                <AddCategory className='btn btn-primary' refetch={refetch}><Plus />Add Category</AddCategory>
             </div>
-
-            {/* Categories */}
-            <div>
-                <h2 className="mb-5 text-xl font-semibold text-gray-800">
-                    Categories
-                </h2>
-
-                {loading ? (
-                    <div className="py-10 text-center text-gray-500">
-                        Loading...
-                    </div>
-                ) : categories.length === 0 ? (
-                    <div className="rounded-xl border border-dashed border-gray-300 py-10 text-center text-gray-500">
-                        No category found
-                    </div>
-                ) : (
-                    <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-                        {categories.map((item) => (
-                            <div
-                                key={item._id}
-                                className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition hover:shadow-md"
-                            >
-                                <div className="mb-4 flex items-start justify-between gap-3">
-                                    <h3 className="text-lg font-semibold text-gray-800">
-                                        {item.category}
-                                    </h3>
-
-                                    <span className="rounded-full bg-green-100 px-3 py-1 text-sm font-semibold text-green-700">
-                                        ৳ {item.price}
-                                    </span>
-                                </div>
-
-                                <p className="text-sm leading-6 text-gray-600">
-                                    {item.description}
-                                </p>
-
-                                <button
-                                    onClick={() => handleDelete(item._id)}
-                                    className="mt-5 text-sm font-medium text-red-500 hover:text-red-600"
-                                >
-                                    Delete
-                                </button>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 mt-10">
+                {categories?.map((category) => (
+                    <div
+                        key={category._id}
+                        className="flex flex-col bg-white border border-gray-200 rounded-xl overflow-hidden hover:shadow-md transition-shadow"
+                    >
+                        {/* Content */}
+                        <div className="flex-1 p-5">
+                            <div className="mb-3">
+                                <h3 className="text-lg font-semibold text-gray-800">
+                                    {category.name.trim()}
+                                </h3>
                             </div>
-                        ))}
+
+                            <p className="text-sm text-gray-500 leading-6">
+                                {category.description}
+                            </p>
+                        </div>
+
+                        {/* Bottom */}
+                        <div className="flex items-center justify-between px-5 py-4 border-t border-gray-100">
+                            {/* Price */}
+                            <div>
+                                <span className="text-xl font-bold text-[#009689]">
+                                    ৳{category.price}
+                                </span>
+                                <span className="text-xs text-gray-400 ml-1">
+                                    / night
+                                </span>
+                            </div>
+
+                            {/* Actions */}
+                            <div className="flex items-center gap-2">
+                                {/* View */}
+                                <button
+                                    type="button"
+                                    title="View"
+                                    className="w-10 h-10 flex items-center justify-center rounded-lg border border-[#009689] text-[#009689] hover:bg-[#009689] hover:text-white transition"
+                                >
+                                    <Eye size={18} />
+                                </button>
+
+                                {/* Edit */}
+                                <EditCategory
+                                    // type="button"
+                                    // title="Edit"
+                                    category={category}
+                                    refetch={refetch}
+                                    className="w-10 cursor-pointer h-10 flex items-center justify-center rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-100 transition"
+                                >
+                                    <Pencil size={18} />
+                                </EditCategory>
+
+                                {/* Delete */}
+                                <DeleteCategory
+                                    refetch={refetch}
+                                    category={category}
+                                    
+                                    className="w-10 h-10 flex items-center justify-center rounded-lg border border-red-200 text-red-500 hover:bg-red-500 hover:text-white transition"
+                                >
+                                    <Trash2 size={18} />
+                                </DeleteCategory>
+                            </div>
+                        </div>
                     </div>
-                )}
+                ))}
             </div>
+
         </div>
     );
 };
 
 export default CategoryAndPricing;
-

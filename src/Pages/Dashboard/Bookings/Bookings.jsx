@@ -149,6 +149,7 @@ const Bookings = () => {
         return b.name?.toLowerCase().includes(s) || 
                b.mobile?.toLowerCase().includes(s) || 
                b.bookingId?.toLowerCase().includes(s) ||
+               b.roomName?.toLowerCase().includes(s) ||
                b.roomCategory?.toLowerCase().includes(s)
     })
 
@@ -251,8 +252,8 @@ const Bookings = () => {
                                             <p className="text-xs text-slate-500 font-medium">{b.mobile}</p>
                                         </td>
                                         <td>
-                                            <span className="text-xs font-semibold text-slate-700 line-clamp-1 max-w-[200px]" title={b.roomCategory}>
-                                                {b.roomCategory}
+                                            <span className="text-xs font-semibold text-slate-700 line-clamp-1 max-w-[200px]" title={b.roomName || b.roomCategory}>
+                                                {b.roomName || b.roomCategory}
                                             </span>
                                         </td>
                                         <td className="whitespace-nowrap">
@@ -360,7 +361,7 @@ const Bookings = () => {
 
                             <div className="text-xs text-slate-600 space-y-1.5 bg-slate-50 p-3 sm:p-3.5 rounded-xl">
                                 <p className="flex items-center gap-2"><Phone size={13} className="text-teal-600 shrink-0" /> {b.mobile}</p>
-                                <p className="flex items-center gap-2"><BedDouble size={13} className="text-teal-600 shrink-0" /> {b.roomCategory}</p>
+                                <p className="flex items-center gap-2"><BedDouble size={13} className="text-teal-600 shrink-0" /> {b.roomName || b.roomCategory}</p>
                                 <p className="flex items-center gap-2"><Calendar size={13} className="text-teal-600 shrink-0" /> {b.checkIn} to {b.checkOut}</p>
                                 <p className="flex items-center gap-2"><UsersIcon size={13} className="text-teal-600 shrink-0" /> {b.adults} Adults {b.babies > 0 ? `• ${b.babies} Baby` : ""}</p>
                                 <p className="pt-1 font-bold text-teal-900">Total: ৳{Number(b.totalAmount || 0).toLocaleString()}</p>

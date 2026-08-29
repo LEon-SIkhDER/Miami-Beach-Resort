@@ -26,6 +26,7 @@ import {
     Eye,
     SlidersHorizontal
 } from 'lucide-react'
+import { getRoomDisplayName, parseFacilityList } from '../Dashboard/Rooms/roomUtils'
 
 // Parse "YYYY-MM-DD" as LOCAL midnight (not UTC midnight).
 // parseISO() gives UTC midnight which shifts dates in non-UTC timezones.
@@ -57,7 +58,6 @@ const Home = () => {
     const [isSubmitting, setIsSubmitting] = useState(false)
     const [searchQuery, setSearchQuery] = useState('')
     const [selectedCategory, setSelectedCategory] = useState('')
-    const [selectedView, setSelectedView] = useState('')
 
     // Fetch active rooms
     const { data: rooms = [], isLoading: roomsLoading } = useQuery({
@@ -68,14 +68,21 @@ const Home = () => {
         }
     })
 
+    const { data: categories = [] } = useQuery({
+        queryKey: ["category-and-pricing"],
+        queryFn: async () => {
+            const res = await axios.get(`${import.meta.env.VITE_SERVER_URL}/categoryandpricing`)
+            return res.data
+        }
+    })
+
     const filteredRooms = rooms.filter(room => {
         if (selectedCategory && room.category !== selectedCategory) return false
-        if (selectedView && room.view !== selectedView) return false
         if (searchQuery) {
             const q = searchQuery.toLowerCase()
             return room.name?.toLowerCase().includes(q) ||
                    room.category?.toLowerCase().includes(q) ||
-                   room.view?.toLowerCase().includes(q) ||
+                   room.facility?.toLowerCase().includes(q) ||
                    room.description?.toLowerCase().includes(q)
         }
         return true
@@ -222,8 +229,8 @@ const Home = () => {
         // 3. Submit booking
         const bookingData = {
             roomId: selectedRoom._id,
-            roomName: selectedRoom.name,
-            roomCategory: `${selectedRoom.name} – ${selectedRoom.category} (${selectedRoom.view})`,
+            roomName: getRoomDisplayName(selectedRoom),
+            roomCategory: getRoomDisplayName(selectedRoom),
             name: formData.name,
             mobile: formData.mobile,
             adults: Number(formData.adults),
@@ -308,7 +315,7 @@ const Home = () => {
                             <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                             <input
                                 type="text"
-                                placeholder="Search suites by name, view..."
+                                placeholder="Search suites by name, facility..."
                                 value={searchQuery}
                                 onChange={e => setSearchQuery(e.target.value)}
                                 className="input input-sm input-bordered pl-9 rounded-xl w-full sm:w-60 bg-white"
@@ -321,22 +328,9 @@ const Home = () => {
                             onChange={e => setSelectedCategory(e.target.value)}
                         >
                             <option value="">All Categories</option>
-                            <option value="Couple">Couple</option>
-                            <option value="Family Suite">Family Suite</option>
-                            <option value="Double Bed">Double Bed</option>
-                            <option value="Standard">Standard</option>
-                        </select>
-
-                        <select
-                            className="select select-sm select-bordered rounded-xl bg-white text-xs font-semibold"
-                            value={selectedView}
-                            onChange={e => setSelectedView(e.target.value)}
-                        >
-                            <option value="">All Views</option>
-                            <option value="Sea View">Sea View</option>
-                            <option value="Balcony Sea View">Balcony Sea View</option>
-                            <option value="Balcony">Balcony</option>
-                            <option value="Non-Balcony">Non-Balcony</option>
+                            {categories.map(category => (
+                                <option key={category._id} value={category.name}>{category.name}</option>
+                            ))}
                         </select>
                     </div>
                 </div>
@@ -366,9 +360,9 @@ const Home = () => {
                         <BedDouble size={48} className="mx-auto text-slate-300 mb-2" />
                         <h3 className="text-lg font-bold text-slate-700">No rooms match your search</h3>
                         <p className="text-xs text-slate-500">Try adjusting your keyword or category filters.</p>
-                        {(searchQuery || selectedCategory || selectedView) && (
+                        {(searchQuery || selectedCategory) && (
                             <button 
-                                onClick={() => { setSearchQuery(''); setSelectedCategory(''); setSelectedView(''); }}
+                                onClick={() => { setSearchQuery(''); setSelectedCategory(''); }}
                                 className="btn btn-sm btn-ghost text-teal-700 underline mt-2"
                             >
                                 Reset all filters
@@ -383,20 +377,24 @@ const Home = () => {
                                 : room.imageUrl ? [room.imageUrl] : []
                             const currentIdx = activeImageIndices[room._id] || 0
                             const currentImgSrc = allImages[currentIdx] || room.imageUrl
+                            const facilities = parseFacilityList(room.facility)
+                            const roomName = getRoomDisplayName(room)
 
                             return (
                                 <div key={room._id} className="group bg-white rounded-3xl overflow-hidden border border-slate-200/90 shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col">
                                     <Link to={`/room/${room._id}`} className="relative h-60 sm:h-64 bg-slate-100 overflow-hidden select-none block">
                                         {currentImgSrc ? (
-                                            <img src={currentImgSrc} alt={room.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                                            <img src={currentImgSrc} alt={roomName} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
                                         ) : (
                                             <div className="w-full h-full flex flex-col items-center justify-center text-slate-400 bg-slate-100">
                                                 <BedDouble size={40} /><span className="text-xs mt-1 font-medium">Miami Beach Resort</span>
                                             </div>
                                         )}
                                         <div className="absolute top-3 left-3 flex flex-wrap gap-1.5 z-10">
-                                            <span className="badge badge-sm bg-slate-900/80 backdrop-blur-md text-white border-none font-semibold text-[10px]">{room.category}</span>
-                                            <span className="badge badge-sm bg-teal-600/90 backdrop-blur-md text-white border-none font-semibold text-[10px]">{room.view}</span>
+                                            <span className="badge badge-sm bg-slate-900/80 backdrop-blur-md text-white border-none font-semibold text-[10px]">{roomName}</span>
+                                            {facilities.slice(0, 1).map(facility => (
+                                                <span key={facility} className="badge badge-sm bg-teal-600/90 backdrop-blur-md text-white border-none font-semibold text-[10px]">{facility}</span>
+                                            ))}
                                         </div>
                                         {allImages.length > 1 && (
                                             <>
@@ -418,15 +416,18 @@ const Home = () => {
                                     <div className="p-5 sm:p-6 space-y-4 flex-1 flex flex-col justify-between">
                                         <div>
                                             <Link to={`/room/${room._id}`}>
-                                                <h3 className="text-lg sm:text-xl font-bold text-slate-900 group-hover:text-teal-700 transition-colors">{room.name}</h3>
+                                                <h3 className="text-lg sm:text-xl font-bold text-slate-900 group-hover:text-teal-700 transition-colors">{roomName}</h3>
                                             </Link>
                                             <p className="text-xs text-slate-500 mt-1.5 line-clamp-2 leading-relaxed">
-                                                {room.description || "Air-conditioned premium suite featuring comfortable bedding, fresh linen, generator backup, and modern washroom."}
+                                                {room.description || "Room details will be updated soon."}
                                             </p>
                                         </div>
-                                        <div className="flex items-center justify-between text-xs text-slate-600 pt-3 border-t border-slate-100">
-                                            <span className="flex items-center gap-1.5 font-semibold"><Users size={14} className="text-teal-600 shrink-0" /> Max {room.capacity} Guests</span>
-                                            <span className="flex items-center gap-1.5 font-semibold"><Waves size={14} className="text-teal-600 shrink-0" /> Pool Access</span>
+                                        <div className="flex flex-wrap gap-1.5 pt-3 border-t border-slate-100 min-h-8">
+                                            {facilities.slice(0, 4).map(facility => (
+                                                <span key={facility} className="uppercase badge badge-sm bg-teal-50 text-teal-700 border border-teal-200/60 font-semibold">
+                                                    {facility}
+                                                </span>
+                                            ))}
                                         </div>
                                         <div className="flex items-center gap-2">
                                             <Link
@@ -490,7 +491,7 @@ const Home = () => {
                             <div className="bg-teal-50/80 border border-teal-100 rounded-2xl p-3 sm:p-4 mb-5 text-xs">
                                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                                     <div>
-                                        <p className="font-bold text-teal-900">{selectedRoom.category} ({selectedRoom.view})</p>
+                                        <p className="font-bold text-teal-900">{getRoomDisplayName(selectedRoom)}{selectedRoom.view ? ` (${selectedRoom.view})` : ""}</p>
                                         <p className="text-teal-700 text-[11px]">৳{selectedRoom.price?.toLocaleString()} / night • Max {selectedRoom.capacity} Guests</p>
                                     </div>
                                     {calcNights > 0 && (

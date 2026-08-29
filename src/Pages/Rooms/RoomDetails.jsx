@@ -7,6 +7,7 @@ import 'react-datepicker/dist/react-datepicker.css'
 import { addDays, isWithinInterval, eachDayOfInterval } from 'date-fns'
 import toast from 'react-hot-toast'
 import { showSuccessAlert, showErrorAlert } from '../../utils/customSwal'
+import { getRoomDisplayName, getYouTubeEmbedUrl, parseFacilityList } from '../Dashboard/Rooms/roomUtils'
 import { 
     BedDouble, 
     Calendar, 
@@ -18,11 +19,7 @@ import {
     MapPin, 
     Waves,
     ArrowLeft,
-    CheckCircle2,
     Wifi,
-    Tv,
-    Wind,
-    Coffee,
     X,
     ChevronLeft,
     ChevronRight,
@@ -207,7 +204,7 @@ const RoomDetails = () => {
         const bookingData = {
             roomId: room._id,
             roomName: room.name,
-            roomCategory: `${room.name} – ${room.category} (${room.view})`,
+            roomCategory: getRoomDisplayName(room),
             name: formData.name,
             mobile: formData.mobile,
             adults: Number(formData.adults),
@@ -276,16 +273,19 @@ const RoomDetails = () => {
     const allImages = room.images?.length
         ? room.images.map(img => typeof img === 'string' ? img : img.url)
         : room.imageUrl ? [room.imageUrl] : []
-    const currentImgSrc = allImages[selectedImgIndex] || room.imageUrl
-
-    const amenitiesList = [
-        { icon: <Wind size={16} className="text-teal-600" />, label: "Air Conditioned" },
-        { icon: <Wifi size={16} className="text-teal-600" />, label: "High-Speed Wi-Fi" },
-        { icon: <Tv size={16} className="text-teal-600" />, label: "Smart LED TV" },
-        { icon: <Waves size={16} className="text-teal-600" />, label: "Sea View Balcony" },
-        { icon: <Coffee size={16} className="text-teal-600" />, label: "Complimentary Tea/Water" },
-        { icon: <ShieldCheck size={16} className="text-teal-600" />, label: "24/7 Security & Power Backup" },
+    const roomName = getRoomDisplayName(room)
+    const facilities = parseFacilityList(room.facility)
+    const youtubeEmbedUrl = getYouTubeEmbedUrl(room.video)
+    const youtubeVideoId = youtubeEmbedUrl.split("/embed/")[1]?.split("?")[0]
+    const galleryItems = [
+        ...(youtubeEmbedUrl ? [{
+            type: "video",
+            src: youtubeEmbedUrl,
+            thumb: youtubeVideoId ? `https://img.youtube.com/vi/${youtubeVideoId}/hqdefault.jpg` : "",
+        }] : []),
+        ...allImages.map(img => ({ type: "image", src: img, thumb: img }))
     ]
+    const currentGalleryItem = galleryItems[selectedImgIndex] || galleryItems[0]
 
     return (
         <div className="min-h-screen bg-slate-50 py-8 px-3 sm:px-6 lg:px-8">
@@ -311,11 +311,19 @@ const RoomDetails = () => {
 
                 {/* Main Photo Gallery Hero */}
                 <div className="space-y-3">
-                    <div className="relative h-[320px] sm:h-[450px] md:h-[500px] rounded-3xl overflow-hidden bg-slate-900 shadow-md border border-slate-200">
-                        {currentImgSrc ? (
+                    <div className="relative h-[360px] sm:h-[500px] md:h-[600px] rounded-3xl overflow-hidden bg-slate-900 shadow-md border border-slate-200">
+                        {currentGalleryItem?.type === "video" ? (
+                            <iframe
+                                src={currentGalleryItem.src}
+                                title={`${roomName} video`}
+                                className="w-full h-full"
+                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                                allowFullScreen
+                            />
+                        ) : currentGalleryItem?.src ? (
                             <img 
-                                src={currentImgSrc} 
-                                alt={room.name} 
+                                src={currentGalleryItem.src} 
+                                alt={roomName} 
                                 className="w-full h-full object-cover"
                             />
                         ) : (
@@ -328,11 +336,13 @@ const RoomDetails = () => {
                         {/* Top Badges */}
                         <div className="absolute top-4 left-4 flex flex-wrap gap-2">
                             <span className="badge badge-md bg-slate-900/80 backdrop-blur-md text-white border-none font-semibold">
-                                {room.category}
+                                {roomName}
                             </span>
-                            <span className="badge badge-md bg-teal-600/90 backdrop-blur-md text-white border-none font-semibold">
-                                {room.view}
-                            </span>
+                            {room.view && (
+                                <span className="badge badge-md bg-teal-600/90 backdrop-blur-md text-white border-none font-semibold">
+                                    {room.view}
+                                </span>
+                            )}
                             {room.status === "active" ? (
                                 <span className="badge badge-md bg-emerald-600/90 backdrop-blur-md text-white border-none font-semibold">
                                     Available Now
@@ -345,31 +355,31 @@ const RoomDetails = () => {
                         </div>
 
                         {/* Arrows for multi-photo */}
-                        {allImages.length > 1 && (
+                        {galleryItems.length > 1 && (
                             <>
                                 <button 
-                                    onClick={() => setSelectedImgIndex((selectedImgIndex - 1 + allImages.length) % allImages.length)}
+                                    onClick={() => setSelectedImgIndex((selectedImgIndex - 1 + galleryItems.length) % galleryItems.length)}
                                     className="absolute left-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-slate-900/70 text-white flex items-center justify-center hover:bg-slate-900 transition-colors shadow-lg"
                                 >
                                     <ChevronLeft size={22} />
                                 </button>
                                 <button 
-                                    onClick={() => setSelectedImgIndex((selectedImgIndex + 1) % allImages.length)}
+                                    onClick={() => setSelectedImgIndex((selectedImgIndex + 1) % galleryItems.length)}
                                     className="absolute right-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-slate-900/70 text-white flex items-center justify-center hover:bg-slate-900 transition-colors shadow-lg"
                                 >
                                     <ChevronRight size={22} />
                                 </button>
                                 <div className="absolute bottom-4 left-4 bg-slate-900/75 backdrop-blur-md px-3 py-1 rounded-xl text-xs font-bold text-white">
-                                    {selectedImgIndex + 1} / {allImages.length} Photos
+                                    {selectedImgIndex + 1} / {galleryItems.length}
                                 </div>
                             </>
                         )}
                     </div>
 
                     {/* Thumbnail Strips */}
-                    {allImages.length > 1 && (
+                    {galleryItems.length > 1 && (
                         <div className="flex items-center gap-2.5 overflow-x-auto pb-2 pt-1 scrollbar-none">
-                            {allImages.map((img, idx) => (
+                            {galleryItems.map((item, idx) => (
                                 <button
                                     key={idx}
                                     onClick={() => setSelectedImgIndex(idx)}
@@ -377,7 +387,16 @@ const RoomDetails = () => {
                                         selectedImgIndex === idx ? "border-teal-600 ring-2 ring-teal-500/20 scale-102" : "border-slate-200 opacity-70 hover:opacity-100"
                                     }`}
                                 >
-                                    <img src={img} alt={`Thumb ${idx}`} className="w-full h-full object-cover" />
+                                    {item.thumb ? (
+                                        <img src={item.thumb} alt={`Thumb ${idx}`} className="w-full h-full object-cover" />
+                                    ) : (
+                                        <div className="w-full h-full bg-slate-800" />
+                                    )}
+                                    {item.type === "video" && (
+                                        <span className="absolute inset-0 flex items-center justify-center bg-slate-900/35 text-white text-[10px] font-bold uppercase tracking-wider">
+                                            Video
+                                        </span>
+                                    )}
                                 </button>
                             ))}
                         </div>
@@ -393,7 +412,7 @@ const RoomDetails = () => {
                                 <div>
                                     <span className="text-xs font-bold uppercase tracking-wider text-teal-600">Miami Beach Resort Suite</span>
                                     <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 font-serif mt-1">
-                                        {room.name}
+                                        {roomName}
                                     </h1>
                                 </div>
                                 <div className="text-right">
@@ -405,12 +424,11 @@ const RoomDetails = () => {
                             </div>
 
                             <div className="flex flex-wrap gap-2.5 pt-2">
-                                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-100 text-slate-700">
-                                    <BedDouble size={14} className="text-teal-600" /> {room.category}
-                                </span>
-                                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-teal-50 text-teal-800 border border-teal-200/50">
-                                    <Waves size={14} className="text-teal-600" /> {room.view}
-                                </span>
+                                {room.view && (
+                                    <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-teal-50 text-teal-800 border border-teal-200/50">
+                                        <Waves size={14} className="text-teal-600" /> {room.view}
+                                    </span>
+                                )}
                                 <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-100 text-slate-700">
                                     <Users size={14} className="text-teal-600" /> Up to {room.capacity} Persons
                                 </span>
@@ -421,23 +439,25 @@ const RoomDetails = () => {
                             <div>
                                 <h3 className="font-bold text-slate-900 text-base font-serif mb-2">Room Overview</h3>
                                 <p className="text-slate-600 text-sm leading-relaxed whitespace-pre-line">
-                                    {room.description || "Enjoy premium hospitality, serene coastal decor, and relaxing beachfront views. This suite includes modern en-suite washroom with hot & cold water, comfortable bedding, and dedicated guest assistance."}
+                                    {room.description || "Room details will be updated soon."}
                                 </p>
                             </div>
                         </div>
 
                         {/* Amenities */}
-                        <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-xs space-y-4">
-                            <h3 className="font-bold text-slate-900 text-base font-serif">Included Amenities & Perks</h3>
-                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3.5 pt-2">
-                                {amenitiesList.map((item, idx) => (
-                                    <div key={idx} className="flex items-center gap-2.5 p-3 rounded-2xl bg-slate-50 border border-slate-100 text-xs font-medium text-slate-800">
-                                        {item.icon}
-                                        <span>{item.label}</span>
-                                    </div>
-                                ))}
+                        {facilities.length > 0 && (
+                            <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-xs space-y-4">
+                                <h3 className="font-bold text-slate-900 text-base font-serif">Included Amenities & Perks</h3>
+                                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3.5 pt-2">
+                                    {facilities.map((facility, idx) => (
+                                        <div key={`${facility}-${idx}`} className="flex items-center gap-2.5 p-3 rounded-2xl bg-slate-50 border border-slate-100 text-xs font-medium text-slate-800">
+                                            <Sparkles size={16} className="text-teal-600" />
+                                            <span className='uppercase'>{facility}</span>
+                                        </div>
+                                    ))}
+                                </div>
                             </div>
-                        </div>
+                        )}
 
                         {/* Stay Policies */}
                         <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-xs space-y-4">
@@ -531,7 +551,7 @@ const RoomDetails = () => {
                         <div className="flex items-center justify-between pb-4 border-b border-slate-100 mb-5">
                             <div className="min-w-0 pr-2">
                                 <span className="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-teal-600 block">Reservation Form</span>
-                                <h3 className="font-bold text-lg sm:text-xl font-serif text-slate-900 truncate">{room?.name}</h3>
+                                <h3 className="font-bold text-lg sm:text-xl font-serif text-slate-900 truncate">{roomName}</h3>
                             </div>
                             <button onClick={handleCloseModal} className="btn btn-ghost btn-sm btn-circle shrink-0"><X size={18} /></button>
                         </div>
@@ -540,7 +560,7 @@ const RoomDetails = () => {
                         <div className="bg-teal-50/80 border border-teal-100 rounded-2xl p-3 sm:p-4 mb-5 text-xs">
                             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                                 <div>
-                                    <p className="font-bold text-teal-900">{room.category} ({room.view})</p>
+                                    <p className="font-bold text-teal-900">{roomName}{room.view ? ` (${room.view})` : ""}</p>
                                     <p className="text-teal-700 text-[11px]">৳{room.price?.toLocaleString()} / night • Max {room.capacity} Guests</p>
                                 </div>
                                 {calcNights > 0 && (

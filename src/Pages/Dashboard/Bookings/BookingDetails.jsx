@@ -199,6 +199,7 @@ const BookingDetails = () => {
         const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
         nightsCount = diffDays > 0 ? diffDays : 1
     }
+    const bookedRoomName = booking.roomName || booking.roomCategory || "Room"
 
     return (
         <div className="space-y-6 max-w-4xl mx-auto">
@@ -347,8 +348,7 @@ const BookingDetails = () => {
                                             <BedDouble size={20} />
                                         </div>
                                         <div>
-                                            <p className="font-bold text-slate-900">{booking.roomName || booking.roomCategory}</p>
-                                            <p className="text-xs text-slate-500">{booking.roomCategory}</p>
+                                            <p className="font-bold text-slate-900">{bookedRoomName}</p>
                                         </div>
                                     </div>
                                 </td>

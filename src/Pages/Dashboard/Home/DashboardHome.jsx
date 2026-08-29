@@ -183,7 +183,7 @@ const DashboardHome = () => {
                     <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs">
                         <div className="flex items-center justify-between mb-6">
                             <div>
-                                <h3 className="font-bold text-slate-900 text-base font-serif">Bookings by Room Category</h3>
+                                <h3 className="font-bold text-slate-900 text-base font-serif">Bookings by Room</h3>
                                 <p className="text-xs text-slate-500">Distribution across room suites</p>
                             </div>
                         </div>
