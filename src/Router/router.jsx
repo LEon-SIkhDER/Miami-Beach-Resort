@@ -11,8 +11,12 @@ import Dashboard from "../Layout/Dashboard/Dashboard"
 import DashboardHome from "../Pages/Dashboard/Home/DashboardHome"
 import Rooms from "../Pages/Dashboard/Rooms/Rooms"
 import Bookings from "../Pages/Dashboard/Bookings/Bookings"
+import BookingDetails from "../Pages/Dashboard/Bookings/BookingDetails"
+import RoomDetails from "../Pages/Rooms/RoomDetails"
 import Users from "../Pages/Dashboard/Users/Users"
 import Forbidden from "../Components/Forbidden"
+import Calender from "../Pages/Dashboard/Calender/Calender"
+import CategoryAndPricing from "../Pages/Dashboard/Category&Pricing/CategoryAndPricing"
 
 export const router = createBrowserRouter([
     {
@@ -21,6 +25,8 @@ export const router = createBrowserRouter([
         errorElement: <ErrorElement />,
         children: [
             { index: true, Component: Home },
+            { path: "room/:id", Component: RoomDetails },
+            { path: "rooms/:id", Component: RoomDetails },
         ]
     },
     {
@@ -37,9 +43,13 @@ export const router = createBrowserRouter([
         children: [
             { index: true, Component: DashboardHome },
             { path: "bookings", Component: Bookings },
+            { path: "bookings/:id", Component: BookingDetails },
             // admin
             { path: "rooms", element: <AdminRoute><Rooms /></AdminRoute> },
+            { path: "category&pricing", element: <AdminRoute><CategoryAndPricing></CategoryAndPricing></AdminRoute> },
+            { path: "rooms/:id", Component: RoomDetails },
             { path: "users", element: <AdminRoute><Users /></AdminRoute> },
+            { path: "calender", element: <AdminRoute><Calender /></AdminRoute> },
         ]
     },
     { path: "/forbidden", Component: Forbidden }

@@ -1,4 +1,5 @@
 import React, { useContext, useState } from 'react'
+import { Link } from 'react-router'
 import { AuthContext } from '../../../Context/AuthContext'
 import useRole from '../../../hooks/useRole'
 import useAxiosSecure from '../../../hooks/useAxiosSecure'
@@ -16,7 +17,8 @@ import {
     Filter,
     BedDouble,
     Clock,
-    FileText
+    FileText,
+    Eye
 } from 'lucide-react'
 
 const Bookings = () => {
@@ -193,17 +195,17 @@ const Bookings = () => {
             {/* Desktop Table */}
             <div className="hidden lg:block bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
                 <div className="overflow-x-auto">
-                    <table className="table table-zebra w-full">
+                    <table className="table table-zebra w-full whitespace-nowrap">
                         <thead>
-                            <tr className="bg-slate-50 text-slate-600 font-bold text-xs uppercase tracking-wider">
-                                <th>Booking ID</th>
-                                <th>Guest Details</th>
-                                <th>Room / Suite</th>
-                                <th>Stay Dates</th>
-                                <th>Guests</th>
-                                <th>Total Bill</th>
-                                <th>Status</th>
-                                <th className="text-right">Actions</th>
+                            <tr className="bg-slate-50 text-slate-600 font-bold text-xs uppercase tracking-wider whitespace-nowrap">
+                                <th className="whitespace-nowrap min-w-[140px]">Booking ID</th>
+                                <th className="whitespace-nowrap">Guest Details</th>
+                                <th className="whitespace-nowrap">Room / Suite</th>
+                                <th className="whitespace-nowrap">Stay Dates</th>
+                                <th className="whitespace-nowrap">Guests</th>
+                                <th className="whitespace-nowrap">Total Bill</th>
+                                <th className="whitespace-nowrap">Status</th>
+                                <th className="text-right whitespace-nowrap min-w-[120px]">Actions</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 text-sm">
@@ -235,36 +237,47 @@ const Bookings = () => {
                             ) : (
                                 filteredBookings.map(b => (
                                     <tr key={b._id} className="hover:bg-slate-50/80 transition-colors">
-                                        <td>
-                                            <span className="font-mono text-xs font-bold text-teal-700 bg-teal-50 px-2 py-1 rounded-lg border border-teal-200/50">
-                                                {b.bookingId}
-                                            </span>
+                                        <td className="whitespace-nowrap">
+                                            <Link 
+                                                to={`/dashboard/bookings/${b._id}`}
+                                                className="font-mono text-xs font-bold text-teal-700 bg-teal-50 hover:bg-teal-100 hover:text-teal-900 px-2.5 py-1 rounded-lg border border-teal-200/60 inline-flex items-center gap-1.5 transition-colors whitespace-nowrap"
+                                                title="View Booking Details"
+                                            >
+                                                <span>{b.bookingId}</span>
+                                            </Link>
                                         </td>
-                                        <td>
+                                        <td className="whitespace-nowrap">
                                             <p className="font-bold text-slate-900">{b.name}</p>
                                             <p className="text-xs text-slate-500 font-medium">{b.mobile}</p>
                                         </td>
                                         <td>
-                                            <span className="text-xs font-semibold text-slate-700 line-clamp-1">
+                                            <span className="text-xs font-semibold text-slate-700 line-clamp-1 max-w-[200px]" title={b.roomCategory}>
                                                 {b.roomCategory}
                                             </span>
                                         </td>
-                                        <td>
+                                        <td className="whitespace-nowrap">
                                             <div className="text-xs space-y-0.5">
                                                 <p className="font-medium text-slate-800">{b.checkIn} <span className="text-slate-400">→</span> {b.checkOut}</p>
                                             </div>
                                         </td>
-                                        <td className="text-xs text-slate-600">
+                                        <td className="text-xs text-slate-600 whitespace-nowrap">
                                             {b.adults} Adults {b.babies > 0 ? `• ${b.babies} Baby` : ""}
                                         </td>
-                                        <td className="font-bold text-slate-900">
+                                        <td className="font-bold text-slate-900 whitespace-nowrap">
                                             ৳{Number(b.totalAmount || 0).toLocaleString()}
                                         </td>
-                                        <td>
+                                        <td className="whitespace-nowrap">
                                             {statusBadge(b.status)}
                                         </td>
-                                        <td className="text-right">
+                                        <td className="text-right whitespace-nowrap">
                                             <div className="inline-flex items-center gap-1">
+                                                <Link 
+                                                    to={`/dashboard/bookings/${b._id}`}
+                                                    className="btn btn-ghost btn-xs btn-square text-teal-700 hover:bg-teal-50"
+                                                    title="View Full Booking Details"
+                                                >
+                                                    <Eye size={16} />
+                                                </Link>
                                                 {isAdmin && b.status === "pending" && (
                                                     <button 
                                                         onClick={() => handleConfirm(b._id, b.bookingId)}
@@ -332,9 +345,12 @@ const Bookings = () => {
                         <div key={b._id} className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-xs space-y-3">
                             <div className="flex items-start justify-between gap-2">
                                 <div className="min-w-0">
-                                    <span className="font-mono text-xs font-bold text-teal-700 bg-teal-50 px-2 py-0.5 rounded-md border border-teal-200/50">
+                                    <Link 
+                                        to={`/dashboard/bookings/${b._id}`}
+                                        className="font-mono text-xs font-bold text-teal-700 bg-teal-50 hover:bg-teal-100 px-2 py-0.5 rounded-md border border-teal-200/50 inline-block"
+                                    >
                                         {b.bookingId}
-                                    </span>
+                                    </Link>
                                     <h3 className="font-bold text-slate-900 text-sm sm:text-base mt-1.5 truncate">{b.name}</h3>
                                 </div>
                                 <div className="shrink-0">
@@ -351,7 +367,13 @@ const Bookings = () => {
                                 {b.specialNeeds && <p className="text-[11px] text-slate-500 italic">Notes: {b.specialNeeds}</p>}
                             </div>
 
-                            <div className="flex items-center gap-2 pt-1">
+                            <div className="flex flex-wrap items-center gap-2 pt-1">
+                                <Link 
+                                    to={`/dashboard/bookings/${b._id}`}
+                                    className="btn btn-sm btn-outline border-slate-300 text-slate-700 hover:bg-slate-50 rounded-xl flex-1 gap-1"
+                                >
+                                    <Eye size={15} /> View Details
+                                </Link>
                                 {isAdmin && b.status === "pending" && (
                                     <button 
                                         onClick={() => handleConfirm(b._id, b.bookingId)}

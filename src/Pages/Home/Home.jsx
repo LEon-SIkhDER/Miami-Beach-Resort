@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { Link } from 'react-router'
 import { useQuery } from '@tanstack/react-query'
 import axios from 'axios'
 import DatePicker from 'react-datepicker'
@@ -21,6 +22,9 @@ import {
     X,
     ChevronLeft,
     ChevronRight,
+    Search,
+    Eye,
+    SlidersHorizontal
 } from 'lucide-react'
 
 // Parse "YYYY-MM-DD" as LOCAL midnight (not UTC midnight).
@@ -51,6 +55,9 @@ const Home = () => {
     const [formData, setFormData] = useState({ name: '', mobile: '', adults: 2, babies: 0, specialNeeds: '' })
     const [formErrors, setFormErrors] = useState({})
     const [isSubmitting, setIsSubmitting] = useState(false)
+    const [searchQuery, setSearchQuery] = useState('')
+    const [selectedCategory, setSelectedCategory] = useState('')
+    const [selectedView, setSelectedView] = useState('')
 
     // Fetch active rooms
     const { data: rooms = [], isLoading: roomsLoading } = useQuery({
@@ -59,6 +66,19 @@ const Home = () => {
             const res = await axios.get(`${import.meta.env.VITE_SERVER_URL}/rooms?status=active`)
             return res.data
         }
+    })
+
+    const filteredRooms = rooms.filter(room => {
+        if (selectedCategory && room.category !== selectedCategory) return false
+        if (selectedView && room.view !== selectedView) return false
+        if (searchQuery) {
+            const q = searchQuery.toLowerCase()
+            return room.name?.toLowerCase().includes(q) ||
+                   room.category?.toLowerCase().includes(q) ||
+                   room.view?.toLowerCase().includes(q) ||
+                   room.description?.toLowerCase().includes(q)
+        }
+        return true
     })
 
     // Fetch reserved date ranges for selected room
@@ -272,7 +292,7 @@ const Home = () => {
 
             {/* Rooms Grid */}
             <section className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-12 sm:py-16">
-                <div className="flex flex-col sm:flex-row items-start sm:items-end justify-between gap-3 mb-8 sm:mb-12">
+                <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8 sm:mb-10">
                     <div>
                         <div className="flex items-center gap-1.5 text-teal-600 font-bold text-xs sm:text-sm uppercase tracking-wider">
                             <BedDouble size={16} /> Available Suites
@@ -281,7 +301,44 @@ const Home = () => {
                             Choose and Book Your Suite
                         </h2>
                     </div>
-                    <p className="text-xs sm:text-sm text-slate-500 max-w-sm">Click any suite to open the reservation form.</p>
+
+                    {/* Room Search & Filter Bar */}
+                    <div className="flex flex-wrap items-center gap-2.5">
+                        <div className="relative flex-1 sm:flex-initial">
+                            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                            <input
+                                type="text"
+                                placeholder="Search suites by name, view..."
+                                value={searchQuery}
+                                onChange={e => setSearchQuery(e.target.value)}
+                                className="input input-sm input-bordered pl-9 rounded-xl w-full sm:w-60 bg-white"
+                            />
+                        </div>
+
+                        <select
+                            className="select select-sm select-bordered rounded-xl bg-white text-xs font-semibold"
+                            value={selectedCategory}
+                            onChange={e => setSelectedCategory(e.target.value)}
+                        >
+                            <option value="">All Categories</option>
+                            <option value="Couple">Couple</option>
+                            <option value="Family Suite">Family Suite</option>
+                            <option value="Double Bed">Double Bed</option>
+                            <option value="Standard">Standard</option>
+                        </select>
+
+                        <select
+                            className="select select-sm select-bordered rounded-xl bg-white text-xs font-semibold"
+                            value={selectedView}
+                            onChange={e => setSelectedView(e.target.value)}
+                        >
+                            <option value="">All Views</option>
+                            <option value="Sea View">Sea View</option>
+                            <option value="Balcony Sea View">Balcony Sea View</option>
+                            <option value="Balcony">Balcony</option>
+                            <option value="Non-Balcony">Non-Balcony</option>
+                        </select>
+                    </div>
                 </div>
 
                 {roomsLoading ? (
@@ -304,15 +361,23 @@ const Home = () => {
                             </div>
                         ))}
                     </div>
-                ) : rooms.length === 0 ? (
-                    <div className="text-center py-16 bg-white rounded-3xl border border-slate-200 shadow-xs">
-                        <BedDouble size={48} className="mx-auto text-slate-300 mb-3" />
-                        <h3 className="text-lg font-bold text-slate-700">No rooms available right now</h3>
-                        <p className="text-xs text-slate-500 mt-1">Please check back soon or contact reception.</p>
+                ) : filteredRooms.length === 0 ? (
+                    <div className="text-center py-16 bg-white rounded-3xl border border-slate-200 shadow-xs space-y-2">
+                        <BedDouble size={48} className="mx-auto text-slate-300 mb-2" />
+                        <h3 className="text-lg font-bold text-slate-700">No rooms match your search</h3>
+                        <p className="text-xs text-slate-500">Try adjusting your keyword or category filters.</p>
+                        {(searchQuery || selectedCategory || selectedView) && (
+                            <button 
+                                onClick={() => { setSearchQuery(''); setSelectedCategory(''); setSelectedView(''); }}
+                                className="btn btn-sm btn-ghost text-teal-700 underline mt-2"
+                            >
+                                Reset all filters
+                            </button>
+                        )}
                     </div>
                 ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
-                        {rooms.map(room => {
+                        {filteredRooms.map(room => {
                             const allImages = room.images?.length
                                 ? room.images.map(img => typeof img === 'string' ? img : img.url)
                                 : room.imageUrl ? [room.imageUrl] : []
@@ -321,7 +386,7 @@ const Home = () => {
 
                             return (
                                 <div key={room._id} className="group bg-white rounded-3xl overflow-hidden border border-slate-200/90 shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col">
-                                    <div className="relative h-60 sm:h-64 bg-slate-100 overflow-hidden select-none">
+                                    <Link to={`/room/${room._id}`} className="relative h-60 sm:h-64 bg-slate-100 overflow-hidden select-none block">
                                         {currentImgSrc ? (
                                             <img src={currentImgSrc} alt={room.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
                                         ) : (
@@ -329,30 +394,32 @@ const Home = () => {
                                                 <BedDouble size={40} /><span className="text-xs mt-1 font-medium">Miami Beach Resort</span>
                                             </div>
                                         )}
-                                        <div className="absolute top-3 left-3 flex flex-wrap gap-1.5">
+                                        <div className="absolute top-3 left-3 flex flex-wrap gap-1.5 z-10">
                                             <span className="badge badge-sm bg-slate-900/80 backdrop-blur-md text-white border-none font-semibold text-[10px]">{room.category}</span>
                                             <span className="badge badge-sm bg-teal-600/90 backdrop-blur-md text-white border-none font-semibold text-[10px]">{room.view}</span>
                                         </div>
                                         {allImages.length > 1 && (
                                             <>
-                                                <button onClick={(e) => handlePrevImage(e, room._id, allImages.length)} className="absolute left-2 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-slate-900/70 text-white flex items-center justify-center hover:bg-slate-900 transition-colors">
+                                                <button onClick={(e) => handlePrevImage(e, room._id, allImages.length)} className="absolute left-2 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-slate-900/70 text-white flex items-center justify-center hover:bg-slate-900 transition-colors z-10">
                                                     <ChevronLeft size={16} />
                                                 </button>
-                                                <button onClick={(e) => handleNextImage(e, room._id, allImages.length)} className="absolute right-2 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-slate-900/70 text-white flex items-center justify-center hover:bg-slate-900 transition-colors">
+                                                <button onClick={(e) => handleNextImage(e, room._id, allImages.length)} className="absolute right-2 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-slate-900/70 text-white flex items-center justify-center hover:bg-slate-900 transition-colors z-10">
                                                     <ChevronRight size={16} />
                                                 </button>
-                                                <div className="absolute bottom-3 left-3 bg-slate-900/70 backdrop-blur-md px-2 py-0.5 rounded-md text-[10px] font-bold text-white">
+                                                <div className="absolute bottom-3 left-3 bg-slate-900/70 backdrop-blur-md px-2 py-0.5 rounded-md text-[10px] font-bold text-white z-10">
                                                     {currentIdx + 1} / {allImages.length}
                                                 </div>
                                             </>
                                         )}
-                                        <div className="absolute bottom-3 right-3 bg-white/95 backdrop-blur-md px-3 py-1 rounded-xl shadow-md font-bold text-slate-900 text-xs sm:text-sm">
+                                        <div className="absolute bottom-3 right-3 bg-white/95 backdrop-blur-md px-3 py-1 rounded-xl shadow-md font-bold text-slate-900 text-xs sm:text-sm z-10">
                                             ৳{room.price?.toLocaleString()} <span className="text-[10px] font-normal text-slate-500">/ night</span>
                                         </div>
-                                    </div>
+                                    </Link>
                                     <div className="p-5 sm:p-6 space-y-4 flex-1 flex flex-col justify-between">
                                         <div>
-                                            <h3 className="text-lg sm:text-xl font-bold text-slate-900 group-hover:text-teal-700 transition-colors">{room.name}</h3>
+                                            <Link to={`/room/${room._id}`}>
+                                                <h3 className="text-lg sm:text-xl font-bold text-slate-900 group-hover:text-teal-700 transition-colors">{room.name}</h3>
+                                            </Link>
                                             <p className="text-xs text-slate-500 mt-1.5 line-clamp-2 leading-relaxed">
                                                 {room.description || "Air-conditioned premium suite featuring comfortable bedding, fresh linen, generator backup, and modern washroom."}
                                             </p>
@@ -361,12 +428,20 @@ const Home = () => {
                                             <span className="flex items-center gap-1.5 font-semibold"><Users size={14} className="text-teal-600 shrink-0" /> Max {room.capacity} Guests</span>
                                             <span className="flex items-center gap-1.5 font-semibold"><Waves size={14} className="text-teal-600 shrink-0" /> Pool Access</span>
                                         </div>
-                                        <button
-                                            onClick={() => handleOpenBookingModal(room)}
-                                            className="btn btn-primary w-full rounded-2xl gap-2 font-bold shadow-sm hover:shadow-md hover:shadow-teal-500/20 text-white text-sm"
-                                        >
-                                            <span>Book This Room</span><ArrowRight size={15} />
-                                        </button>
+                                        <div className="flex items-center gap-2">
+                                            <Link
+                                                to={`/room/${room._id}`}
+                                                className="btn btn-outline border-slate-300 text-slate-700 hover:bg-slate-50 rounded-2xl text-xs sm:text-sm px-3.5"
+                                            >
+                                                Details
+                                            </Link>
+                                            <button
+                                                onClick={() => handleOpenBookingModal(room)}
+                                                className="btn btn-primary flex-1 rounded-2xl gap-2 font-bold shadow-sm hover:shadow-md hover:shadow-teal-500/20 text-white text-xs sm:text-sm"
+                                            >
+                                                <span>Book Now</span><ArrowRight size={15} />
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
                             )

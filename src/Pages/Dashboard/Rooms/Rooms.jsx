@@ -1,23 +1,26 @@
 import React, { useState } from 'react'
+import { Link } from 'react-router'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
 import useAxiosSecure from '../../../hooks/useAxiosSecure'
 import toast from 'react-hot-toast'
 import { showConfirmAlert } from '../../../utils/customSwal'
-import { 
-    Plus, 
-    Pencil, 
-    Trash2, 
-    ToggleLeft, 
-    ToggleRight, 
-    Upload, 
-    BedDouble, 
-    Users, 
-    Eye, 
-    Sparkles, 
+import {
+    Plus,
+    Pencil,
+    Trash2,
+    ToggleLeft,
+    ToggleRight,
+    Upload,
+    BedDouble,
+    Users,
+    Eye,
+    Sparkles,
     Image as ImageIcon,
     X,
-    Layers
+    Layers,
+    Search,
+    Filter
 } from 'lucide-react'
 
 const CLOUDINARY_CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME
@@ -30,6 +33,9 @@ const Rooms = () => {
     const [editRoom, setEditRoom] = useState(null)
     const [uploading, setUploading] = useState(false)
     const [uploadedImages, setUploadedImages] = useState([]) // Array of { url, publicId }
+    const [search, setSearch] = useState("")
+    const [categoryFilter, setCategoryFilter] = useState("")
+    const [statusFilter, setStatusFilter] = useState("")
 
     const { register: registerAdd, handleSubmit: handleAddSubmit, reset: resetAdd, formState: { errors: addErrors } } = useForm()
     const { register: registerEdit, handleSubmit: handleEditSubmit, reset: resetEdit, formState: { errors: editErrors } } = useForm()
@@ -40,6 +46,19 @@ const Rooms = () => {
             const res = await axiosSecure.get("/rooms")
             return res.data
         }
+    })
+
+    const filteredRooms = rooms.filter(room => {
+        if (statusFilter && room.status !== statusFilter) return false
+        if (categoryFilter && room.category !== categoryFilter) return false
+        if (search) {
+            const s = search.toLowerCase()
+            return room.name?.toLowerCase().includes(s) ||
+                room.category?.toLowerCase().includes(s) ||
+                room.view?.toLowerCase().includes(s) ||
+                room.description?.toLowerCase().includes(s)
+        }
+        return true
     })
 
     // Multi-image upload to Cloudinary
@@ -162,11 +181,11 @@ const Rooms = () => {
     const handleToggleStatus = (room) => {
         const isActivating = room.status !== "active"
         const toastId = toast.loading(isActivating ? "Activating room..." : "Deactivating room...")
-        statusMutation.mutate({ 
-            id: room._id, 
-            status: isActivating ? "active" : "inactive", 
-            toastId, 
-            isActivating 
+        statusMutation.mutate({
+            id: room._id,
+            status: isActivating ? "active" : "inactive",
+            toastId,
+            isActivating
         })
     }
 
@@ -234,13 +253,13 @@ const Rooms = () => {
                     <label className={`btn btn-sm btn-outline border-slate-300 gap-2 cursor-pointer ${uploading ? "btn-disabled" : ""}`}>
                         <Upload size={15} />
                         {uploading ? "Uploading..." : "Upload Multiple Photos"}
-                        <input 
-                            type="file" 
-                            multiple 
-                            accept="image/*" 
-                            className="hidden" 
-                            onChange={handleMultipleImageUpload} 
-                            disabled={uploading} 
+                        <input
+                            type="file"
+                            multiple
+                            accept="image/*"
+                            className="hidden"
+                            onChange={handleMultipleImageUpload}
+                            disabled={uploading}
                         />
                     </label>
                     <span className="text-xs text-slate-500">Hold Ctrl/Shift to pick multiple images</span>
@@ -274,39 +293,92 @@ const Rooms = () => {
 
     return (
         <div className="space-y-6">
-            {/* Header */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            {/* Header and Filter Controls */}
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
                 <div>
                     <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 font-serif tracking-tight">
                         Rooms Management
                     </h1>
                     <p className="text-xs sm:text-sm text-slate-500 mt-1">
-                        Add, edit, manage suites and control bookability on the public website.
+                        Add, edit, search suites and control book ability on the public website.
                     </p>
                 </div>
-                <button
-                    onClick={() => { setAddModalOpen(true); setUploadedImages([]); resetAdd() }}
-                    className="btn btn-primary btn-sm rounded-xl gap-2 shadow-sm shadow-teal-600/20 text-white"
-                >
-                    <Plus size={16} /> Add New Room
-                </button>
+
+                <div className="flex flex-wrap items-center gap-2.5">
+
+
+                    <button
+                        onClick={() => { setAddModalOpen(true); setUploadedImages([]); resetAdd() }}
+                        className="btn btn-primary btn-sm rounded-xl gap-2 shadow-sm shadow-teal-600/20 text-white"
+                    >
+                        <Plus size={16} /> Add New Room
+                    </button>
+
+                    <button
+                        // onClick={() => { setAddModalOpen(true); setUploadedImages([]); resetAdd() }}
+                        className="btn btn-primary btn-sm rounded-xl gap-2 shadow-sm shadow-teal-600/20 text-white"
+                    >
+                        <Plus size={16} /> Add New Category
+                    </button>
+                </div>
             </div>
+            <div className='flex justify-between'>
+
+                {/* Search Input */}
+                <div className="">
+                    <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 " />
+                    <input
+                        type="text"
+                        placeholder="Search rooms..."
+                        value={search}
+                        onChange={e => setSearch(e.target.value)}
+                        className="input input-sm input-bordered pl-9 rounded-xl w-44 sm:w-52 bg-white min-w-64"
+                    />
+                </div>
+
+                <div className='flex gap-5 '>
+
+                    {/* Category Filter */}
+                    <select className="select select-sm select-bordered rounded-xl bg-white text-xs font-semibold min-w-64"
+                        value={categoryFilter}
+                        onChange={e => setCategoryFilter(e.target.value)}
+                    >
+                        <option value="">All Categories</option>
+                        <option value="Couple">Couple</option>
+                        <option value="Family Suite">Family Suite</option>
+                        <option value="Double Bed">Double Bed</option>
+                        <option value="Standard">Standard</option>
+                    </select>
+
+                    {/* Status Filter */}
+                    <select className="select select-sm select-bordered rounded-xl bg-white text-xs font-semibold min-w-64"
+                        value={statusFilter}
+                        onChange={e => setStatusFilter(e.target.value)}
+                    >
+                        <option value="">All Statuses</option>
+                        <option value="active">Active (Bookable)</option>
+                        <option value="inactive">Deactivated</option>
+                    </select>
+                </div>
+
+            </div>
+
 
             {/* Desktop Table */}
             <div className="hidden md:block bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
                 <div className="overflow-x-auto">
-                    <table className="table table-zebra w-full">
+                    <table className="table table-zebra w-full whitespace-nowrap">
                         <thead>
-                            <tr className="bg-slate-50 text-slate-600 font-bold text-xs uppercase tracking-wider">
-                                <th>#</th>
-                                <th>Photo Gallery</th>
-                                <th>Room Name</th>
-                                <th>Category</th>
-                                <th>View</th>
-                                <th>Price / Night</th>
-                                <th>Capacity</th>
-                                <th>Status</th>
-                                <th className="text-right">Actions</th>
+                            <tr className="bg-slate-50 text-slate-600 font-bold text-xs uppercase tracking-wider whitespace-nowrap">
+                                <th className="whitespace-nowrap w-10">#</th>
+                                <th className="whitespace-nowrap">Photo Gallery</th>
+                                <th className="whitespace-nowrap">Room Name</th>
+                                <th className="whitespace-nowrap">Category</th>
+                                <th className="whitespace-nowrap">View</th>
+                                <th className="whitespace-nowrap">Price / Night</th>
+                                <th className="whitespace-nowrap">Capacity</th>
+                                <th className="whitespace-nowrap">Status</th>
+                                <th className="text-right whitespace-nowrap min-w-[140px]">Actions</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 text-sm">
@@ -324,18 +396,18 @@ const Rooms = () => {
                                         <td className="text-right"><div className="h-8 bg-slate-200 rounded-lg w-24 ml-auto"></div></td>
                                     </tr>
                                 ))
-                            ) : rooms.length === 0 ? (
+                            ) : filteredRooms.length === 0 ? (
                                 <tr>
                                     <td colSpan={9} className="text-center py-12 text-slate-400">
                                         <BedDouble size={36} className="mx-auto mb-2 opacity-50" />
-                                        No rooms added yet. Click "Add New Room" above.
+                                        No rooms found matching your criteria.
                                     </td>
                                 </tr>
                             ) : (
-                                rooms.map((room, i) => (
+                                filteredRooms.map((room, i) => (
                                     <tr key={room._id} className="hover:bg-slate-50/80 transition-colors">
-                                        <td className="font-mono text-xs text-slate-400">{i + 1}</td>
-                                        <td>
+                                        <td className="font-mono text-xs text-slate-400 whitespace-nowrap">{i + 1}</td>
+                                        <td className="whitespace-nowrap">
                                             <div className="relative inline-block">
                                                 {room.imageUrl ? (
                                                     <img src={room.imageUrl} alt={room.name} className="w-14 h-10 object-cover rounded-lg border border-slate-200" />
@@ -351,30 +423,40 @@ const Rooms = () => {
                                                 )}
                                             </div>
                                         </td>
-                                        <td className="font-bold text-slate-900">{room.name}</td>
-                                        <td>
-                                            <span className="badge badge-sm bg-slate-100 text-slate-700 border-none font-medium">
+                                        <td className="font-bold text-slate-900 whitespace-nowrap">
+                                            <Link to={`/room/${room._id}`} className="hover:text-teal-700 transition-colors">
+                                                {room.name}
+                                            </Link>
+                                        </td>
+                                        <td className="whitespace-nowrap">
+                                            <span className="badge badge-sm bg-slate-100 text-slate-700 border-none font-medium whitespace-nowrap">
                                                 {room.category}
                                             </span>
                                         </td>
-                                        <td>
-                                            <span className="badge badge-sm bg-teal-50 text-teal-700 border border-teal-200/60 font-medium">
+                                        <td className="whitespace-nowrap">
+                                            <span className="badge badge-sm bg-teal-50 text-teal-700 border border-teal-200/60 font-medium whitespace-nowrap">
                                                 {room.view}
                                             </span>
                                         </td>
-                                        <td className="font-semibold text-slate-900">৳{room.price?.toLocaleString()}</td>
-                                        <td className="text-slate-600">{room.capacity} Persons</td>
-                                        <td>
-                                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${
-                                                room.status === "active" 
-                                                    ? "bg-emerald-50 text-emerald-700 border border-emerald-200" 
-                                                    : "bg-rose-50 text-rose-700 border border-rose-200"
-                                            }`}>
+                                        <td className="font-semibold text-slate-900 whitespace-nowrap">৳{room.price?.toLocaleString()}</td>
+                                        <td className="text-slate-600 whitespace-nowrap">{room.capacity} Persons</td>
+                                        <td className="whitespace-nowrap">
+                                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold whitespace-nowrap ${room.status === "active"
+                                                ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                                                : "bg-rose-50 text-rose-700 border border-rose-200"
+                                                }`}>
                                                 {room.status === "active" ? "Active (Bookable)" : "Deactivated"}
                                             </span>
                                         </td>
-                                        <td className="text-right">
-                                            <div className="inline-flex items-center gap-1">
+                                        <td className="text-right whitespace-nowrap">
+                                            <div className="inline-flex items-center gap-1 shrink-0">
+                                                <Link
+                                                    to={`/room/${room._id}`}
+                                                    className="btn btn-ghost btn-xs btn-square text-slate-500 hover:text-teal-700 hover:bg-teal-50"
+                                                    title="View Room Page"
+                                                >
+                                                    <Eye size={15} />
+                                                </Link>
                                                 <button
                                                     onClick={() => handleToggleStatus(room)}
                                                     className="btn btn-ghost btn-xs btn-square"
@@ -386,15 +468,15 @@ const Rooms = () => {
                                                         <ToggleLeft size={22} className="text-slate-400" />
                                                     )}
                                                 </button>
-                                                <button 
-                                                    onClick={() => handleOpenEdit(room)} 
+                                                <button
+                                                    onClick={() => handleOpenEdit(room)}
                                                     className="btn btn-ghost btn-xs btn-square text-teal-700 hover:bg-teal-50"
                                                     title="Edit Room"
                                                 >
                                                     <Pencil size={15} />
                                                 </button>
-                                                <button 
-                                                    onClick={() => handleDelete(room._id, room.name)} 
+                                                <button
+                                                    onClick={() => handleDelete(room._id, room.name)}
                                                     className="btn btn-ghost btn-xs btn-square text-red-500 hover:bg-red-50"
                                                     title="Delete Room"
                                                 >
@@ -426,16 +508,16 @@ const Rooms = () => {
                             <div className="h-9 bg-slate-200 rounded-xl w-full"></div>
                         </div>
                     ))
-                ) : rooms.length === 0 ? (
+                ) : filteredRooms.length === 0 ? (
                     <div className="bg-white p-8 rounded-2xl text-center text-slate-400 border border-slate-200">
                         <BedDouble size={36} className="mx-auto mb-2 opacity-50" />
-                        No rooms added yet.
+                        No rooms found matching your search.
                     </div>
                 ) : (
-                    rooms.map(room => (
+                    filteredRooms.map(room => (
                         <div key={room._id} className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs space-y-3">
                             <div className="flex gap-3">
-                                <div className="relative w-20 h-20 sm:w-24 sm:h-24 rounded-xl overflow-hidden bg-slate-100 shrink-0 border border-slate-200">
+                                <Link to={`/room/${room._id}`} className="relative w-20 h-20 sm:w-24 sm:h-24 rounded-xl overflow-hidden bg-slate-100 shrink-0 border border-slate-200">
                                     {room.imageUrl ? (
                                         <img src={room.imageUrl} alt={room.name} className="w-full h-full object-cover" />
                                     ) : (
@@ -448,9 +530,11 @@ const Rooms = () => {
                                             +{room.images.length}
                                         </span>
                                     )}
-                                </div>
+                                </Link>
                                 <div className="flex-1 min-w-0">
-                                    <h3 className="font-bold text-slate-900 text-sm truncate">{room.name}</h3>
+                                    <Link to={`/room/${room._id}`}>
+                                        <h3 className="font-bold text-slate-900 text-sm truncate hover:text-teal-700">{room.name}</h3>
+                                    </Link>
                                     <div className="flex flex-wrap gap-1 mt-1">
                                         <span className="badge badge-xs bg-slate-100 text-slate-700 border-none font-medium">
                                             {room.category}
@@ -467,16 +551,22 @@ const Rooms = () => {
 
                             <div className="flex items-center justify-between pt-2 border-t border-slate-100 text-xs">
                                 <div className="flex items-center gap-1.5">
-                                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold ${
-                                        room.status === "active" 
-                                            ? "bg-emerald-50 text-emerald-700 border border-emerald-200" 
-                                            : "bg-rose-50 text-rose-700 border border-rose-200"
-                                    }`}>
+                                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold ${room.status === "active"
+                                        ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                                        : "bg-rose-50 text-rose-700 border border-rose-200"
+                                        }`}>
                                         {room.status === "active" ? "Active" : "Deactivated"}
                                     </span>
                                     <span className="text-slate-500 text-[11px]">• {room.capacity} Persons</span>
                                 </div>
                                 <div className="flex items-center gap-1">
+                                    <Link
+                                        to={`/room/${room._id}`}
+                                        className="btn btn-ghost btn-xs btn-square text-slate-500 hover:text-teal-700"
+                                        title="View Room Page"
+                                    >
+                                        <Eye size={15} />
+                                    </Link>
                                     <button
                                         onClick={() => handleToggleStatus(room)}
                                         className="btn btn-ghost btn-xs btn-square"
@@ -488,15 +578,15 @@ const Rooms = () => {
                                             <ToggleLeft size={22} className="text-slate-400" />
                                         )}
                                     </button>
-                                    <button 
-                                        onClick={() => handleOpenEdit(room)} 
+                                    <button
+                                        onClick={() => handleOpenEdit(room)}
                                         className="btn btn-ghost btn-xs btn-square text-teal-700 hover:bg-teal-50"
                                         title="Edit Room"
                                     >
                                         <Pencil size={15} />
                                     </button>
-                                    <button 
-                                        onClick={() => handleDelete(room._id, room.name)} 
+                                    <button
+                                        onClick={() => handleDelete(room._id, room.name)}
                                         className="btn btn-ghost btn-xs btn-square text-red-500 hover:bg-red-50"
                                         title="Delete Room"
                                     >

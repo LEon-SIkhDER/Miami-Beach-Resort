@@ -94,16 +94,16 @@ const Users = () => {
             {/* Desktop Table */}
             <div className="hidden md:block bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
                 <div className="overflow-x-auto">
-                    <table className="table table-zebra w-full">
+                    <table className="table table-zebra w-full whitespace-nowrap">
                         <thead>
-                            <tr className="bg-slate-50 text-slate-600 font-bold text-xs uppercase tracking-wider">
-                                <th>#</th>
-                                <th>User</th>
-                                <th>Email</th>
-                                <th>Phone</th>
-                                <th>Role</th>
-                                <th>Joined Date</th>
-                                <th className="text-right">Action</th>
+                            <tr className="bg-slate-50 text-slate-600 font-bold text-xs uppercase tracking-wider whitespace-nowrap">
+                                <th className="whitespace-nowrap w-12">#</th>
+                                <th className="whitespace-nowrap">User</th>
+                                <th className="whitespace-nowrap">Email</th>
+                                <th className="whitespace-nowrap">Phone</th>
+                                <th className="whitespace-nowrap">Role</th>
+                                <th className="whitespace-nowrap">Joined Date</th>
+                                <th className="text-right whitespace-nowrap min-w-[150px]">Action</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 text-sm">
@@ -136,8 +136,8 @@ const Users = () => {
                                     const isCurrentAdmin = u.email?.toLowerCase() === currentUser?.email?.toLowerCase() || (currentUser?.uid && u.uid === currentUser.uid)
                                     return (
                                         <tr key={u._id} className="hover:bg-slate-50/80 transition-colors">
-                                            <td className="font-mono text-xs text-slate-400">{i + 1}</td>
-                                            <td>
+                                            <td className="font-mono text-xs text-slate-400 whitespace-nowrap">{i + 1}</td>
+                                            <td className="whitespace-nowrap">
                                                 <div className="flex items-center gap-3">
                                                     <div className="w-8 h-8 rounded-full bg-teal-100 text-teal-800 font-bold text-xs flex items-center justify-center shrink-0">
                                                         {u.name ? u.name.charAt(0).toUpperCase() : u.email?.charAt(0).toUpperCase() || 'U'}
@@ -146,7 +146,7 @@ const Users = () => {
                                                         <div className="flex items-center gap-2">
                                                             <span className="font-bold text-slate-900">{u.name || "Unnamed User"}</span>
                                                             {isCurrentAdmin && (
-                                                                <span className="badge badge-xs bg-teal-100 text-teal-800 font-bold border-none px-1.5 py-0.5 rounded-md">
+                                                                <span className="badge badge-xs bg-teal-100 text-teal-800 font-bold border-none px-1.5 py-0.5 rounded-md shrink-0">
                                                                     You
                                                                 </span>
                                                             )}
@@ -154,10 +154,10 @@ const Users = () => {
                                                     </div>
                                                 </div>
                                             </td>
-                                            <td className="text-slate-600">{u.email}</td>
-                                            <td className="text-slate-600">{u.phone || "—"}</td>
-                                            <td>
-                                                <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold ${
+                                            <td className="text-slate-600 whitespace-nowrap">{u.email}</td>
+                                            <td className="text-slate-600 whitespace-nowrap">{u.phone || "—"}</td>
+                                            <td className="whitespace-nowrap">
+                                                <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold whitespace-nowrap ${
                                                     u.role === "admin" 
                                                         ? "bg-amber-50 text-amber-800 border border-amber-200" 
                                                         : "bg-slate-100 text-slate-700"
@@ -166,29 +166,31 @@ const Users = () => {
                                                     {u.role === "admin" ? "Admin" : "User"}
                                                 </span>
                                             </td>
-                                            <td className="text-xs text-slate-500">
+                                            <td className="text-xs text-slate-500 whitespace-nowrap">
                                                 {u.created_At ? new Date(u.created_At).toLocaleDateString() : "—"}
                                             </td>
-                                            <td className="text-right">
-                                                {isCurrentAdmin ? (
-                                                    <span className="inline-flex items-center gap-1 text-xs font-medium text-slate-400 bg-slate-100 px-3 py-1 rounded-lg">
-                                                        <CheckCircle2 size={12} className="text-teal-600" /> Logged in
-                                                    </span>
-                                                ) : u.role === "admin" ? (
-                                                    <button
-                                                        onClick={() => handleRemoveAdmin(u)}
-                                                        className="btn btn-outline border-rose-300 text-rose-600 hover:bg-rose-50 btn-xs rounded-lg gap-1"
-                                                    >
-                                                        <User size={12} /> Demote to User
-                                                    </button>
-                                                ) : (
-                                                    <button
-                                                        onClick={() => handleMakeAdmin(u)}
-                                                        className="btn btn-primary btn-xs rounded-lg gap-1 text-white shadow-xs"
-                                                    >
-                                                        <Shield size={12} /> Grant Admin
-                                                    </button>
-                                                )}
+                                            <td className="text-right whitespace-nowrap">
+                                                <div className="inline-flex justify-end shrink-0">
+                                                    {isCurrentAdmin ? (
+                                                        <span className="inline-flex items-center gap-1 text-xs font-medium text-slate-400 bg-slate-100 px-3 py-1 rounded-lg whitespace-nowrap shrink-0">
+                                                            <CheckCircle2 size={12} className="text-teal-600" /> Logged in
+                                                        </span>
+                                                    ) : u.role === "admin" ? (
+                                                        <button
+                                                            onClick={() => handleRemoveAdmin(u)}
+                                                            className="btn btn-outline border-rose-300 text-rose-600 hover:bg-rose-50 btn-xs rounded-lg gap-1 whitespace-nowrap shrink-0"
+                                                        >
+                                                            <User size={12} /> Demote to User
+                                                        </button>
+                                                    ) : (
+                                                        <button
+                                                            onClick={() => handleMakeAdmin(u)}
+                                                            className="btn btn-primary btn-xs rounded-lg gap-1 text-white shadow-xs whitespace-nowrap shrink-0"
+                                                        >
+                                                            <Shield size={12} /> Grant Admin
+                                                        </button>
+                                                    )}
+                                                </div>
                                             </td>
                                         </tr>
                                     )
