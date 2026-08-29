@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import { Link } from 'react-router'
 import { useQuery } from '@tanstack/react-query'
-import useAxiosSecure from '../../../hooks/useAxiosSecure'
+import axios from 'axios'
 import {
     Plus,
     Pencil,
@@ -10,6 +10,7 @@ import {
     Eye,
     Image as ImageIcon,
     Search,
+    EllipsisVertical,
 } from 'lucide-react'
 import AddRoom from './AddRoom'
 import EditRoom from './EditRoom'
@@ -17,16 +18,19 @@ import DeleteRoom from './DeleteRoom'
 import ToggleRoomStatus from './ToggleRoomStatus'
 import { parseFacilityList } from './roomUtils'
 
+const SERVER_URL = import.meta.env.VITE_SERVER_URL || "http://localhost:5000"
+
 const Rooms = () => {
-    const axiosSecure = useAxiosSecure()
     const [search, setSearch] = useState("")
     const [categoryFilter, setCategoryFilter] = useState("")
     const [statusFilter, setStatusFilter] = useState("")
 
-    const { data: rooms = [], isLoading } = useQuery({
-        queryKey: ["all-rooms"],
+    const { data: rooms = [], isLoading, refetch } = useQuery({
+        queryKey: ["all-rooms", statusFilter],
         queryFn: async () => {
-            const res = await axiosSecure.get("/rooms")
+            const res = await axios.get(`${SERVER_URL}/rooms`, {
+                params: statusFilter ? { status: statusFilter } : {}
+            })
             return res.data
         }
     })
@@ -34,13 +38,12 @@ const Rooms = () => {
     const { data: categories = [] } = useQuery({
         queryKey: ["category-and-pricing"],
         queryFn: async () => {
-            const res = await axiosSecure.get("/categoryandpricing")
+            const res = await axios.get(`${SERVER_URL}/categoryandpricing`)
             return res.data
         }
     })
 
     const filteredRooms = rooms.filter(room => {
-        if (statusFilter && room.status !== statusFilter) return false
         if (categoryFilter && room.category !== categoryFilter) return false
         if (search) {
             const s = search.toLowerCase()
@@ -65,7 +68,7 @@ const Rooms = () => {
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2.5">
-                    <AddRoom className="btn btn-primary btn-sm rounded-xl gap-2 shadow-sm shadow-teal-600/20 text-white">
+                    <AddRoom refetch={refetch} className="btn btn-primary btn-sm rounded-xl gap-2 shadow-sm shadow-teal-600/20 text-white">
                         <Plus size={16} /> Add New Room
                     </AddRoom>
                 </div>
@@ -100,24 +103,24 @@ const Rooms = () => {
                     >
                         <option value="">All Statuses</option>
                         <option value="active">Active (Bookable)</option>
-                        <option value="inactive">Deactivated</option>
+                        <option value="inactive">Out of Order</option>
                     </select>
                 </div>
             </div>
 
-            <div className="hidden md:block bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
-                <div className="overflow-x-auto">
+            <div className="hidden md:block bg-white  border border-slate-200 shadow-xs ">
+                <div className="">
                     <table className="table table-zebra w-full whitespace-nowrap">
                         <thead>
                             <tr className="bg-slate-50 text-slate-600 font-bold text-xs uppercase tracking-wider whitespace-nowrap">
-                                <th className="whitespace-nowrap w-10">#</th>
+                                <th className="whitespace-nowrap w-10 ">#</th>
                                 <th className="whitespace-nowrap">Photo Gallery</th>
                                 <th className="whitespace-nowrap">Room Name</th>
                                 <th className="whitespace-nowrap">Category</th>
                                 <th className="whitespace-nowrap">Facilities</th>
                                 <th className="whitespace-nowrap">Price / Night</th>
                                 <th className="whitespace-nowrap">Status</th>
-                                <th className="text-right whitespace-nowrap min-w-[140px]">Actions</th>
+                                <th className="text-center whitespace-nowrap min-w-[140px] ">Actions</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 text-sm">
@@ -165,6 +168,7 @@ const Rooms = () => {
                                             <Link to={`/room/${room._id}`} className="hover:text-teal-700 transition-colors">
                                                 {room.name}
                                             </Link>
+                                            <h1 className='text-info'>{room.roomNo}</h1>
                                         </td>
                                         <td className="whitespace-nowrap">
                                             <span className="badge badge-sm bg-slate-100 text-slate-700 border-none font-medium whitespace-nowrap">
@@ -186,18 +190,12 @@ const Rooms = () => {
                                                 ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
                                                 : "bg-rose-50 text-rose-700 border border-rose-200"
                                                 }`}>
-                                                {room.status === "active" ? "Active (Bookable)" : "Deactivated"}
+                                                {room.status === "active" ? "Active" : "Out of Order"}
                                             </span>
                                         </td>
-                                        <td className="text-right whitespace-nowrap">
-                                            <div className="inline-flex items-center gap-1 shrink-0">
-                                                <Link
-                                                    to={`/room/${room._id}`}
-                                                    className="btn btn-ghost btn-xs btn-square text-slate-500 hover:text-teal-700 hover:bg-teal-50"
-                                                    title="View Room Page"
-                                                >
-                                                    <Eye size={15} />
-                                                </Link>
+                                        <td className="text-center whitespace-nowrap">
+                                            <div className="inline-flex items-center gap-1 shrink-0 ">
+                                                {/* 
                                                 <ToggleRoomStatus room={room} />
                                                 <EditRoom
                                                     room={room}
@@ -210,7 +208,44 @@ const Rooms = () => {
                                                     className="btn btn-ghost btn-xs btn-square text-red-500 hover:bg-red-50"
                                                 >
                                                     <Trash2 size={15} />
-                                                </DeleteRoom>
+                                                </DeleteRoom> */}
+                                                <div className="dropdown dropdown-left">
+                                                    <div tabIndex={0} role="button" className="cursor-pointer rounded-full hover:bg-gray-100 p-2 border border-transparent hover:border-gray-200"><EllipsisVertical size={18} /></div>
+                                                    <ul tabIndex={-1} className="dropdown-content menu bg-base-100 rounded-box z-1 w-52 p-2 shadow-sm">
+                                                        <li><Link to={`/room/${room._id}`} className=" text-slate-500 hover:text-teal-700 hover:bg-teal-50" title="View Room Page">
+                                                            <Eye size={15} /> View
+                                                        </Link></li>
+                                                        <li>
+                                                            <ToggleRoomStatus
+                                                                refetch={refetch}
+                                                                room={room}
+                                                                showLabel
+                                                                className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm ${room.status === "active"
+                                                                    ? "text-red-500 hover:text-red-600 hover:bg-red-50"
+                                                                    : "text-slate-500 hover:text-emerald-700 hover:bg-emerald-50"
+                                                                    }`}
+                                                            />
+                                                        </li>
+                                                        <li>
+                                                            <EditRoom
+                                                                refetch={refetch}
+                                                                room={room}
+                                                                className="flex items-center gap-2 rounded-lg text-slate-500 hover:text-teal-700 hover:bg-teal-50 px-3 py-2 text-sm"
+                                                            >
+                                                                <Pencil size={15} /> Edit
+                                                            </EditRoom>
+                                                        </li>
+                                                        <li>
+                                                            <DeleteRoom
+                                                                refetch={refetch}
+                                                                room={room}
+                                                                className="flex items-center gap-2 rounded-lg text-slate-500 hover:text-red-600 hover:bg-red-50 px-3 py-2 text-sm"
+                                                            >
+                                                                <Trash2 size={15} /> Delete
+                                                            </DeleteRoom>
+                                                        </li>
+                                                    </ul>
+                                                </div>
                                             </div>
                                         </td>
                                     </tr>
@@ -285,7 +320,7 @@ const Rooms = () => {
                                         ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
                                         : "bg-rose-50 text-rose-700 border border-rose-200"
                                         }`}>
-                                        {room.status === "active" ? "Active" : "Deactivated"}
+                                        {room.status === "active" ? "Active" : "Out of Order"}
                                     </span>
                                 </div>
                                 <div className="flex items-center gap-1">
@@ -296,14 +331,16 @@ const Rooms = () => {
                                     >
                                         <Eye size={15} />
                                     </Link>
-                                    <ToggleRoomStatus room={room} />
+                                    <ToggleRoomStatus room={room} refetch={refetch} />
                                     <EditRoom
+                                        refetch={refetch}
                                         room={room}
                                         className="btn btn-ghost btn-xs btn-square text-teal-700 hover:bg-teal-50"
                                     >
                                         <Pencil size={15} />
                                     </EditRoom>
                                     <DeleteRoom
+                                        refetch={refetch}
                                         room={room}
                                         className="btn btn-ghost btn-xs btn-square text-red-500 hover:bg-red-50"
                                     >

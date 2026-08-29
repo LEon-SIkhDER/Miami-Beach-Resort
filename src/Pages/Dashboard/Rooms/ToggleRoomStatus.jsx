@@ -1,53 +1,54 @@
-import React from 'react'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import React, { useState } from 'react'
 import toast from 'react-hot-toast'
 import { ToggleLeft, ToggleRight } from 'lucide-react'
-import useAxiosSecure from '../../../hooks/useAxiosSecure'
+import axios from 'axios'
 
-const ToggleRoomStatus = ({ room }) => {
-    const axiosSecure = useAxiosSecure()
-    const queryClient = useQueryClient()
+const SERVER_URL = import.meta.env.VITE_SERVER_URL || "http://localhost:5000"
 
-    const statusMutation = useMutation({
-        mutationFn: async ({ id, status }) => {
-            const res = await axiosSecure.patch(`/room/${id}`, { status })
-            return res.data
-        },
-        onSuccess: async (_, variables) => {
-            await queryClient.invalidateQueries({ queryKey: ["all-rooms"] })
-            await queryClient.invalidateQueries({ queryKey: ["active-rooms"] })
-            toast.dismiss(variables.toastId)
-            toast.success(variables.isActivating ? "Room activated and now visible on site!" : "Room deactivated and hidden from site!")
-        },
-        onError: (_, variables) => {
-            toast.dismiss(variables.toastId)
-            toast.error("Failed to change room status")
+const ToggleRoomStatus = ({ room, className, showLabel = false, refetch }) => {
+    const [isLoading, setIsLoading] = useState(false)
+    const isActive = room.status === "active"
+
+    const handleToggleStatus = async () => {
+        const isActivating = !isActive
+        const status = isActivating ? "active" : "inactive"
+        const toastId = toast.loading(isActivating ? "Activating room..." : "Marking room out of order...")
+
+        try {
+            setIsLoading(true)
+            await axios.patch(`${SERVER_URL}/room/${room._id}`, { status })
+            await refetch?.()
+            toast.success(isActivating ? "Room activated and now visible on site!" : "Room marked as out of order!", { id: toastId })
+        } catch (error) {
+            toast.error("Failed to change room status", { id: toastId })
+        } finally {
+            setIsLoading(false)
         }
-    })
-
-    const handleToggleStatus = () => {
-        const isActivating = room.status !== "active"
-        const toastId = toast.loading(isActivating ? "Activating room..." : "Deactivating room...")
-        statusMutation.mutate({
-            id: room._id,
-            status: isActivating ? "active" : "inactive",
-            toastId,
-            isActivating
-        })
     }
 
     return (
         <button
             type="button"
             onClick={handleToggleStatus}
-            className="btn btn-ghost btn-xs btn-square"
-            title={room.status === "active" ? "Click to Deactivate" : "Click to Activate"}
-            disabled={statusMutation.isPending}
+            className={className || "btn btn-ghost btn-xs btn-square"}
+            title={isActive ? "Mark Out of Order" : "Activate Room"}
+            disabled={isLoading}
         >
-            {room.status === "active" ? (
-                <ToggleRight size={22} className="text-emerald-600" />
+            {isLoading ? (
+                <>
+                    <span className="loading loading-spinner loading-xs" />
+                    {showLabel && "Updating..."}
+                </>
+            ) : isActive ? (
+                <>
+                    <ToggleLeft size={showLabel ? 15 : 22} className="text-red-500" />
+                    {showLabel && "Out of Order"}
+                </>
             ) : (
-                <ToggleLeft size={22} className="text-slate-400" />
+                <>
+                    <ToggleRight size={showLabel ? 15 : 22} className="text-emerald-600" />
+                    {showLabel && "Activate"}
+                </>
             )}
         </button>
     )

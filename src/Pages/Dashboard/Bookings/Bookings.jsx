@@ -6,13 +6,13 @@ import useAxiosSecure from '../../../hooks/useAxiosSecure'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
 import { showConfirmAlert } from '../../../utils/customSwal'
-import { 
-    CheckCircle2, 
-    XCircle, 
-    Calendar, 
-    Users as UsersIcon, 
-    Phone, 
-    Trash2, 
+import {
+    CheckCircle2,
+    XCircle,
+    Calendar,
+    Users as UsersIcon,
+    Phone,
+    Trash2,
     Search,
     Filter,
     BedDouble,
@@ -146,11 +146,11 @@ const Bookings = () => {
     const filteredBookings = bookings.filter(b => {
         if (!search) return true
         const s = search.toLowerCase()
-        return b.name?.toLowerCase().includes(s) || 
-               b.mobile?.toLowerCase().includes(s) || 
-               b.bookingId?.toLowerCase().includes(s) ||
-               b.roomName?.toLowerCase().includes(s) ||
-               b.roomCategory?.toLowerCase().includes(s)
+        return b.name?.toLowerCase().includes(s) ||
+            b.mobile?.toLowerCase().includes(s) ||
+            b.bookingId?.toLowerCase().includes(s) ||
+            b.roomName?.toLowerCase().includes(s) ||
+            b.roomCategory?.toLowerCase().includes(s)
     })
 
     return (
@@ -186,9 +186,12 @@ const Bookings = () => {
                         onChange={e => setStatusFilter(e.target.value)}
                     >
                         <option value="">All Statuses</option>
-                        <option value="pending">Pending</option>
-                        <option value="confirmed">Confirmed</option>
-                        <option value="cancelled">Cancelled</option>
+                        <option value="request">Request Booking</option>
+                        <option value="waiting">Payment Waiting</option>
+                        <option value="confirm">Booking Confirm</option>
+                        <option value="checked_in">Checked-In</option>
+                        <option value="checked_out">Checked-Out</option>
+                        <option value="out_of_order">Out Of Order</option>
                     </select>
                 </div>
             </div>
@@ -239,7 +242,7 @@ const Bookings = () => {
                                 filteredBookings.map(b => (
                                     <tr key={b._id} className="hover:bg-slate-50/80 transition-colors">
                                         <td className="whitespace-nowrap">
-                                            <Link 
+                                            <Link
                                                 to={`/dashboard/bookings/${b._id}`}
                                                 className="font-mono text-xs font-bold text-teal-700 bg-teal-50 hover:bg-teal-100 hover:text-teal-900 px-2.5 py-1 rounded-lg border border-teal-200/60 inline-flex items-center gap-1.5 transition-colors whitespace-nowrap"
                                                 title="View Booking Details"
@@ -272,7 +275,7 @@ const Bookings = () => {
                                         </td>
                                         <td className="text-right whitespace-nowrap">
                                             <div className="inline-flex items-center gap-1">
-                                                <Link 
+                                                <Link
                                                     to={`/dashboard/bookings/${b._id}`}
                                                     className="btn btn-ghost btn-xs btn-square text-teal-700 hover:bg-teal-50"
                                                     title="View Full Booking Details"
@@ -280,7 +283,7 @@ const Bookings = () => {
                                                     <Eye size={16} />
                                                 </Link>
                                                 {isAdmin && b.status === "pending" && (
-                                                    <button 
+                                                    <button
                                                         onClick={() => handleConfirm(b._id, b.bookingId)}
                                                         className="btn btn-ghost btn-xs btn-square text-emerald-600 hover:bg-emerald-50"
                                                         title="Confirm Reservation"
@@ -289,7 +292,7 @@ const Bookings = () => {
                                                     </button>
                                                 )}
                                                 {b.status === "pending" && (
-                                                    <button 
+                                                    <button
                                                         onClick={() => handleCancel(b._id, b.bookingId)}
                                                         className="btn btn-ghost btn-xs btn-square text-rose-500 hover:bg-rose-50"
                                                         title="Cancel Reservation"
@@ -298,7 +301,7 @@ const Bookings = () => {
                                                     </button>
                                                 )}
                                                 {isAdmin && (
-                                                    <button 
+                                                    <button
                                                         onClick={() => handleDelete(b._id, b.bookingId)}
                                                         className="btn btn-ghost btn-xs btn-square text-slate-400 hover:text-rose-600"
                                                         title="Delete Record"
@@ -346,7 +349,7 @@ const Bookings = () => {
                         <div key={b._id} className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-xs space-y-3">
                             <div className="flex items-start justify-between gap-2">
                                 <div className="min-w-0">
-                                    <Link 
+                                    <Link
                                         to={`/dashboard/bookings/${b._id}`}
                                         className="font-mono text-xs font-bold text-teal-700 bg-teal-50 hover:bg-teal-100 px-2 py-0.5 rounded-md border border-teal-200/50 inline-block"
                                     >
@@ -369,14 +372,14 @@ const Bookings = () => {
                             </div>
 
                             <div className="flex flex-wrap items-center gap-2 pt-1">
-                                <Link 
+                                <Link
                                     to={`/dashboard/bookings/${b._id}`}
                                     className="btn btn-sm btn-outline border-slate-300 text-slate-700 hover:bg-slate-50 rounded-xl flex-1 gap-1"
                                 >
                                     <Eye size={15} /> View Details
                                 </Link>
                                 {isAdmin && b.status === "pending" && (
-                                    <button 
+                                    <button
                                         onClick={() => handleConfirm(b._id, b.bookingId)}
                                         className="btn btn-sm btn-primary rounded-xl flex-1 text-white gap-1"
                                     >
@@ -384,7 +387,7 @@ const Bookings = () => {
                                     </button>
                                 )}
                                 {b.status === "pending" && (
-                                    <button 
+                                    <button
                                         onClick={() => handleCancel(b._id, b.bookingId)}
                                         className="btn btn-sm btn-outline border-rose-300 text-rose-600 hover:bg-rose-50 rounded-xl flex-1 gap-1"
                                     >
@@ -392,7 +395,7 @@ const Bookings = () => {
                                     </button>
                                 )}
                                 {isAdmin && (
-                                    <button 
+                                    <button
                                         onClick={() => handleDelete(b._id, b.bookingId)}
                                         className="btn btn-sm btn-ghost text-slate-400 hover:text-rose-600"
                                     >

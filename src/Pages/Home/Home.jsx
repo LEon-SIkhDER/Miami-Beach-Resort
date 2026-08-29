@@ -378,6 +378,7 @@ const Home = () => {
                             const currentIdx = activeImageIndices[room._id] || 0
                             const currentImgSrc = allImages[currentIdx] || room.imageUrl
                             const facilities = parseFacilityList(room.facility)
+                            console.log(facilities)
                             const roomName = getRoomDisplayName(room)
 
                             return (
@@ -610,8 +611,9 @@ const Home = () => {
                             <div className="form-control">
                                 <label className="label py-0.5"><span className="label-text font-semibold text-slate-700 text-xs">Special Requests / Notes</span></label>
                                 <textarea
-                                    name="specialNeeds" value={formData.specialNeeds} onChange={handleInput}
-                                    placeholder="Arrival time, extra mattress (paid), floor preference..."
+                                    name="address" value={formData.specialNeeds} onChange={handleInput}
+                                    // placeholder="Arrival time, extra mattress (paid), floor preference..."
+                                    placeholder='Address'
                                     className="textarea textarea-bordered w-full rounded-xl bg-slate-50 focus:bg-white text-xs sm:text-sm"
                                     rows={2}
                                 />

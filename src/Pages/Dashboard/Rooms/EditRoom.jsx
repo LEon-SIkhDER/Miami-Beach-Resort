@@ -1,69 +1,48 @@
 import React, { useRef, useState } from 'react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useForm } from 'react-hook-form'
+import { useQuery } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
 import { X } from 'lucide-react'
-import useAxiosSecure from '../../../hooks/useAxiosSecure'
+import axios from 'axios'
 import RoomImageUploader from './RoomImageUploader'
 import { getCategoryPrice, getYouTubeEmbedUrl } from './roomUtils'
+import { createPortal } from "react-dom";
 
-const EditRoom = ({ children, className, room }) => {
+const SERVER_URL = import.meta.env.VITE_SERVER_URL || "http://localhost:5000"
+
+const EditRoom = ({ children, className, room, refetch }) => {
     const modalRef = useRef()
-    const axiosSecure = useAxiosSecure()
-    const queryClient = useQueryClient()
+    const formRef = useRef()
     const [uploadedImages, setUploadedImages] = useState([])
-    const { register, handleSubmit, reset, watch, formState: { errors } } = useForm()
-    const selectedCategoryName = watch("category")
+    const [isSubmitting, setIsSubmitting] = useState(false)
+    const [selectedCategoryName, setSelectedCategoryName] = useState(room.category || "")
 
     const { data: categories = [] } = useQuery({
         queryKey: ["category-and-pricing"],
         queryFn: async () => {
-            const res = await axiosSecure.get("/categoryandpricing")
+            const res = await axios.get(`${SERVER_URL}/categoryandpricing`)
             return res.data
         }
     })
 
     const selectedPrice = getCategoryPrice(categories, selectedCategoryName) || Number(room.price || 0)
 
-    const editMutation = useMutation({
-        mutationFn: async ({ id, data }) => {
-            const res = await axiosSecure.patch(`/room/${id}`, data)
-            return res.data
-        },
-        onMutate: () => ({ toastId: toast.loading("Saving changes...") }),
-        onSuccess: async (_, __, context) => {
-            await queryClient.invalidateQueries({ queryKey: ["all-rooms"] })
-            await queryClient.invalidateQueries({ queryKey: ["active-rooms"] })
-            toast.dismiss(context?.toastId)
-            toast.success("Room updated successfully!")
-            setUploadedImages([])
-            modalRef.current?.close()
-        },
-        onError: (_, __, context) => {
-            toast.dismiss(context?.toastId)
-            toast.error("Failed to update room.")
-        }
-    })
-
     const handleOpen = () => {
         setUploadedImages(room.images || (room.imageUrl ? [{ url: room.imageUrl, publicId: room.imagePublicId }] : []))
-        reset({
-            name: room.name,
-            category: room.category,
-            facility: room.facility || "",
-            description: room.description || "",
-            video: room.video || "",
-        })
+        setSelectedCategoryName(room.category || "")
         modalRef.current?.showModal()
     }
 
     const handleClose = () => {
+        if (isSubmitting) return
         setUploadedImages([])
         modalRef.current?.close()
     }
 
-    const onSubmit = (data) => {
-        const video = String(data.video || "").trim()
+    const handleEditRoom = async (e) => {
+        e.preventDefault()
+
+        const formData = Object.fromEntries(new FormData(e.target))
+        const video = String(formData.video || "").trim()
         const youtubeEmbedUrl = getYouTubeEmbedUrl(video)
         if (video && !youtubeEmbedUrl) {
             toast.error("Please add a valid YouTube video link")
@@ -71,7 +50,7 @@ const EditRoom = ({ children, className, room }) => {
         }
 
         const payload = {
-            ...data,
+            ...formData,
             video: youtubeEmbedUrl,
             price: selectedPrice,
             capacity: Number(room.capacity || 2),
@@ -83,97 +62,124 @@ const EditRoom = ({ children, className, room }) => {
             payload.imagePublicId = uploadedImages[0]?.publicId
         }
 
-        editMutation.mutate({ id: room._id, data: payload })
+        const toastId = toast.loading("Saving changes...")
+
+        try {
+            setIsSubmitting(true)
+            await axios.patch(`${SERVER_URL}/room/${room._id}`, payload)
+            await refetch?.()
+            toast.success("Room updated successfully!", { id: toastId })
+            setUploadedImages([])
+            modalRef.current?.close()
+        } catch (error) {
+            toast.error("Failed to update room.", { id: toastId })
+        } finally {
+            setIsSubmitting(false)
+        }
     }
 
     return (
         <>
             <button type="button" onClick={handleOpen} className={className} title="Edit Room">{children}</button>
-            <dialog ref={modalRef} className="modal">
-                <div className="modal-box max-w-2xl bg-white rounded-3xl p-6 sm:p-8 shadow-2xl border border-slate-100">
-                    <div className="flex items-center justify-between pb-4 border-b border-slate-100 mb-6">
-                        <h3 className="font-bold text-xl font-serif text-slate-900">Edit Room</h3>
-                        <button type="button" onClick={handleClose} className="btn btn-ghost btn-sm btn-circle">
-                            <X size={18} />
-                        </button>
-                    </div>
-                    <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            <div className="form-control">
-                                <label className="label py-1"><span className="label-text font-semibold text-slate-700">Room Name</span></label>
-                                <input
-                                    type="text"
-                                    placeholder="Name of the room"
-                                    className={`input input-bordered w-full rounded-xl ${errors.name ? "input-error" : ""}`}
-                                    {...register("name", { required: "Name is required" })}
-                                />
-                            </div>
-                            <div className="form-control">
-                                <label className="label py-1"><span className="label-text font-semibold text-slate-700">Category</span></label>
-                                <select
-                                    className={`select select-bordered w-full rounded-xl ${errors.category ? "select-error" : ""}`}
-                                    {...register("category", { required: "Category is required" })}
-                                >
-                                    <option value="">Select Category</option>
-                                    {room.category && !categories.some(category => category.name === room.category) && (
-                                        <option value={room.category}>{room.category}</option>
-                                    )}
-                                    {categories.map(category => (
-                                        <option key={category._id} value={category.name}>{category.name}</option>
-                                    ))}
-                                </select>
-                                {selectedPrice > 0 && (
-                                    <span className="text-xs font-semibold text-teal-700 mt-1">
-                                        Price: ৳{selectedPrice.toLocaleString()} / night
-                                    </span>
-                                )}
-                            </div>
-                        </div>
 
-                        <div className="form-control">
-                            <label className="label py-1"><span className="label-text font-semibold text-slate-700">Facility</span></label>
-                            <input
-                                type="text"
-                                placeholder="AC, Wi-Fi, Smart TV, Balcony"
-                                className="input input-bordered w-full rounded-xl"
-                                {...register("facility")}
-                            />
-                        </div>
+            {createPortal(
 
-                        <div className="form-control">
-                            <label className="label py-1"><span className="label-text font-semibold text-slate-700">Description</span></label>
-                            <textarea
-                                placeholder="Description about room"
-                                className="textarea textarea-bordered w-full rounded-xl"
-                                rows={3}
-                                {...register("description")}
-                            />
-                        </div>
-
-                        <div className="form-control">
-                            <label className="label py-1"><span className="label-text font-semibold text-slate-700">Video</span></label>
-                            <input
-                                type="url"
-                                placeholder="https://www.youtube.com/watch?v=ZOxMPa-JBbY"
-                                className="input input-bordered w-full rounded-xl"
-                                {...register("video")}
-                            />
-                        </div>
-
-                        <RoomImageUploader uploadedImages={uploadedImages} setUploadedImages={setUploadedImages} />
-
-                        <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
-                            <button type="button" className="btn btn-ghost rounded-xl" onClick={handleClose}>Cancel</button>
-                            <button type="submit" className="btn btn-primary rounded-xl text-white px-6" disabled={editMutation.isPending}>
-                                {editMutation.isPending ? <span className="loading loading-spinner loading-sm" /> : "Save Changes"}
+                <dialog ref={modalRef} className="modal">
+                    <div className="modal-box max-w-2xl bg-white rounded-3xl p-6 sm:p-8 shadow-2xl border border-slate-100">
+                        <div className="flex items-center justify-between pb-4 border-b border-slate-100 mb-6">
+                            <h3 className="font-bold text-xl font-serif text-slate-900">Edit Room</h3>
+                            <button type="button" onClick={handleClose} className="btn btn-ghost btn-sm btn-circle" disabled={isSubmitting}>
+                                <X size={18} />
                             </button>
                         </div>
+                        <form onSubmit={handleEditRoom} ref={formRef} className="space-y-4">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div className="form-control">
+                                    <label className="label py-1"><span className="label-text font-semibold text-slate-700">Room Name</span></label><span className="text-red-500">*</span>
+                                    <input
+                                        type="text"
+                                        placeholder="Room no."
+                                        name="roomNo"
+                                        defaultValue={room.roomNo}
+                                        className="input input-bordered w-full rounded-xl"
+                                        required
+                                    />
+                                </div>
+                                <div className="form-control">
+                                    <label className="label py-1"><span className="label-text font-semibold text-slate-700">Category</span></label><span className="text-red-500">*</span>
+                                    <select
+                                        name="category"
+                                        defaultValue={room.category}
+                                        className="select select-bordered w-full rounded-xl"
+                                        onChange={e => setSelectedCategoryName(e.target.value)}
+                                        required
+                                    >
+                                        <option value="">Select Category</option>
+                                        {room.category && !categories.some(category => category.name === room.category) && (
+                                            <option value={room.category}>{room.category}</option>
+                                        )}
+                                        {categories.map(category => (
+                                            <option key={category._id} value={category.name}>{category.name}</option>
+                                        ))}
+                                    </select>
+                                    {selectedPrice > 0 && (
+                                        <span className="text-xs font-semibold text-teal-700 mt-1">
+                                            Price: ৳{selectedPrice.toLocaleString()} / night
+                                        </span>
+                                    )}
+                                </div>
+                            </div>
+
+                            <div className="form-control">
+                                <label className="label py-1"><span className="label-text font-semibold text-slate-700">Facility</span></label>
+                                <input
+                                    type="text"
+                                    placeholder="AC, Wi-Fi, Smart TV, Balcony"
+                                    className="input input-bordered w-full rounded-xl"
+                                    name="facility"
+                                    defaultValue={room.facility || ""}
+                                />
+                            </div>
+
+                            <div className="form-control">
+                                <label className="label py-1"><span className="label-text font-semibold text-slate-700">Description</span></label><span className="text-red-500">*</span>
+                                <textarea
+                                    placeholder="Description about room"
+                                    className="textarea textarea-bordered w-full rounded-xl"
+                                    rows={3}
+                                    name="description"
+                                    defaultValue={room.description || ""}
+                                />
+                            </div>
+
+                            <div className="form-control">
+                                <label className="label py-1"><span className="label-text font-semibold text-slate-700">Video</span></label>
+                                <input
+                                    type="url"
+                                    placeholder="https://www.youtube.com/watch?v=ZOxMPa-JBbY"
+                                    className="input input-bordered w-full rounded-xl"
+                                    name="video"
+                                    defaultValue={room.video || ""}
+                                />
+                            </div>
+
+                            <RoomImageUploader uploadedImages={uploadedImages} setUploadedImages={setUploadedImages} />
+
+                            <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+                                <button type="button" className="btn btn-ghost rounded-xl" onClick={handleClose} disabled={isSubmitting}>Cancel</button>
+                                <button type="submit" className="btn btn-primary rounded-xl text-white px-6" disabled={isSubmitting}>
+                                    {isSubmitting ? <span className="loading loading-spinner loading-sm" /> : "Save Changes"}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                    <form method={isSubmitting ? undefined : "dialog"} className="modal-backdrop bg-slate-900/40 backdrop-blur-xs">
+                        <button type="button" onClick={handleClose}>close</button>
                     </form>
-                </div>
-                <form method="dialog" className="modal-backdrop bg-slate-900/40 backdrop-blur-xs" onClick={() => setUploadedImages([])}>
-                    <button>close</button>
-                </form>
-            </dialog>
+                </dialog>
+                , document.body
+            )}
+
         </>
     )
 }

@@ -13,7 +13,7 @@ createRoot(document.getElementById('root')).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <Toaster position="top-center" toastOptions={{ duration: 3000 }} />
+        <Toaster position="top-center"/>
         <RouterProvider router={router} />
       </AuthProvider>
     </QueryClientProvider>

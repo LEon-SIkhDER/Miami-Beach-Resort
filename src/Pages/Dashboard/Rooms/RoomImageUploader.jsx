@@ -32,7 +32,8 @@ const RoomImageUploader = ({ uploadedImages, setUploadedImages }) => {
 
             const uploaded = await Promise.all(uploadPromises)
             setUploadedImages(prev => [...prev, ...uploaded])
-            toast.success(`Successfully uploaded ${uploaded.length} photo(s)!`, { id: uploadToast })
+            // toast.success(`Successfully uploaded ${uploaded.length} photo(s)!`, { id: uploadToast })
+            toast.dismiss(uploadToast)
         } catch (err) {
             console.log(err)
             toast.error("Image upload failed. Please check network connection.", { id: uploadToast })
