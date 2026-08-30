@@ -17,7 +17,7 @@ const DeleteCategory = ({ children, className, category, refetch }) => {
             if (result.isConfirmed) {
                 const toastId = toast.loading("Deleting")
                 try {
-                    const { data: result } = await axios.delete(`http://localhost:5000/categoryandpricing/${category._id}`)
+                    const { data: result } = await axios.delete(`http://localhost:5000/categoryandroom/${category._id}`)
                     if (result.deletedCount !== 1) {
                         throw new Error("Delete Failed")
                     }

@@ -1,6 +1,6 @@
 import React, { useContext, useState } from 'react'
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router'
-import { TbCurrencyTaka } from "react-icons/tb";
+
 import { AuthContext } from '../../Context/AuthContext'
 import useRole from '../../hooks/useRole'
 import {
@@ -46,8 +46,7 @@ const Dashboard = () => {
     ]
     const adminLinks = [
         { to: "/dashboard", label: "Overview", icon: <LayoutDashboard size={18} /> },
-        { to: "/dashboard/category&pricing", label: "Category & Pricing", icon: <TbCurrencyTaka size={18} /> },
-        { to: "/dashboard/rooms", label: "Rooms Management", icon: <BedDouble size={18} /> },
+        { to: "/dashboard/category&room", label: "Category & Room", icon: <BedDouble size={18} /> },
         { to: "/dashboard/bookings", label: "All Bookings", icon: <CalendarCheck size={18} /> },
         { to: "/dashboard/users", label: "Users and Roles", icon: <Users size={18} /> },
         { to: "/dashboard/calender", label: "Booking Calender", icon: <CalendarDays size={18} /> },

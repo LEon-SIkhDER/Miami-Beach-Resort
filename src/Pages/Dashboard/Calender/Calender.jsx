@@ -232,6 +232,7 @@ const Calender = () => {
 
 
 
+
     const [endDate, setEndDate] = useState(() => {
         // const savedDate = localStorage.getItem("endDate")
         // if (savedDate) {
@@ -293,7 +294,7 @@ const Calender = () => {
         <div className="flex h-[calc(100dvh-65px)] w-full min-w-0 flex-col overflow-hidden">
             <div className="flex justify-between p-5 items-end">
 
-                <button className="btn ">hello</button>
+                <button className="btn">Booking Request</button>
 
                 <div className="shrink-0  flex flex-col gap-4 sm:flex-row sm:justify-end sm:items-end">
                     {/* Date Picker */}

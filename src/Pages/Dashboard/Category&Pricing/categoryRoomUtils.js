@@ -9,13 +9,20 @@ export const parseFacilityList = (facility = "") => {
         .filter(Boolean)
 }
 
-export const getCategoryPrice = (categories = [], categoryName = "") => {
-    const selectedCategory = categories.find(category => category.name === categoryName)
-    return selectedCategory?.price ? Number(selectedCategory.price) : 0
-}
-
 export const getRoomDisplayName = (room = {}) => {
     return room?.name || "Room"
+}
+
+
+export const parseRoomNumbers = (roomNumbers = "") => {
+    if (Array.isArray(roomNumbers)) {
+        return roomNumbers.map(item => String(item).trim()).filter(Boolean)
+    }
+
+    return String(roomNumbers)
+        .split(",")
+        .map(item => item.trim())
+        .filter(Boolean)
 }
 
 export const getYouTubeEmbedUrl = (video = "") => {

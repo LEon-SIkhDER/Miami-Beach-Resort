@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState } from 'react'
 import { Link } from 'react-router'
 import { useQuery } from '@tanstack/react-query'
 import axios from 'axios'
 import DatePicker from 'react-datepicker'
 import 'react-datepicker/dist/react-datepicker.css'
-import { addDays, isWithinInterval, eachDayOfInterval } from 'date-fns'
+import { addDays } from 'date-fns'
 import toast from 'react-hot-toast'
 import { showSuccessAlert, showErrorAlert } from '../../utils/customSwal'
 import logo from '../../assets/logo.png'
@@ -17,26 +17,23 @@ import {
     Clock, 
     Sparkles, 
     MapPin, 
-    Waves,
     ArrowRight,
     X,
     ChevronLeft,
     ChevronRight,
     Search,
-    Eye,
-    SlidersHorizontal
+    Star,
+    Image as ImageIcon,
+    Video,
+    AlertTriangle,
+    Plus,
+    Trash2,
+    CheckSquare,
+    Square
 } from 'lucide-react'
-import { getRoomDisplayName, parseFacilityList } from '../Dashboard/Rooms/roomUtils'
+import { parseFacilityList, parseRoomNumbers } from '../Dashboard/Category&Pricing/categoryRoomUtils'
 
-// Parse "YYYY-MM-DD" as LOCAL midnight (not UTC midnight).
-// parseISO() gives UTC midnight which shifts dates in non-UTC timezones.
-const parseLocalDate = (str) => {
-    if (!str) return null
-    const [y, m, d] = str.split('-').map(Number)
-    return new Date(y, m - 1, d) // local midnight — matches datepicker selections
-}
-
-// Format Date object to "YYYY-MM-DD" using local calendar date (never shifts to previous day)
+// Format Date object to "YYYY-MM-DD"
 const formatLocalDate = (date) => {
     if (!date) return ''
     const y = date.getFullYear()
@@ -45,156 +42,109 @@ const formatLocalDate = (date) => {
     return `${y}-${m}-${d}`
 }
 
-const getWhatsAppBookingUrl = (bookingData) => {
-    const message = [
-        "Booking Request",
-        "",
-        `bookingId: ${bookingData.bookingId}`,
-        `name: ${bookingData.name}`,
-        `mobile: ${bookingData.mobile}`,
-        `address: ${bookingData.address || ""}`,
-        `roomName: ${bookingData.roomName}`,
-        `roomCategory: ${bookingData.roomCategory}`,
-        `adults: ${bookingData.adults}`,
-        `babies: ${bookingData.babies}`,
-        `checkIn: ${bookingData.checkIn}`,
-        `checkOut: ${bookingData.checkOut}`,
-        `nights: ${bookingData.nights}`,
-    ].join("\n")
-    return `https://wa.me/8801616472282?text=${encodeURIComponent(message)}`
-}
+const createRoomEntry = (initialCategoryId = "", initialSameCategory = false) => ({
+    itemId: `room-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    categoryId: initialCategoryId,
+    sameCategory: initialSameCategory,
+    checkInDate: null,
+    checkOutDate: null,
+    adults: 2,
+    babies: 0,
+})
 
 const Home = () => {
-    const [selectedRoom, setSelectedRoom] = useState(null)
+    const SERVER_URL = import.meta.env.VITE_SERVER_URL || "http://localhost:5000"
+
+    const [selectedCategory, setSelectedCategory] = useState(null)
     const [bookingModalOpen, setBookingModalOpen] = useState(false)
-    const [checkInDate, setCheckInDate] = useState(null)
-    const [checkOutDate, setCheckOutDate] = useState(null)
-    const [calcNights, setCalcNights] = useState(0)
-    const [calcTotal, setCalcTotal] = useState(0)
+    const [bookingRooms, setBookingRooms] = useState([])
     const [activeImageIndices, setActiveImageIndices] = useState({})
-    const [formData, setFormData] = useState({ name: '', mobile: '', adults: 2, babies: 0, address: '' })
+    const [formData, setFormData] = useState({ name: '', mobile: '', address: '' })
     const [formErrors, setFormErrors] = useState({})
     const [isSubmitting, setIsSubmitting] = useState(false)
+    const [availabilityMsg, setAvailabilityMsg] = useState(null)
     const [searchQuery, setSearchQuery] = useState('')
-    const [selectedCategory, setSelectedCategory] = useState('')
+    const [categoryFilter, setCategoryFilter] = useState('')
 
-    // Fetch active rooms
-    const { data: rooms = [], isLoading: roomsLoading } = useQuery({
-        queryKey: ["active-rooms"],
+    // Fetch categories
+    const { data: categories = [], isLoading: categoriesLoading } = useQuery({
+        queryKey: ["public-categories"],
         queryFn: async () => {
-            const res = await axios.get(`${import.meta.env.VITE_SERVER_URL}/rooms?status=active`)
+            const res = await axios.get(`${SERVER_URL}/categoryandroom`)
             return res.data
         }
     })
 
-    const { data: categories = [] } = useQuery({
-        queryKey: ["category-and-pricing"],
-        queryFn: async () => {
-            const res = await axios.get(`${import.meta.env.VITE_SERVER_URL}/categoryandpricing`)
-            return res.data
-        }
-    })
-
-    const filteredRooms = rooms.filter(room => {
-        if (selectedCategory && room.category !== selectedCategory) return false
+    const filteredCategories = categories.filter(cat => {
+        if (categoryFilter && cat.name !== categoryFilter) return false
         if (searchQuery) {
             const q = searchQuery.toLowerCase()
-            return room.name?.toLowerCase().includes(q) ||
-                   room.category?.toLowerCase().includes(q) ||
-                   room.facility?.toLowerCase().includes(q) ||
-                   room.description?.toLowerCase().includes(q)
+            return cat.name?.toLowerCase().includes(q) ||
+                   cat.amenities?.toLowerCase().includes(q) ||
+                   cat.description?.toLowerCase().includes(q)
         }
         return true
     })
 
-    // Fetch reserved date ranges for selected room
-    const { data: reservedRanges = [] } = useQuery({
-        queryKey: ["reserved-dates", selectedRoom?._id],
-        queryFn: async () => {
-            if (!selectedRoom?._id) return []
-            const res = await axios.get(`${import.meta.env.VITE_SERVER_URL}/bookings/reserved-dates`, {
-                params: { roomId: selectedRoom._id }
-            })
-            return res.data
-        },
-        enabled: !!selectedRoom?._id
-    })
-
-    // Build flat list of all booked dates (local midnight) so excludeDates works correctly
-    const bookedDates = React.useMemo(() => {
-        const dates = []
-        reservedRanges.forEach(range => {
-            try {
-                const start = parseLocalDate(range.checkIn)
-                // checkOut day is free for check-in, so exclude up to (checkOut - 1 day)
-                const lastOccupied = addDays(parseLocalDate(range.checkOut), -1)
-                if (start <= lastOccupied) {
-                    eachDayOfInterval({ start, end: lastOccupied }).forEach(d => dates.push(d))
-                }
-            } catch (_) {}
-        })
-        return dates
-    }, [reservedRanges])
-
-    // Helper: is a specific calendar day within any booked interval?
-    const isDateBooked = (date) => {
-        return reservedRanges.some(range => {
-            try {
-                const start = parseLocalDate(range.checkIn)
-                const lastOccupied = addDays(parseLocalDate(range.checkOut), -1)
-                return isWithinInterval(date, { start, end: lastOccupied })
-            } catch (_) { return false }
-        })
+    const getRoomNights = (item) => {
+        if (!item.checkInDate || !item.checkOutDate) return 0
+        const n = Math.ceil((item.checkOutDate - item.checkInDate) / (1000 * 60 * 60 * 24))
+        return n > 0 ? n : 0
     }
 
-    // Helper: does the selected [checkIn, checkOut) range overlap any booking?
-    const rangeHasConflict = (start, end) => {
-        return reservedRanges.some(range => {
-            try {
-                const rStart = parseLocalDate(range.checkIn)
-                const rEnd = parseLocalDate(range.checkOut)
-                // Overlap: new start < existing end AND new end > existing start
-                return start < rEnd && end > rStart
-            } catch (_) { return false }
-        })
+    const getRoomPrice = (item) => {
+        const cat = categories.find(c => c._id === item.categoryId) || selectedCategory
+        return Number(cat?.price || 0)
     }
 
-    // Recalculate nights and total when dates change
-    useEffect(() => {
-        if (checkInDate && checkOutDate && selectedRoom) {
-            const nights = Math.ceil((checkOutDate - checkInDate) / (1000 * 60 * 60 * 24))
-            setCalcNights(nights > 0 ? nights : 0)
-            setCalcTotal(nights > 0 ? nights * selectedRoom.price : 0)
-        } else {
-            setCalcNights(0)
-            setCalcTotal(0)
-        }
-    }, [checkInDate, checkOutDate, selectedRoom])
+    const getRoomTotal = (item) => {
+        return getRoomNights(item) * getRoomPrice(item)
+    }
 
-    const handleOpenBookingModal = (room) => {
-        setSelectedRoom(room)
-        setCheckInDate(null)
-        setCheckOutDate(null)
-        setFormData({ name: '', mobile: '', adults: 2, babies: 0, address: '' })
+    const grandTotal = bookingRooms.reduce((sum, item) => sum + getRoomTotal(item), 0)
+
+    const handleOpenBookingModal = (category) => {
+        setSelectedCategory(category)
+        setBookingRooms([createRoomEntry(category?._id || "", false)])
+        setFormData({ name: '', mobile: '', address: '' })
         setFormErrors({})
+        setAvailabilityMsg(null)
         setBookingModalOpen(true)
     }
 
     const handleCloseModal = () => {
         setBookingModalOpen(false)
-        setSelectedRoom(null)
-        setCheckInDate(null)
-        setCheckOutDate(null)
+        setSelectedCategory(null)
+        setBookingRooms([])
+        setAvailabilityMsg(null)
     }
 
-    // Carousel handlers
-    const handleNextImage = (e, roomId, totalImages) => {
-        e.stopPropagation()
-        setActiveImageIndices(prev => ({ ...prev, [roomId]: ((prev[roomId] || 0) + 1) % totalImages }))
+    const handleAddRoom = () => {
+        const defaultCatId = selectedCategory?._id || categories[0]?._id || ""
+        setBookingRooms(prev => [...prev, createRoomEntry(defaultCatId, true)])
     }
-    const handlePrevImage = (e, roomId, totalImages) => {
-        e.stopPropagation()
-        setActiveImageIndices(prev => ({ ...prev, [roomId]: ((prev[roomId] || 0) - 1 + totalImages) % totalImages }))
+
+    const handleRemoveRoom = (itemId) => {
+        if (bookingRooms.length <= 1) return
+        setBookingRooms(prev => prev.filter(r => r.itemId !== itemId))
+        setAvailabilityMsg(null)
+    }
+
+    const handleRoomChange = (itemId, changes) => {
+        setBookingRooms(prev => prev.map(item => {
+            if (item.itemId !== itemId) return item
+            const next = { ...item, ...changes }
+            if (changes.sameCategory !== undefined) {
+                if (changes.sameCategory) {
+                    next.categoryId = selectedCategory?._id || categories[0]?._id || ""
+                }
+            }
+            if (changes.checkInDate && next.checkOutDate && changes.checkInDate >= next.checkOutDate) {
+                next.checkOutDate = null
+            }
+            return next
+        }))
+        setAvailabilityMsg(null)
     }
 
     const handleInput = (e) => {
@@ -202,13 +152,30 @@ const Home = () => {
         setFormErrors(prev => ({ ...prev, [e.target.name]: '' }))
     }
 
+    const handleNextImage = (e, id, total) => {
+        e.stopPropagation()
+        setActiveImageIndices(prev => ({ ...prev, [id]: ((prev[id] || 0) + 1) % total }))
+    }
+    const handlePrevImage = (e, id, total) => {
+        e.stopPropagation()
+        setActiveImageIndices(prev => ({ ...prev, [id]: ((prev[id] || 0) - 1 + total) % total }))
+    }
+
     const validate = () => {
         const errs = {}
         if (!formData.name.trim()) errs.name = 'Name is required'
         if (!formData.mobile.trim()) errs.mobile = 'Mobile is required'
-        if (!checkInDate) errs.checkIn = 'Select check-in date'
-        if (!checkOutDate) errs.checkOut = 'Select check-out date'
-        if (checkInDate && checkOutDate && checkOutDate <= checkInDate) errs.checkOut = 'Check-out must be after check-in'
+        if (!bookingRooms.length) errs.rooms = 'At least 1 room is required'
+
+        bookingRooms.forEach((item, index) => {
+            if (!item.categoryId) errs[`category-${item.itemId}`] = `Select category for Room ${index + 1}`
+            if (!item.checkInDate) errs[`checkIn-${item.itemId}`] = `Select check-in for Room ${index + 1}`
+            if (!item.checkOutDate) errs[`checkOut-${item.itemId}`] = `Select check-out for Room ${index + 1}`
+            if (item.checkInDate && item.checkOutDate && item.checkOutDate <= item.checkInDate) {
+                errs[`checkOut-${item.itemId}`] = 'Check-out must be after check-in'
+            }
+        })
+
         setFormErrors(errs)
         return Object.keys(errs).length === 0
     }
@@ -217,57 +184,80 @@ const Home = () => {
         e.preventDefault()
         if (!validate()) return
         setIsSubmitting(true)
+        setAvailabilityMsg(null)
 
-        const checkInStr = formatLocalDate(checkInDate)
-        const checkOutStr = formatLocalDate(checkOutDate)
+        // Verify availability for each selected room
+        for (let i = 0; i < bookingRooms.length; i++) {
+            const item = bookingRooms[i]
+            const cat = categories.find(c => c._id === item.categoryId) || selectedCategory
+            const checkIn = formatLocalDate(item.checkInDate)
+            const checkOut = formatLocalDate(item.checkOutDate)
 
-        // 1. Frontend range conflict check (instant)
-        if (rangeHasConflict(checkInDate, checkOutDate)) {
-            showErrorAlert("Dates Unavailable!", "The selected dates overlap with an existing reservation. Please choose different dates.")
-            setIsSubmitting(false)
-            return
-        }
-
-        // 2. Double-check with server
-        const checkToast = toast.loading("Verifying real-time room availability...")
-        try {
-            const availRes = await axios.get(`${import.meta.env.VITE_SERVER_URL}/check-room-availability`, {
-                params: { roomId: selectedRoom._id, checkIn: checkInStr, checkOut: checkOutStr }
-            })
-            toast.dismiss(checkToast)
-            if (!availRes.data.available) {
-                showErrorAlert("Room Already Reserved!", availRes.data.message)
-                setIsSubmitting(false)
-                return
+            try {
+                const availRes = await axios.get(`${SERVER_URL}/check-category-availability`, {
+                    params: { categoryId: item.categoryId, checkIn, checkOut }
+                })
+                if (!availRes.data.available) {
+                    setAvailabilityMsg({ 
+                        ok: false, 
+                        text: `Room ${i + 1} (${cat?.name || "Category"}): ${availRes.data.message}` 
+                    })
+                    setIsSubmitting(false)
+                    return
+                }
+            } catch (_) {
+                // fallback graceful
             }
-        } catch (err) {
-            toast.dismiss(checkToast)
-            console.log("Availability check error:", err)
         }
 
-        // 3. Submit booking
+        const normalizedRooms = bookingRooms.map(item => {
+            const cat = categories.find(c => c._id === item.categoryId) || selectedCategory
+            return {
+                roomId: item.categoryId,
+                categoryId: item.categoryId,
+                categoryName: cat?.name || "Category",
+                checkIn: formatLocalDate(item.checkInDate),
+                checkOut: formatLocalDate(item.checkOutDate),
+                adults: Number(item.adults || 2),
+                babies: Number(item.babies || 0),
+                pricePerNight: Number(cat?.price || 0),
+                nights: getRoomNights(item)
+            }
+        })
+
         const bookingData = {
-            roomId: selectedRoom._id,
-            roomName: getRoomDisplayName(selectedRoom),
-            roomCategory: getRoomDisplayName(selectedRoom),
             name: formData.name,
             mobile: formData.mobile,
-            adults: Number(formData.adults),
-            babies: Number(formData.babies || 0),
             address: formData.address,
-            checkIn: checkInStr,
-            checkOut: checkOutStr,
-            totalAmount: calcTotal,
+            rooms: normalizedRooms,
             advanceAmount: 0,
         }
 
         try {
-            const res = await axios.post(`${import.meta.env.VITE_SERVER_URL}/bookings`, bookingData)
-            window.open(
-                getWhatsAppBookingUrl({ ...bookingData, bookingId: res.data.bookingId, nights: calcNights }),
-                "_blank",
-                "noopener,noreferrer"
-            )
+            const res = await axios.post(`${SERVER_URL}/bookings`, bookingData)
+            const roomLines = normalizedRooms.map((r, index) => [
+                `Room ${index + 1}: ${r.categoryName}`,
+                `Dates: ${r.checkIn} to ${r.checkOut} (${r.nights} nights)`,
+                `Guests: ${r.adults} adults${r.babies > 0 ? `, ${r.babies} babies` : ""}`,
+                `Rate: ৳${r.pricePerNight.toLocaleString()}/night`
+            ].join("\n")).join("\n\n")
+
+            const whatsappMsg = [
+                "Booking Request",
+                "",
+                `Booking ID: ${res.data.bookingId}`,
+                `Guest Name: ${formData.name}`,
+                `Mobile: ${formData.mobile}`,
+                `Address: ${formData.address || "N/A"}`,
+                "",
+                `Total Rooms: ${normalizedRooms.length}`,
+                "",
+                roomLines,
+                "",
+                `Grand Total: ৳${grandTotal.toLocaleString()}`,
+            ].join("\n")
+
+            window.open(`https://wa.me/8801616472282?text=${encodeURIComponent(whatsappMsg)}`, "_blank", "noopener,noreferrer")
             handleCloseModal()
             showSuccessAlert(
                 "Reservation Confirmed! 🎉",
@@ -275,13 +265,12 @@ const Home = () => {
                 `<div class="space-y-1.5 text-left bg-slate-50 p-4 rounded-xl border border-slate-200 mt-2 text-xs sm:text-sm">
                     <p><strong>Booking ID:</strong> <span class="font-mono text-teal-700 font-bold">${res.data.bookingId}</span></p>
                     <p><strong>Guest:</strong> ${formData.name}</p>
-                    <p><strong>Room:</strong> ${selectedRoom?.name}</p>
-                    <p><strong>Dates:</strong> ${checkInStr} → ${checkOutStr} (${calcNights} night${calcNights > 1 ? 's' : ''})</p>
+                    <p><strong>Rooms Booked:</strong> ${normalizedRooms.length}</p>
+                    <p><strong>Grand Total:</strong> ৳${grandTotal.toLocaleString()}</p>
                  </div>
                  <p class="mt-3 text-xs text-slate-500">We will contact you on WhatsApp at <strong>+8801616472282</strong> to finalize your check-in.</p>`
             )
         } catch (err) {
-            console.log(err)
             showErrorAlert("Booking Failed", err.response?.data?.message || "Failed to submit booking. Please try again.")
         } finally {
             setIsSubmitting(false)
@@ -321,149 +310,160 @@ const Home = () => {
                 </div>
             </section>
 
-            {/* Rooms Grid */}
+            {/* Category Grid */}
             <section className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-12 sm:py-16">
                 <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8 sm:mb-10">
                     <div>
                         <div className="flex items-center gap-1.5 text-teal-600 font-bold text-xs sm:text-sm uppercase tracking-wider">
-                            <BedDouble size={16} /> Available Suites
+                            <BedDouble size={16} /> Our Room Categories
                         </div>
                         <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 font-serif tracking-tight mt-1">
                             Choose and Book Your Suite
                         </h2>
                     </div>
 
-                    {/* Room Search & Filter Bar */}
+                    {/* Search & Filter */}
                     <div className="flex flex-wrap items-center gap-2.5">
                         <div className="relative flex-1 sm:flex-initial">
                             <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                             <input
                                 type="text"
-                                placeholder="Search suites by name, facility..."
+                                placeholder="Search categories..."
                                 value={searchQuery}
                                 onChange={e => setSearchQuery(e.target.value)}
                                 className="input input-sm input-bordered pl-9 rounded-xl w-full sm:w-60 bg-white"
                             />
                         </div>
-
                         <select
                             className="select select-sm select-bordered rounded-xl bg-white text-xs font-semibold"
-                            value={selectedCategory}
-                            onChange={e => setSelectedCategory(e.target.value)}
+                            value={categoryFilter}
+                            onChange={e => setCategoryFilter(e.target.value)}
                         >
                             <option value="">All Categories</option>
-                            {categories.map(category => (
-                                <option key={category._id} value={category.name}>{category.name}</option>
+                            {categories.map(cat => (
+                                <option key={cat._id} value={cat.name}>{cat.name}</option>
                             ))}
                         </select>
                     </div>
                 </div>
 
-                {roomsLoading ? (
+                {categoriesLoading ? (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
                         {[1, 2, 3].map(n => (
-                            <div key={n} className="bg-white rounded-3xl overflow-hidden border border-slate-200/90 shadow-sm animate-pulse flex flex-col justify-between">
-                                <div className="h-60 sm:h-64 bg-slate-200"></div>
-                                <div className="p-5 sm:p-6 space-y-4">
-                                    <div className="space-y-2">
-                                        <div className="h-6 bg-slate-200 rounded-lg w-3/4"></div>
-                                        <div className="h-3.5 bg-slate-200 rounded w-full"></div>
-                                        <div className="h-3.5 bg-slate-200 rounded w-4/5"></div>
-                                    </div>
-                                    <div className="flex justify-between items-center pt-3 border-t border-slate-100">
-                                        <div className="h-4 bg-slate-200 rounded w-24"></div>
-                                        <div className="h-4 bg-slate-200 rounded w-20"></div>
-                                    </div>
-                                    <div className="h-11 bg-slate-200 rounded-2xl w-full"></div>
+                            <div key={n} className="bg-white rounded-3xl overflow-hidden border border-slate-200/90 shadow-sm animate-pulse flex flex-col">
+                                <div className="h-60 bg-slate-200" />
+                                <div className="p-5 space-y-3">
+                                    <div className="h-6 bg-slate-200 rounded w-3/4" />
+                                    <div className="h-3.5 bg-slate-200 rounded w-full" />
+                                    <div className="h-9 bg-slate-200 rounded-2xl w-full" />
                                 </div>
                             </div>
                         ))}
                     </div>
-                ) : filteredRooms.length === 0 ? (
+                ) : filteredCategories.length === 0 ? (
                     <div className="text-center py-16 bg-white rounded-3xl border border-slate-200 shadow-xs space-y-2">
                         <BedDouble size={48} className="mx-auto text-slate-300 mb-2" />
-                        <h3 className="text-lg font-bold text-slate-700">No rooms match your search</h3>
-                        <p className="text-xs text-slate-500">Try adjusting your keyword or category filters.</p>
-                        {(searchQuery || selectedCategory) && (
-                            <button 
-                                onClick={() => { setSearchQuery(''); setSelectedCategory(''); }}
+                        <h3 className="text-lg font-bold text-slate-700">No categories match your search</h3>
+                        <p className="text-xs text-slate-500">Try adjusting your filters.</p>
+                        {(searchQuery || categoryFilter) && (
+                            <button
+                                onClick={() => { setSearchQuery(''); setCategoryFilter('') }}
                                 className="btn btn-sm btn-ghost text-teal-700 underline mt-2"
                             >
-                                Reset all filters
+                                Reset filters
                             </button>
                         )}
                     </div>
                 ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
-                        {filteredRooms.map(room => {
-                            const allImages = room.images?.length
-                                ? room.images.map(img => typeof img === 'string' ? img : img.url)
-                                : room.imageUrl ? [room.imageUrl] : []
-                            const currentIdx = activeImageIndices[room._id] || 0
-                            const currentImgSrc = allImages[currentIdx] || room.imageUrl
-                            const facilities = parseFacilityList(room.facility)
-                            console.log(facilities)
-                            const roomName = getRoomDisplayName(room)
+                        {filteredCategories.map(cat => {
+                            const photos = cat.images?.length
+                                ? cat.images.map(img => typeof img === 'string' ? img : img.url)
+                                : cat.imageUrl ? [cat.imageUrl] : []
+                            const currentIdx = activeImageIndices[cat._id] || 0
+                            const currentImgSrc = photos[currentIdx]
+                            const amenities = parseFacilityList(cat.amenities || "")
+                            const roomNums = parseRoomNumbers(cat.roomNumbers || [])
 
                             return (
-                                <div key={room._id} className="group bg-white rounded-3xl overflow-hidden border border-slate-200/90 shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col">
-                                    <Link to={`/room/${room._id}`} className="relative h-60 sm:h-64 bg-slate-100 overflow-hidden select-none block">
+                                <div key={cat._id} className="group bg-white rounded-3xl overflow-hidden border border-slate-200/90 shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col">
+                                    {/* Photo & Click to details */}
+                                    <Link to={`/room/${cat._id}`} className="relative h-60 sm:h-64 bg-slate-100 overflow-hidden select-none block">
                                         {currentImgSrc ? (
-                                            <img src={currentImgSrc} alt={roomName} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                                            <img src={currentImgSrc} alt={cat.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
                                         ) : (
                                             <div className="w-full h-full flex flex-col items-center justify-center text-slate-400 bg-slate-100">
-                                                <BedDouble size={40} /><span className="text-xs mt-1 font-medium">Miami Beach Resort</span>
+                                                <ImageIcon size={40} /><span className="text-xs mt-1 font-medium">Miami Beach Resort</span>
                                             </div>
                                         )}
+                                        {/* badges */}
                                         <div className="absolute top-3 left-3 flex flex-wrap gap-1.5 z-10">
-                                            <span className="badge badge-sm bg-slate-900/80 backdrop-blur-md text-white border-none font-semibold text-[10px]">{roomName}</span>
-                                            {facilities.slice(0, 1).map(facility => (
-                                                <span key={facility} className="badge badge-sm bg-teal-600/90 backdrop-blur-md text-white border-none font-semibold text-[10px]">{facility}</span>
-                                            ))}
+                                            <span className="badge badge-sm bg-slate-900/80 backdrop-blur-md text-white border-none font-semibold text-[10px]">{cat.name}</span>
+                                            {roomNums.length > 0 && (
+                                                <span className="badge badge-sm bg-teal-600/90 backdrop-blur-md text-white border-none font-semibold text-[10px]">
+                                                    {roomNums.length} Room{roomNums.length > 1 ? 's' : ''}
+                                                </span>
+                                            )}
                                         </div>
-                                        {allImages.length > 1 && (
+                                        {cat.video && (
+                                            <span className="absolute top-3 right-3 badge badge-sm bg-teal-600 text-white border-none gap-1 z-10">
+                                                <Video size={11} /> Video
+                                            </span>
+                                        )}
+                                        {/* carousel nav */}
+                                        {photos.length > 1 && (
                                             <>
-                                                <button onClick={(e) => handlePrevImage(e, room._id, allImages.length)} className="absolute left-2 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-slate-900/70 text-white flex items-center justify-center hover:bg-slate-900 transition-colors z-10">
+                                                <button onClick={e => handlePrevImage(e, cat._id, photos.length)} className="absolute left-2 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-slate-900/70 text-white flex items-center justify-center hover:bg-slate-900 transition-colors z-10">
                                                     <ChevronLeft size={16} />
                                                 </button>
-                                                <button onClick={(e) => handleNextImage(e, room._id, allImages.length)} className="absolute right-2 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-slate-900/70 text-white flex items-center justify-center hover:bg-slate-900 transition-colors z-10">
+                                                <button onClick={e => handleNextImage(e, cat._id, photos.length)} className="absolute right-2 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-slate-900/70 text-white flex items-center justify-center hover:bg-slate-900 transition-colors z-10">
                                                     <ChevronRight size={16} />
                                                 </button>
                                                 <div className="absolute bottom-3 left-3 bg-slate-900/70 backdrop-blur-md px-2 py-0.5 rounded-md text-[10px] font-bold text-white z-10">
-                                                    {currentIdx + 1} / {allImages.length}
+                                                    {currentIdx + 1} / {photos.length}
                                                 </div>
                                             </>
                                         )}
+                                        {/* Price tag */}
                                         <div className="absolute bottom-3 right-3 bg-white/95 backdrop-blur-md px-3 py-1 rounded-xl shadow-md font-bold text-slate-900 text-xs sm:text-sm z-10">
-                                            ৳{room.price?.toLocaleString()} <span className="text-[10px] font-normal text-slate-500">/ night</span>
+                                            ৳{Number(cat.price).toLocaleString()} <span className="text-[10px] font-normal text-slate-500">/ night</span>
                                         </div>
                                     </Link>
+
+                                    {/* Content */}
                                     <div className="p-5 sm:p-6 space-y-4 flex-1 flex flex-col justify-between">
                                         <div>
-                                            <Link to={`/room/${room._id}`}>
-                                                <h3 className="text-lg sm:text-xl font-bold text-slate-900 group-hover:text-teal-700 transition-colors">{roomName}</h3>
+                                            <Link to={`/room/${cat._id}`}>
+                                                <h3 className="text-lg sm:text-xl font-bold text-slate-900 group-hover:text-teal-700 transition-colors">{cat.name}</h3>
                                             </Link>
                                             <p className="text-xs text-slate-500 mt-1.5 line-clamp-2 leading-relaxed">
-                                                {room.description || "Room details will be updated soon."}
+                                                {cat.description || "Comfortable suite with premium amenities."}
                                             </p>
                                         </div>
-                                        <div className="flex flex-wrap gap-1.5 pt-3 border-t border-slate-100 min-h-8">
-                                            {facilities.slice(0, 4).map(facility => (
-                                                <span key={facility} className="uppercase badge badge-sm bg-teal-50 text-teal-700 border border-teal-200/60 font-semibold">
-                                                    {facility}
-                                                </span>
-                                            ))}
-                                        </div>
-                                        <div className="flex items-center gap-2">
+                                        {/* Amenities */}
+                                        {amenities.length > 0 && (
+                                            <div className="flex flex-wrap gap-1.5 pt-3 border-t border-slate-100 min-h-8">
+                                                {amenities.slice(0, 4).map(a => (
+                                                    <span key={a} className="uppercase badge badge-sm bg-teal-50 text-teal-700 border border-teal-200/60 font-semibold">
+                                                        {a}
+                                                    </span>
+                                                ))}
+                                                {amenities.length > 4 && (
+                                                    <span className="badge badge-sm bg-slate-100 text-slate-500 border-none font-medium">+{amenities.length - 4}</span>
+                                                )}
+                                            </div>
+                                        )}
+                                        {/* Buttons: Details + Book Now */}
+                                        <div className="flex items-center gap-2 pt-1">
                                             <Link
-                                                to={`/room/${room._id}`}
-                                                className="btn btn-outline border-slate-300 text-slate-700 hover:bg-slate-50 rounded-2xl text-xs sm:text-sm px-3.5"
+                                                to={`/room/${cat._id}`}
+                                                className="btn btn-outline border-slate-300 text-slate-700 hover:bg-slate-50 rounded-2xl text-xs sm:text-sm px-4"
                                             >
                                                 Details
                                             </Link>
                                             <button
-                                                onClick={() => handleOpenBookingModal(room)}
-                                                className="btn btn-primary flex-1 rounded-2xl gap-2 font-bold shadow-sm hover:shadow-md hover:shadow-teal-500/20 text-white text-xs sm:text-sm"
+                                                onClick={() => handleOpenBookingModal(cat)}
+                                                className="btn btn-primary flex-1 rounded-2xl gap-1.5 font-bold shadow-sm hover:shadow-md hover:shadow-teal-500/20 text-white text-xs sm:text-sm"
                                             >
                                                 <span>Book Now</span><ArrowRight size={15} />
                                             </button>
@@ -498,136 +498,234 @@ const Home = () => {
                 </div>
             </section>
 
-            {/* ── BOOKING MODAL ── */}
+            {/* ── MULTI-ROOM BOOKING MODAL ── */}
             {bookingModalOpen && (
                 <dialog open className="modal modal-open z-50">
-                    <div className="modal-box w-full max-w-xl max-h-[92vh] overflow-y-auto bg-white rounded-3xl p-4 sm:p-7 shadow-2xl border border-slate-100">
+                    <div className="modal-box w-full max-w-2xl max-h-[92vh] overflow-y-auto bg-white rounded-3xl p-4 sm:p-7 shadow-2xl border border-slate-100">
                         {/* Header */}
                         <div className="flex items-center justify-between pb-4 border-b border-slate-100 mb-5">
                             <div className="min-w-0 pr-2">
                                 <span className="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-teal-600 block">Reservation Form</span>
-                                <h3 className="font-bold text-lg sm:text-xl font-serif text-slate-900 truncate">{selectedRoom?.name}</h3>
+                                <h3 className="font-bold text-lg sm:text-xl font-serif text-slate-900 truncate">
+                                    {bookingRooms.length > 1 ? `Booking ${bookingRooms.length} Rooms` : selectedCategory?.name}
+                                </h3>
                             </div>
                             <button onClick={handleCloseModal} className="btn btn-ghost btn-sm btn-circle shrink-0"><X size={18} /></button>
                         </div>
 
-                        {/* Room summary */}
-                        {selectedRoom && (
-                            <div className="bg-teal-50/80 border border-teal-100 rounded-2xl p-3 sm:p-4 mb-5 text-xs">
-                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                                    <div>
-                                        <p className="font-bold text-teal-900">{getRoomDisplayName(selectedRoom)}{selectedRoom.view ? ` (${selectedRoom.view})` : ""}</p>
-                                        <p className="text-teal-700 text-[11px]">৳{selectedRoom.price?.toLocaleString()} / night </p>
-                                    </div>
-                                    {calcNights > 0 && (
-                                        <div className="font-semibold text-teal-800 bg-white/60 px-2.5 py-1 rounded-xl text-right">
-                                            {calcNights} Night{calcNights > 1 ? 's' : ''} = ৳{calcTotal.toLocaleString()}
-                                        </div>
-                                    )}
-                                </div>
-                                {bookedDates.length > 0 && (
-                                    <p className="mt-2 text-[11px] text-rose-600 font-semibold flex items-center gap-1">
-                                        <span className="w-2 h-2 rounded-full bg-rose-500 shrink-0 inline-block"></span>
-                                        Red dates are already reserved — you cannot select them.
+                        {/* Grand Total Summary */}
+                        <div className="bg-teal-50/80 border border-teal-100 rounded-2xl p-3.5 sm:p-4 mb-5 text-xs">
+                            <div className="flex items-center justify-between gap-2">
+                                <div>
+                                    <p className="font-bold text-teal-900 text-sm">
+                                        {bookingRooms.length} Room{bookingRooms.length > 1 ? 's' : ''} Selected
                                     </p>
-                                )}
+                                    <p className="text-teal-700 text-[11px] mt-0.5">
+                                        Click "+ Add Room" below to book multiple rooms in this reservation.
+                                    </p>
+                                </div>
+                                <div className="font-bold text-sm text-teal-800 bg-white/80 px-3 py-1.5 rounded-xl border border-teal-200/60 text-right shrink-0">
+                                    Total ৳{grandTotal.toLocaleString()}
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Availability error notification banner */}
+                        {availabilityMsg && !availabilityMsg.ok && (
+                            <div className="flex items-start gap-2 bg-red-50 border border-red-200 rounded-xl p-3 mb-4 text-xs text-red-700">
+                                <AlertTriangle size={16} className="shrink-0 mt-0.5 text-red-500" />
+                                <p className="font-semibold leading-relaxed">{availabilityMsg.text}</p>
                             </div>
                         )}
 
-                        <form onSubmit={onSubmit} className="space-y-4 text-xs sm:text-sm">
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                                {/* Name */}
+                        <form onSubmit={onSubmit} className="space-y-5 text-xs sm:text-sm">
+                            {/* Guest Details */}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 bg-slate-50/70 p-4 rounded-2xl border border-slate-200">
                                 <div className="form-control">
                                     <label className="label py-0.5"><span className="label-text font-semibold text-slate-700 text-xs">Guest Full Name *</span></label>
                                     <input
                                         name="name" value={formData.name} onChange={handleInput}
                                         type="text" placeholder="Your full name"
-                                        className={`input input-sm sm:input-md input-bordered w-full rounded-xl bg-slate-50 focus:bg-white text-xs sm:text-sm ${formErrors.name ? "input-error" : ""}`}
+                                        className={`input input-sm sm:input-md input-bordered w-full rounded-xl bg-white text-xs sm:text-sm ${formErrors.name ? "input-error" : ""}`}
                                     />
                                     {formErrors.name && <span className="text-error text-[11px] mt-0.5">{formErrors.name}</span>}
                                 </div>
-
-                                {/* Mobile */}
                                 <div className="form-control">
                                     <label className="label py-0.5"><span className="label-text font-semibold text-slate-700 text-xs">Mobile (WhatsApp) *</span></label>
                                     <input
                                         name="mobile" value={formData.mobile} onChange={handleInput}
                                         type="tel" placeholder="+88017..."
-                                        className={`input input-sm sm:input-md input-bordered w-full rounded-xl bg-slate-50 focus:bg-white text-xs sm:text-sm ${formErrors.mobile ? "input-error" : ""}`}
+                                        className={`input input-sm sm:input-md input-bordered w-full rounded-xl bg-white text-xs sm:text-sm ${formErrors.mobile ? "input-error" : ""}`}
                                     />
                                     {formErrors.mobile && <span className="text-error text-[11px] mt-0.5">{formErrors.mobile}</span>}
                                 </div>
+                            </div>
 
-                                {/* Check-In Date Picker */}
-                                <div className="form-control">
-                                    <label className="label py-0.5"><span className="label-text font-semibold text-slate-700 text-xs">Check-In Date *</span></label>
-                                    <DatePicker
-                                        selected={checkInDate}
-                                        onChange={(date) => {
-                                            setCheckInDate(date)
-                                            if (checkOutDate && date >= checkOutDate) setCheckOutDate(null)
-                                        }}
-                                        minDate={new Date()}
-                                        excludeDates={bookedDates}
-                                        placeholderText="Select check-in"
-                                        dateFormat="dd MMM yyyy"
-                                        className={`input input-sm sm:input-md input-bordered w-full rounded-xl bg-slate-50 focus:bg-white text-xs sm:text-sm cursor-pointer ${formErrors.checkIn ? "input-error" : ""}`}
-                                        calendarClassName="booking-calendar"
-                                        dayClassName={(date) =>
-                                            isDateBooked(date) ? "booked-day" : undefined
-                                        }
-                                        wrapperClassName="w-full"
-                                        autoComplete="off"
-                                    />
-                                    {formErrors.checkIn && <span className="text-error text-[11px] mt-0.5">{formErrors.checkIn}</span>}
+                            {/* Room Selection Section */}
+                            <div className="space-y-3">
+                                <div className="flex items-center justify-between">
+                                    <h4 className="font-bold text-slate-900 text-sm flex items-center gap-1.5">
+                                        <BedDouble size={16} className="text-teal-600" />
+                                        Room Details ({bookingRooms.length})
+                                    </h4>
+                                    <button
+                                        type="button"
+                                        onClick={handleAddRoom}
+                                        className="btn btn-xs sm:btn-sm btn-primary rounded-xl gap-1 text-white shadow-xs"
+                                    >
+                                        <Plus size={14} /> Add Room
+                                    </button>
                                 </div>
 
-                                {/* Check-Out Date Picker */}
-                                <div className="form-control">
-                                    <label className="label py-0.5"><span className="label-text font-semibold text-slate-700 text-xs">Check-Out Date *</span></label>
-                                    <DatePicker
-                                        selected={checkOutDate}
-                                        onChange={(date) => setCheckOutDate(date)}
-                                        minDate={checkInDate ? addDays(checkInDate, 1) : addDays(new Date(), 1)}
-                                        excludeDates={bookedDates}
-                                        filterDate={(date) => {
-                                            if (!checkInDate) return true
-                                            // Disallow checkout if any booked date falls inside [checkIn, checkOut)
-                                            if (rangeHasConflict(checkInDate, date)) return false
-                                            return true
-                                        }}
-                                        placeholderText="Select check-out"
-                                        dateFormat="dd MMM yyyy"
-                                        className={`input input-sm sm:input-md input-bordered w-full rounded-xl bg-slate-50 focus:bg-white text-xs sm:text-sm cursor-pointer ${formErrors.checkOut ? "input-error" : ""}`}
-                                        calendarClassName="booking-calendar"
-                                        dayClassName={(date) =>
-                                            isDateBooked(date) ? "booked-day" : undefined
-                                        }
-                                        wrapperClassName="w-full"
-                                        autoComplete="off"
-                                        disabled={!checkInDate}
-                                    />
-                                    {formErrors.checkOut && <span className="text-error text-[11px] mt-0.5">{formErrors.checkOut}</span>}
-                                </div>
+                                {formErrors.rooms && <p className="text-error text-[11px]">{formErrors.rooms}</p>}
 
-                                {/* Adults */}
-                                <div className="form-control">
-                                    <label className="label py-0.5"><span className="label-text font-semibold text-slate-700 text-xs">Adults</span></label>
-                                    <input
-                                        name="adults" value={formData.adults} onChange={handleInput}
-                                        type="number" min="1" placeholder="2"
-                                        className="input input-sm sm:input-md input-bordered w-full rounded-xl bg-slate-50 focus:bg-white text-xs sm:text-sm"
-                                    />
-                                </div>
+                                {/* Room Items List */}
+                                <div className="space-y-3.5">
+                                    {bookingRooms.map((item, index) => {
+                                        const nights = getRoomNights(item)
+                                        const roomTotal = getRoomTotal(item)
+                                        const currentCat = categories.find(c => c._id === item.categoryId) || selectedCategory
 
-                                {/* Children */}
-                                <div className="form-control">
-                                    <label className="label py-0.5"><span className="label-text font-semibold text-slate-700 text-xs">Children / Babies</span></label>
-                                    <input
-                                        name="babies" value={formData.babies} onChange={handleInput}
-                                        type="number" min="0" placeholder="0"
-                                        className="input input-sm sm:input-md input-bordered w-full rounded-xl bg-slate-50 focus:bg-white text-xs sm:text-sm"
-                                    />
+                                        return (
+                                            <div
+                                                key={item.itemId}
+                                                className="rounded-2xl border border-teal-100 bg-teal-50/30 p-4 space-y-3 transition-all"
+                                            >
+                                                {/* Room Header */}
+                                                <div className="flex items-center justify-between pb-2 border-b border-teal-100/70">
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="badge badge-sm bg-teal-600 text-white font-bold">
+                                                            Room {index + 1}
+                                                        </span>
+                                                        <span className="font-bold text-slate-800 text-xs">
+                                                            {currentCat?.name || "Select Category"}
+                                                        </span>
+                                                    </div>
+                                                    {bookingRooms.length > 1 && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleRemoveRoom(item.itemId)}
+                                                            className="btn btn-xs btn-ghost text-red-500 hover:bg-red-50 rounded-lg gap-1"
+                                                            title="Remove Room"
+                                                        >
+                                                            <Trash2 size={13} /> Remove
+                                                        </button>
+                                                    )}
+                                                </div>
+
+                                                {/* Field 1: Category Dropdown & "Same category" checkbox (only for additional rooms: index > 0) */}
+                                                {index > 0 && (
+                                                    <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-center">
+                                                        <div className="form-control sm:col-span-8">
+                                                            <label className="label py-0.5">
+                                                                <span className="label-text font-semibold text-slate-700 text-xs">Category *</span>
+                                                            </label>
+                                                            <select
+                                                                value={item.categoryId}
+                                                                onChange={e => handleRoomChange(item.itemId, { categoryId: e.target.value, sameCategory: false })}
+                                                                disabled={item.sameCategory}
+                                                                className="select select-sm select-bordered w-full rounded-xl bg-white text-xs font-medium"
+                                                            >
+                                                                {categories.map(c => (
+                                                                    <option key={c._id} value={c._id}>
+                                                                        {c.name} — ৳{Number(c.price).toLocaleString()}/night
+                                                                    </option>
+                                                                ))}
+                                                            </select>
+                                                            {formErrors[`category-${item.itemId}`] && (
+                                                                <span className="text-error text-[11px] mt-0.5">{formErrors[`category-${item.itemId}`]}</span>
+                                                            )}
+                                                        </div>
+
+                                                        {/* "Same category" Checkbox */}
+                                                        <div className="sm:col-span-4 flex items-center sm:pt-6">
+                                                            <label className="cursor-pointer flex items-center gap-2 text-xs font-semibold text-slate-700 select-none">
+                                                                <input
+                                                                    type="checkbox"
+                                                                    checked={item.sameCategory}
+                                                                    onChange={e => handleRoomChange(item.itemId, { sameCategory: e.target.checked })}
+                                                                    className="checkbox checkbox-xs checkbox-primary rounded"
+                                                                />
+                                                                <span>Same category</span>
+                                                            </label>
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                {/* Field 2 & 3: Check-In & Check-Out */}
+                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                                    <div className="form-control">
+                                                        <label className="label py-0.5">
+                                                            <span className="label-text font-semibold text-slate-700 text-xs">Check-In *</span>
+                                                        </label>
+                                                        <DatePicker
+                                                            selected={item.checkInDate}
+                                                            onChange={date => handleRoomChange(item.itemId, { checkInDate: date })}
+                                                            minDate={new Date()}
+                                                            placeholderText="Select check-in date"
+                                                            dateFormat="dd MMM yyyy"
+                                                            className={`input input-sm input-bordered w-full rounded-xl bg-white text-xs cursor-pointer ${formErrors[`checkIn-${item.itemId}`] ? "input-error" : ""}`}
+                                                            wrapperClassName="w-full"
+                                                            autoComplete="off"
+                                                        />
+                                                        {formErrors[`checkIn-${item.itemId}`] && (
+                                                            <span className="text-error text-[11px] mt-0.5">{formErrors[`checkIn-${item.itemId}`]}</span>
+                                                        )}
+                                                    </div>
+
+                                                    <div className="form-control">
+                                                        <label className="label py-0.5">
+                                                            <span className="label-text font-semibold text-slate-700 text-xs">Check-Out *</span>
+                                                        </label>
+                                                        <DatePicker
+                                                            selected={item.checkOutDate}
+                                                            onChange={date => handleRoomChange(item.itemId, { checkOutDate: date })}
+                                                            minDate={item.checkInDate ? addDays(item.checkInDate, 1) : addDays(new Date(), 1)}
+                                                            placeholderText="Select check-out date"
+                                                            dateFormat="dd MMM yyyy"
+                                                            className={`input input-sm input-bordered w-full rounded-xl bg-white text-xs cursor-pointer ${formErrors[`checkOut-${item.itemId}`] ? "input-error" : ""}`}
+                                                            wrapperClassName="w-full"
+                                                            autoComplete="off"
+                                                            disabled={!item.checkInDate}
+                                                        />
+                                                        {formErrors[`checkOut-${item.itemId}`] && (
+                                                            <span className="text-error text-[11px] mt-0.5">{formErrors[`checkOut-${item.itemId}`]}</span>
+                                                        )}
+                                                    </div>
+                                                </div>
+
+                                                {/* Field 4 & 5: Adults & Babies */}
+                                                <div className="grid grid-cols-2 gap-3">
+                                                    <div className="form-control">
+                                                        <label className="label py-0.5">
+                                                            <span className="label-text font-semibold text-slate-700 text-xs">Adults</span>
+                                                        </label>
+                                                        <input
+                                                            type="number" min="1" value={item.adults}
+                                                            onChange={e => handleRoomChange(item.itemId, { adults: e.target.value })}
+                                                            className="input input-sm input-bordered w-full rounded-xl bg-white text-xs"
+                                                        />
+                                                    </div>
+                                                    <div className="form-control">
+                                                        <label className="label py-0.5">
+                                                            <span className="label-text font-semibold text-slate-700 text-xs">Children / Baby</span>
+                                                        </label>
+                                                        <input
+                                                            type="number" min="0" value={item.babies}
+                                                            onChange={e => handleRoomChange(item.itemId, { babies: e.target.value })}
+                                                            className="input input-sm input-bordered w-full rounded-xl bg-white text-xs"
+                                                        />
+                                                    </div>
+                                                </div>
+
+                                                {/* Room Subtotal */}
+                                                <div className="flex items-center justify-between text-[11px] text-slate-600 border-t border-teal-100/60 pt-2">
+                                                    <span>{nights} night{nights === 1 ? "" : "s"} × ৳{getRoomPrice(item).toLocaleString()}</span>
+                                                    <span className="font-bold text-teal-800">৳{roomTotal.toLocaleString()}</span>
+                                                </div>
+                                            </div>
+                                        )
+                                    })}
                                 </div>
                             </div>
 
@@ -649,7 +747,7 @@ const Home = () => {
                             <div className="flex items-center gap-3 pt-2">
                                 <button type="button" onClick={handleCloseModal} className="btn btn-sm sm:btn-md btn-ghost flex-1 rounded-xl">Cancel</button>
                                 <button type="submit" disabled={isSubmitting} className="btn btn-sm sm:btn-md btn-primary flex-2 rounded-xl text-white font-bold shadow-md shadow-teal-600/20">
-                                    {isSubmitting ? <span className="loading loading-spinner loading-sm" /> : "Confirm Reservation"}
+                                    {isSubmitting ? <span className="loading loading-spinner loading-sm" /> : `Confirm Reservation (৳${grandTotal.toLocaleString()})`}
                                 </button>
                             </div>
                         </form>

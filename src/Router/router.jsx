@@ -9,7 +9,6 @@ import PrivateRoute from "../PrivateRoute/PrivateRoute"
 import AdminRoute from "../PrivateRoute/AdminRoute"
 import Dashboard from "../Layout/Dashboard/Dashboard"
 import DashboardHome from "../Pages/Dashboard/Home/DashboardHome"
-import Rooms from "../Pages/Dashboard/Rooms/Rooms"
 import Bookings from "../Pages/Dashboard/Bookings/Bookings"
 import BookingDetails from "../Pages/Dashboard/Bookings/BookingDetails"
 import RoomDetails from "../Pages/Rooms/RoomDetails"
@@ -17,6 +16,7 @@ import Users from "../Pages/Dashboard/Users/Users"
 import Forbidden from "../Components/Forbidden"
 import Calender from "../Pages/Dashboard/Calender/Calender"
 import CategoryAndPricing from "../Pages/Dashboard/Category&Pricing/CategoryAndPricing"
+import CategoryRoomDetails from "../Pages/Dashboard/Category&Pricing/CategoryRoomDetails"
 
 export const router = createBrowserRouter([
     {
@@ -45,9 +45,8 @@ export const router = createBrowserRouter([
             { path: "bookings", Component: Bookings },
             { path: "bookings/:id", Component: BookingDetails },
             // admin
-            { path: "rooms", element: <AdminRoute><Rooms /></AdminRoute> },
-            { path: "category&pricing", element: <AdminRoute><CategoryAndPricing></CategoryAndPricing></AdminRoute> },
-            { path: "rooms/:id", Component: RoomDetails },
+            { path: "category&room", element: <AdminRoute><CategoryAndPricing /></AdminRoute> },
+            { path: "category&room/:id", element: <AdminRoute><CategoryRoomDetails /></AdminRoute> },
             { path: "users", element: <AdminRoute><Users /></AdminRoute> },
             { path: "calender", element: <AdminRoute><Calender /></AdminRoute> },
         ]

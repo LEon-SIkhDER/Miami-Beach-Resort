@@ -5,15 +5,20 @@ import { Upload, X } from 'lucide-react'
 const CLOUDINARY_CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME
 const CLOUDINARY_UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET
 
-const RoomImageUploader = ({ uploadedImages, setUploadedImages }) => {
+const CategoryImageUploader = ({ uploadedImages, setUploadedImages, onUploadingChange }) => {
     const [uploading, setUploading] = useState(false)
+
+    const setUploadingState = (val) => {
+        setUploading(val)
+        onUploadingChange?.(val)
+    }
 
     const handleMultipleImageUpload = async (e) => {
         const files = Array.from(e.target.files || [])
         if (files.length === 0) return
 
-        setUploading(true)
-        const uploadToast = toast.loading(`Uploading ${files.length} image(s) to Cloudinary...`)
+        setUploadingState(true)
+        const uploadToast = toast.loading(`Uploading ${files.length} image(s)...`)
 
         try {
             const uploadPromises = files.map(async (file) => {
@@ -32,13 +37,12 @@ const RoomImageUploader = ({ uploadedImages, setUploadedImages }) => {
 
             const uploaded = await Promise.all(uploadPromises)
             setUploadedImages(prev => [...prev, ...uploaded])
-            // toast.success(`Successfully uploaded ${uploaded.length} photo(s)!`, { id: uploadToast })
             toast.dismiss(uploadToast)
         } catch (err) {
             console.log(err)
             toast.error("Image upload failed. Please check network connection.", { id: uploadToast })
         } finally {
-            setUploading(false)
+            setUploadingState(false)
             e.target.value = ""
         }
     }
@@ -50,14 +54,14 @@ const RoomImageUploader = ({ uploadedImages, setUploadedImages }) => {
     return (
         <div className="form-control">
             <label className="label py-1">
-                <span className="label-text font-semibold text-slate-700">Room Photos (Upload Multiple)</span>
-                <span className="label-text-alt text-xs text-slate-400">{uploadedImages.length} photo(s) selected</span> <span className="text-red-500">*</span>
+                <span className="label-text font-semibold text-slate-700">Category Photos (Upload Multiple)</span>
+                <span className="label-text-alt text-xs text-slate-400">{uploadedImages.length} photo(s) selected</span>
             </label>
             <div className="p-4 rounded-2xl border border-dashed border-slate-300 bg-slate-50 space-y-3">
                 <div className="flex items-center gap-3">
                     <label className={`btn btn-sm btn-outline border-slate-300 gap-2 cursor-pointer ${uploading ? "btn-disabled" : ""}`}>
                         <Upload size={15} />
-                        {uploading ? "Uploading..." : "Upload Multiple Photos"}
+                        {uploading ? "Uploading..." : "Upload Photos"}
                         <input
                             type="file"
                             multiple
@@ -97,4 +101,4 @@ const RoomImageUploader = ({ uploadedImages, setUploadedImages }) => {
     )
 }
 
-export default RoomImageUploader
+export default CategoryImageUploader

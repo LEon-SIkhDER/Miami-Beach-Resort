@@ -4,7 +4,27 @@ import useAxiosSecure from '../../../hooks/useAxiosSecure'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
 import { showConfirmAlert, showErrorAlert } from '../../../utils/customSwal'
-import { Shield, User, Search, Users as UsersIcon, Mail, Calendar, Phone, CheckCircle2 } from 'lucide-react'
+import { 
+    Shield, 
+    User, 
+    Search, 
+    Users as UsersIcon, 
+    Phone, 
+    CheckCircle2, 
+    EllipsisVertical, 
+    Briefcase, 
+    UserCheck, 
+    Building2, 
+    ArrowDownCircle 
+} from 'lucide-react'
+
+const ROLE_LABELS = {
+    manager: "Manager",
+    agent: "Agent",
+    b2b: "B2B Partner",
+    admin: "Admin",
+    user: "User"
+}
 
 const Users = () => {
     const { user: currentUser } = useContext(AuthContext)
@@ -26,44 +46,75 @@ const Users = () => {
             const res = await axiosSecure.patch(`/user/${id}`, { role })
             return res.data
         },
-        onMutate: ({ role }) => ({
-            toastId: toast.loading(role === "admin" ? "Granting admin access..." : "Revoking admin access...")
+        onMutate: ({ roleTitle }) => ({
+            toastId: toast.loading(`Updating role to ${roleTitle}...`)
         }),
-        onSuccess: async (_, __, context) => {
+        onSuccess: async (_, variables, context) => {
             await queryClient.invalidateQueries({ queryKey: ["all-users"] })
             toast.dismiss(context?.toastId)
-            toast.success("User role updated successfully!")
+            toast.success(`User updated to ${variables.roleTitle || "new role"}! 🎉`)
         },
-        onError: (_, __, context) => {
+        onError: (err, _, context) => {
             toast.dismiss(context?.toastId)
-            toast.error("Failed to update user role.")
+            toast.error(err.response?.data?.message || "Failed to update user role.")
         }
     })
 
-    const handleMakeAdmin = (user) => {
-        showConfirmAlert(
-            `Make "${user.name || user.email}" an Admin?`,
-            "This user will have full access to add/delete rooms, view all bookings, and manage roles.",
-            "Yes, grant Admin role"
-        ).then(result => {
-            if (result.isConfirmed) roleMutation.mutate({ id: user._id, role: "admin" })
-        })
-    }
-
-    const handleRemoveAdmin = (user) => {
-        if (user.email?.toLowerCase() === currentUser?.email?.toLowerCase()) {
-            showErrorAlert("Action Not Allowed", "You cannot demote or change your own admin status.")
+    const handleRoleChange = (targetUser, newRole) => {
+        const isSelf = targetUser.email?.toLowerCase() === currentUser?.email?.toLowerCase() || 
+                       (currentUser?.uid && targetUser.uid === currentUser.uid)
+        if (isSelf) {
+            showErrorAlert("Action Not Allowed", "You cannot modify your own role permissions.")
             return
         }
 
+        const roleTitle = ROLE_LABELS[newRole] || newRole
+
         showConfirmAlert(
-            `Revoke Admin Access for "${user.name || user.email}"?`,
-            "This user will be demoted to a regular guest user.",
-            "Yes, demote to User",
-            true
+            `Approve as ${roleTitle}?`,
+            `Change role of "${targetUser.name || targetUser.email}" to ${roleTitle}.`,
+            `Yes, set as ${roleTitle}`,
+            newRole === "user"
         ).then(result => {
-            if (result.isConfirmed) roleMutation.mutate({ id: user._id, role: "user" })
+            if (result.isConfirmed) {
+                roleMutation.mutate({ id: targetUser._id, role: newRole, roleTitle })
+            }
         })
+    }
+
+    const getRoleBadge = (role) => {
+        switch (role) {
+            case "admin":
+                return (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200 whitespace-nowrap">
+                        <Shield size={12} className="text-amber-600" /> Admin
+                    </span>
+                )
+            case "manager":
+                return (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-purple-50 text-purple-800 border border-purple-200 whitespace-nowrap">
+                        <Briefcase size={12} className="text-purple-600" /> Manager
+                    </span>
+                )
+            case "agent":
+                return (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-teal-50 text-teal-800 border border-teal-200 whitespace-nowrap">
+                        <UserCheck size={12} className="text-teal-600" /> Agent
+                    </span>
+                )
+            case "b2b":
+                return (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-50 text-blue-800 border border-blue-200 whitespace-nowrap">
+                        <Building2 size={12} className="text-blue-600" /> B2B Partner
+                    </span>
+                )
+            default:
+                return (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-700 whitespace-nowrap">
+                        <User size={12} className="text-slate-400" /> Guest / User
+                    </span>
+                )
+        }
     }
 
     return (
@@ -72,10 +123,10 @@ const Users = () => {
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
                     <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 font-serif tracking-tight">
-                        Users and Roles Management
+                        Users & Roles Management
                     </h1>
                     <p className="text-xs sm:text-sm text-slate-500 mt-1">
-                        View registered guest accounts and manage administrator access permissions.
+                        View registered guest accounts and manage roles: Manager, Agent, B2B Partner, and Admin.
                     </p>
                 </div>
 
@@ -83,15 +134,15 @@ const Users = () => {
                     <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                     <input
                         type="text"
-                        placeholder="Search users..."
-                        className="input input-sm input-bordered pl-9 rounded-xl w-full sm:w-60 bg-white"
+                        placeholder="Search users by name or email..."
+                        className="input input-sm input-bordered pl-9 rounded-xl w-full sm:w-64 bg-white"
                         value={search}
                         onChange={e => setSearch(e.target.value)}
                     />
                 </div>
             </div>
 
-            {/* Desktop Table */}
+            {/* Desktop Table View */}
             <div className="hidden md:block bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
                 <div className="overflow-x-auto">
                     <table className="table table-zebra w-full whitespace-nowrap">
@@ -103,7 +154,7 @@ const Users = () => {
                                 <th className="whitespace-nowrap">Phone</th>
                                 <th className="whitespace-nowrap">Role</th>
                                 <th className="whitespace-nowrap">Joined Date</th>
-                                <th className="text-right whitespace-nowrap min-w-[150px]">Action</th>
+                                <th className="text-center whitespace-nowrap min-w-[80px]">Action</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 text-sm">
@@ -119,16 +170,16 @@ const Users = () => {
                                         </td>
                                         <td><div className="h-4 bg-slate-200 rounded w-36"></div></td>
                                         <td><div className="h-4 bg-slate-200 rounded w-24"></div></td>
-                                        <td><div className="h-5 bg-slate-200 rounded-full w-16"></div></td>
+                                        <td><div className="h-5 bg-slate-200 rounded-full w-20"></div></td>
                                         <td><div className="h-4 bg-slate-200 rounded w-20"></div></td>
-                                        <td className="text-right"><div className="h-7 bg-slate-200 rounded-lg w-28 ml-auto"></div></td>
+                                        <td className="text-center"><div className="h-7 bg-slate-200 rounded-lg w-8 mx-auto"></div></td>
                                     </tr>
                                 ))
                             ) : users.length === 0 ? (
                                 <tr>
                                     <td colSpan={7} className="text-center py-12 text-slate-400">
                                         <UsersIcon size={36} className="mx-auto mb-2 opacity-50" />
-                                        No users registered yet.
+                                        No users found matching your search.
                                     </td>
                                 </tr>
                             ) : (
@@ -157,40 +208,80 @@ const Users = () => {
                                             <td className="text-slate-600 whitespace-nowrap">{u.email}</td>
                                             <td className="text-slate-600 whitespace-nowrap">{u.phone || "—"}</td>
                                             <td className="whitespace-nowrap">
-                                                <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold whitespace-nowrap ${
-                                                    u.role === "admin" 
-                                                        ? "bg-amber-50 text-amber-800 border border-amber-200" 
-                                                        : "bg-slate-100 text-slate-700"
-                                                }`}>
-                                                    {u.role === "admin" ? <Shield size={12} /> : <User size={12} />}
-                                                    {u.role === "admin" ? "Admin" : "User"}
-                                                </span>
+                                                {getRoleBadge(u.role)}
                                             </td>
                                             <td className="text-xs text-slate-500 whitespace-nowrap">
                                                 {u.created_At ? new Date(u.created_At).toLocaleDateString() : "—"}
                                             </td>
-                                            <td className="text-right whitespace-nowrap">
-                                                <div className="inline-flex justify-end shrink-0">
-                                                    {isCurrentAdmin ? (
-                                                        <span className="inline-flex items-center gap-1 text-xs font-medium text-slate-400 bg-slate-100 px-3 py-1 rounded-lg whitespace-nowrap shrink-0">
-                                                            <CheckCircle2 size={12} className="text-teal-600" /> Logged in
-                                                        </span>
-                                                    ) : u.role === "admin" ? (
-                                                        <button
-                                                            onClick={() => handleRemoveAdmin(u)}
-                                                            className="btn btn-outline border-rose-300 text-rose-600 hover:bg-rose-50 btn-xs rounded-lg gap-1 whitespace-nowrap shrink-0"
-                                                        >
-                                                            <User size={12} /> Demote to User
-                                                        </button>
-                                                    ) : (
-                                                        <button
-                                                            onClick={() => handleMakeAdmin(u)}
-                                                            className="btn btn-primary btn-xs rounded-lg gap-1 text-white shadow-xs whitespace-nowrap shrink-0"
-                                                        >
-                                                            <Shield size={12} /> Grant Admin
-                                                        </button>
-                                                    )}
-                                                </div>
+                                            <td className="text-center whitespace-nowrap">
+                                                {isCurrentAdmin ? (
+                                                    <span className="inline-flex items-center gap-1 text-xs font-medium text-slate-400 bg-slate-100 px-2.5 py-1 rounded-lg whitespace-nowrap">
+                                                        <CheckCircle2 size={12} className="text-teal-600" /> Current Admin
+                                                    </span>
+                                                ) : (
+                                                    <div className="dropdown dropdown-left">
+                                                        <div tabIndex={0} role="button" className="cursor-pointer rounded-full hover:bg-gray-100 p-2 border border-transparent hover:border-gray-200 inline-flex">
+                                                            <EllipsisVertical size={18} />
+                                                        </div>
+                                                        <ul tabIndex={-1} className="dropdown-content menu bg-base-100 rounded-box z-10 w-56 p-2 shadow-lg border border-slate-100">
+                                                            {u.role !== "manager" && (
+                                                                <li>
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => handleRoleChange(u, "manager")}
+                                                                        className="text-purple-700 hover:bg-purple-50 font-medium"
+                                                                    >
+                                                                        <Briefcase size={14} /> Approve as Manager
+                                                                    </button>
+                                                                </li>
+                                                            )}
+                                                            {u.role !== "agent" && (
+                                                                <li>
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => handleRoleChange(u, "agent")}
+                                                                        className="text-teal-700 hover:bg-teal-50 font-medium"
+                                                                    >
+                                                                        <UserCheck size={14} /> Approve as Agent
+                                                                    </button>
+                                                                </li>
+                                                            )}
+                                                            {u.role !== "b2b" && (
+                                                                <li>
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => handleRoleChange(u, "b2b")}
+                                                                        className="text-blue-700 hover:bg-blue-50 font-medium"
+                                                                    >
+                                                                        <Building2 size={14} /> Approve as B2B
+                                                                    </button>
+                                                                </li>
+                                                            )}
+                                                            {u.role !== "admin" && (
+                                                                <li>
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => handleRoleChange(u, "admin")}
+                                                                        className="text-amber-700 hover:bg-amber-50 font-medium"
+                                                                    >
+                                                                        <Shield size={14} /> Make Admin
+                                                                    </button>
+                                                                </li>
+                                                            )}
+                                                            {u.role !== "user" && (
+                                                                <li>
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => handleRoleChange(u, "user")}
+                                                                        className="text-rose-600 hover:bg-rose-50"
+                                                                    >
+                                                                        <ArrowDownCircle size={14} /> Demote to User
+                                                                    </button>
+                                                                </li>
+                                                            )}
+                                                        </ul>
+                                                    </div>
+                                                )}
                                             </td>
                                         </tr>
                                     )
@@ -201,7 +292,7 @@ const Users = () => {
                 </div>
             </div>
 
-            {/* Mobile Cards View (Optimized down to 320px) */}
+            {/* Mobile Cards View */}
             <div className="md:hidden space-y-3">
                 {isLoading ? (
                     [1, 2, 3].map(n => (
@@ -243,14 +334,9 @@ const Users = () => {
                                             <p className="text-xs text-slate-500 truncate">{u.email}</p>
                                         </div>
                                     </div>
-                                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold shrink-0 ${
-                                        u.role === "admin" 
-                                            ? "bg-amber-50 text-amber-800 border border-amber-200" 
-                                            : "bg-slate-100 text-slate-700"
-                                    }`}>
-                                        {u.role === "admin" ? <Shield size={11} /> : <User size={11} />}
-                                        {u.role === "admin" ? "Admin" : "User"}
-                                    </span>
+                                    <div className="shrink-0">
+                                        {getRoleBadge(u.role)}
+                                    </div>
                                 </div>
 
                                 {u.phone && (
@@ -260,27 +346,76 @@ const Users = () => {
                                     </div>
                                 )}
 
-                                <div className="pt-1 border-t border-slate-100">
+                                <div className="flex items-center justify-between pt-1 border-t border-slate-100 text-xs text-slate-500">
+                                    <span>Joined: {u.created_At ? new Date(u.created_At).toLocaleDateString() : "—"}</span>
+                                    
                                     {isCurrentAdmin ? (
-                                        <div className="w-full text-center text-xs font-medium text-slate-400 bg-slate-50 py-1.5 rounded-xl">
-                                            <span className="inline-flex items-center gap-1">
-                                                <CheckCircle2 size={13} className="text-teal-600" /> Current Logged In Admin
-                                            </span>
-                                        </div>
-                                    ) : u.role === "admin" ? (
-                                        <button
-                                            onClick={() => handleRemoveAdmin(u)}
-                                            className="btn btn-outline border-rose-300 text-rose-600 hover:bg-rose-50 btn-sm w-full rounded-xl gap-1.5 text-xs font-semibold"
-                                        >
-                                            <User size={14} /> Demote to User
-                                        </button>
+                                        <span className="inline-flex items-center gap-1 text-xs font-medium text-slate-400 bg-slate-50 px-2 py-0.5 rounded-md">
+                                            <CheckCircle2 size={12} className="text-teal-600" /> Current Admin
+                                        </span>
                                     ) : (
-                                        <button
-                                            onClick={() => handleMakeAdmin(u)}
-                                            className="btn btn-primary btn-sm w-full rounded-xl gap-1.5 text-white font-semibold text-xs shadow-xs"
-                                        >
-                                            <Shield size={14} /> Grant Admin Access
-                                        </button>
+                                        <div className="dropdown dropdown-left">
+                                            <div tabIndex={0} role="button" className="cursor-pointer rounded-full hover:bg-gray-100 p-1.5 border border-transparent hover:border-gray-200">
+                                                <EllipsisVertical size={16} />
+                                            </div>
+                                            <ul tabIndex={-1} className="dropdown-content menu bg-base-100 rounded-box z-10 w-52 p-2 shadow-lg border border-slate-100">
+                                                {u.role !== "manager" && (
+                                                    <li>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleRoleChange(u, "manager")}
+                                                            className="text-purple-700 hover:bg-purple-50 font-medium"
+                                                        >
+                                                            <Briefcase size={14} /> Approve as Manager
+                                                        </button>
+                                                    </li>
+                                                )}
+                                                {u.role !== "agent" && (
+                                                    <li>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleRoleChange(u, "agent")}
+                                                            className="text-teal-700 hover:bg-teal-50 font-medium"
+                                                        >
+                                                            <UserCheck size={14} /> Approve as Agent
+                                                        </button>
+                                                    </li>
+                                                )}
+                                                {u.role !== "b2b" && (
+                                                    <li>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleRoleChange(u, "b2b")}
+                                                            className="text-blue-700 hover:bg-blue-50 font-medium"
+                                                        >
+                                                            <Building2 size={14} /> Approve as B2B
+                                                        </button>
+                                                    </li>
+                                                )}
+                                                {u.role !== "admin" && (
+                                                    <li>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleRoleChange(u, "admin")}
+                                                            className="text-amber-700 hover:bg-amber-50 font-medium"
+                                                        >
+                                                            <Shield size={14} /> Make Admin
+                                                        </button>
+                                                    </li>
+                                                )}
+                                                {u.role !== "user" && (
+                                                    <li>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleRoleChange(u, "user")}
+                                                            className="text-rose-600 hover:bg-rose-50"
+                                                        >
+                                                            <ArrowDownCircle size={14} /> Demote to User
+                                                        </button>
+                                                    </li>
+                                                )}
+                                            </ul>
+                                        </div>
                                     )}
                                 </div>
                             </div>

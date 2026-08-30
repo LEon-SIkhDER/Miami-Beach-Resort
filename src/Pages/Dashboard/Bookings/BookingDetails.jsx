@@ -1,4 +1,4 @@
-import React, { useContext } from 'react'
+import React, { useContext, useState } from 'react'
 import { useParams, Link, useNavigate } from 'react-router'
 import { AuthContext } from '../../../Context/AuthContext'
 import useRole from '../../../hooks/useRole'
@@ -25,8 +25,15 @@ import {
     ShieldAlert,
     Copy,
     Check,
-    MapPin
+    MapPin,
+    Pencil,
+    UserCheck,
+    Receipt,
+    FileText
 } from 'lucide-react'
+import { getBookingGuestTotals, getBookingRooms, getBookingTotal, getNightCount, getRoomName, getRoomTotal } from '../../../utils/bookingUtils'
+import ConfirmBookingModal from './ConfirmBookingModal'
+import EditBookingModal from './EditBookingModal'
 
 const BookingDetails = () => {
     const { id } = useParams()
@@ -35,7 +42,11 @@ const BookingDetails = () => {
     const axiosSecure = useAxiosSecure()
     const queryClient = useQueryClient()
     const navigate = useNavigate()
-    const [copied, setCopied] = React.useState(false)
+    const [copied, setCopied] = useState(false)
+
+    // Modals
+    const [isConfirmOpen, setIsConfirmOpen] = useState(false)
+    const [isEditOpen, setIsEditOpen] = useState(false)
 
     const isAdmin = role === "admin"
 
@@ -63,7 +74,7 @@ const BookingDetails = () => {
             return res.data
         },
         onMutate: ({ status }) => {
-            const label = status === "confirmed" ? "Confirming booking..." : "Cancelling booking..."
+            const label = status === "booking_confirmed" ? "Confirming booking..." : "Cancelling booking..."
             return { toastId: toast.loading(label) }
         },
         onSuccess: async (_, variables, context) => {
@@ -72,8 +83,8 @@ const BookingDetails = () => {
             await queryClient.invalidateQueries({ queryKey: ["user-bookings-summary"] })
             await queryClient.invalidateQueries({ queryKey: ["admin-overview"] })
             toast.dismiss(context?.toastId)
-            if (variables.status === "confirmed") toast.success("Booking marked as confirmed!")
-            else if (variables.status === "cancelled") toast.success("🚫 Booking cancelled.")
+            if (variables.status === "booking_confirmed") toast.success("Booking marked as confirmed!")
+            else if (["cancel", "cancelled"].includes(variables.status)) toast.success("🚫 Booking cancelled.")
         },
         onError: (_, __, context) => {
             toast.dismiss(context?.toastId)
@@ -100,24 +111,18 @@ const BookingDetails = () => {
         }
     })
 
-    const handleConfirm = () => {
-        showConfirmAlert(
-            `Confirm Booking ${booking?.bookingId}?`,
-            "This will officially mark the reservation as confirmed.",
-            "Yes, confirm booking"
-        ).then(result => {
-            if (result.isConfirmed) statusMutation.mutate({ status: "confirmed" })
-        })
+    const handleConfirmClick = () => {
+        setIsConfirmOpen(true)
     }
 
     const handleCancel = () => {
         showConfirmAlert(
             `Cancel Booking ${booking?.bookingId}?`,
-            "A 35% cancellation fee applies as per Miami Beach Resort policy. The dates will be freed for other guests.",
+            "The dates and assigned rooms will be freed for other guests.",
             "Yes, cancel reservation",
             true
         ).then(result => {
-            if (result.isConfirmed) statusMutation.mutate({ status: "cancelled" })
+            if (result.isConfirmed) statusMutation.mutate({ status: "cancel" })
         })
     }
 
@@ -147,22 +152,42 @@ const BookingDetails = () => {
 
     const statusBadge = (status) => {
         switch (status) {
+            case "booking_confirmed":
             case "confirmed":
                 return (
                     <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
                         <CheckCircle2 size={14} /> Confirmed
                     </span>
                 )
+            case "checked_id":
+                return (
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                        <CheckCircle2 size={14} /> Checked In
+                    </span>
+                )
+            case "checked_out":
+                return (
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-slate-50 text-slate-700 border border-slate-200">
+                        <Clock size={14} /> Checked Out
+                    </span>
+                )
+            case "cancel":
             case "cancelled":
                 return (
                     <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-rose-50 text-rose-700 border border-rose-200">
                         <XCircle size={14} /> Cancelled
                     </span>
                 )
+            case "payment_waiting":
+                return (
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-sky-50 text-sky-700 border border-sky-200">
+                        <CreditCard size={14} /> Payment Waiting
+                    </span>
+                )
             default:
                 return (
                     <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-700 border border-amber-200">
-                        <Clock size={14} /> Pending Approval
+                        <Clock size={14} /> Request Booking
                     </span>
                 )
         }
@@ -192,18 +217,17 @@ const BookingDetails = () => {
         )
     }
 
-    // Calculate nights if dates exist
-    let nightsCount = 1
-    if (booking.checkIn && booking.checkOut) {
-        const diffTime = Math.abs(new Date(booking.checkOut) - new Date(booking.checkIn))
-        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
-        nightsCount = diffDays > 0 ? diffDays : 1
-    }
-    const bookedRoomName = booking.roomName || booking.roomCategory || "Room"
+    const bookingRooms = getBookingRooms(booking)
+    const guestTotals = getBookingGuestTotals(booking)
+    const totalAmount = getBookingTotal(booking)
+    const sortedCheckIns = bookingRooms.map(room => room.checkIn).filter(Boolean).sort()
+    const sortedCheckOuts = bookingRooms.map(room => room.checkOut).filter(Boolean).sort()
+    const firstCheckIn = sortedCheckIns[0] || booking.checkIn
+    const lastCheckOut = sortedCheckOuts[sortedCheckOuts.length - 1] || booking.checkOut
 
     return (
         <div className="space-y-6 max-w-4xl mx-auto">
-            {/* Top Navigation & Action Buttons (Hidden when printing) */}
+            {/* Top Navigation & Action Buttons */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 print:hidden">
                 <Link 
                     to="/dashboard/bookings" 
@@ -213,23 +237,32 @@ const BookingDetails = () => {
                 </Link>
 
                 <div className="flex flex-wrap items-center gap-2">
-                    {/* <button 
+                    <button 
                         onClick={handlePrint}
                         className="btn btn-sm btn-outline border-slate-300 gap-1.5 rounded-xl text-slate-700 hover:bg-slate-100"
                     >
-                        <Printer size={15} /> Print / Save Voucher
-                    </button> */}
+                        <Printer size={15} /> Print
+                    </button>
 
-                    {isAdmin && booking.status === "pending" && (
+                    {isAdmin && (
                         <button 
-                            onClick={handleConfirm}
-                            className="btn btn-sm btn-primary text-white gap-1.5 rounded-xl"
+                            onClick={() => setIsEditOpen(true)}
+                            className="btn btn-sm btn-outline border-teal-300 text-teal-700 hover:bg-teal-50 gap-1.5 rounded-xl"
+                        >
+                            <Pencil size={15} /> Edit Reservation
+                        </button>
+                    )}
+
+                    {isAdmin && ["request_booking", "payment_waiting", "pending"].includes(booking.status) && (
+                        <button 
+                            onClick={handleConfirmClick}
+                            className="btn btn-sm btn-primary text-white gap-1.5 rounded-xl shadow-xs"
                         >
                             <CheckCircle2 size={15} /> Confirm Reservation
                         </button>
                     )}
 
-                    {booking.status === "pending" && (
+                    {!["cancel", "cancelled", "checked_out"].includes(booking.status) && (
                         <button 
                             onClick={handleCancel}
                             className="btn btn-sm btn-outline border-rose-300 text-rose-600 hover:bg-rose-50 gap-1.5 rounded-xl"
@@ -250,7 +283,7 @@ const BookingDetails = () => {
                 </div>
             </div>
 
-            {/* Main Reservation Voucher Card (Print-optimized) */}
+            {/* Main Reservation Voucher Card */}
             <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden p-6 sm:p-10 space-y-8 print:border-none print:shadow-none print:p-0">
                 {/* Header with Resort Logo and Booking ID */}
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-slate-100">
@@ -300,7 +333,7 @@ const BookingDetails = () => {
                             <div className="flex justify-between">
                                 <span className="text-slate-400">Guests:</span>
                                 <span className="font-semibold text-slate-800">
-                                    {booking.adults} Adults {booking.babies > 0 ? `• ${booking.babies} Babies` : ""}
+                                    {guestTotals.adults} Adults {guestTotals.babies > 0 ? `• ${guestTotals.babies} Babies` : ""}
                                 </span>
                             </div>
                             {booking.createdAt && (
@@ -320,18 +353,30 @@ const BookingDetails = () => {
                         <div className="space-y-2 text-slate-600 pt-1">
                             <div className="flex justify-between">
                                 <span className="text-slate-400">Check-In Date:</span>
-                                <span className="font-bold text-slate-900">{booking.checkIn} (from 1:00 PM)</span>
+                                <span className="font-bold text-slate-900">{firstCheckIn} (from 1:00 PM)</span>
                             </div>
                             <div className="flex justify-between">
-                                <span className="text-slate-400">Check-Out Date:</span>
-                                <span className="font-bold text-slate-900">{booking.checkOut} (until 11:00 AM)</span>
+                                <span className="text-slate-400">Final Check-Out:</span>
+                                <span className="font-bold text-slate-900">{lastCheckOut} (until 11:00 AM)</span>
                             </div>
                             <div className="flex justify-between">
-                                <span className="text-slate-400">Duration:</span>
-                                <span className="font-semibold text-teal-800 bg-teal-100/60 px-2 py-0.5 rounded-md">
-                                    {nightsCount} Night{nightsCount > 1 ? 's' : ''}
+                                <span className="text-slate-400">Total Booked:</span>
+                                <span className="font-semibold text-teal-800 bg-teal-100/60 px-2.5 py-0.5 rounded-md">
+                                    {bookingRooms.length} Room{bookingRooms.length > 1 ? 's' : ''}
                                 </span>
                             </div>
+                            {booking.reference && (
+                                <div className="flex justify-between pt-1 border-t border-slate-200">
+                                    <span className="text-slate-400 flex items-center gap-1"><UserCheck size={13} /> Reference:</span>
+                                    <span className="font-bold text-teal-900">{booking.reference}</span>
+                                </div>
+                            )}
+                            {booking.transactionId && (
+                                <div className="flex justify-between">
+                                    <span className="text-slate-400 flex items-center gap-1"><Receipt size={13} /> Trx ID:</span>
+                                    <span className="font-mono font-bold text-slate-800">{booking.transactionId}</span>
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>
@@ -342,40 +387,61 @@ const BookingDetails = () => {
                         <thead>
                             <tr className="bg-slate-50 text-slate-600 font-bold uppercase text-[11px] tracking-wider">
                                 <th>Reserved Accommodation</th>
+                                <th>Assigned Room No</th>
                                 <th>Stay Duration</th>
-                                <th className="text-right">Total Amount</th>
+                                <th className="text-right">Amount</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
-                            <tr>
-                                <td>
-                                    <div className="flex items-center gap-3 py-1">
-                                        <div className="w-10 h-10 rounded-xl bg-teal-50 text-teal-700 flex items-center justify-center shrink-0">
-                                            <BedDouble size={20} />
-                                        </div>
-                                        <div>
-                                            <p className="font-bold text-slate-900">{bookedRoomName}</p>
-                                        </div>
-                                    </div>
-                                </td>
-                                <td>
-                                    <p className="font-semibold text-slate-800">{booking.checkIn} → {booking.checkOut}</p>
-                                    <p className="text-xs text-slate-400">{nightsCount} night(s) stay</p>
-                                </td>
-                                <td className="text-right font-extrabold text-slate-900 text-sm sm:text-base">
-                                    ৳{Number(booking.totalAmount || 0).toLocaleString()}
-                                </td>
-                            </tr>
+                            {bookingRooms.map((roomItem, index) => {
+                                const nights = getNightCount(roomItem.checkIn, roomItem.checkOut)
+                                return (
+                                    <tr key={`${roomItem.roomId || index}-${index}`}>
+                                        <td>
+                                            <div className="flex items-center gap-3 py-1">
+                                                <div className="w-10 h-10 rounded-xl bg-teal-50 text-teal-700 flex items-center justify-center shrink-0">
+                                                    <BedDouble size={20} />
+                                                </div>
+                                                <div>
+                                                    <p className="font-bold text-slate-900">{getRoomName(roomItem)}</p>
+                                                    <p className="text-xs text-slate-400">
+                                                        {roomItem.room?.category || roomItem.categoryName || "Category Room"} • {roomItem.adults} Adults {roomItem.babies > 0 ? `• ${roomItem.babies} Babies` : ""}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            {roomItem.roomNo ? (
+                                                <span className="badge badge-sm bg-teal-100 text-teal-900 border-teal-200 font-bold font-mono">
+                                                    Room {roomItem.roomNo}
+                                                </span>
+                                            ) : (
+                                                <span className="text-xs text-amber-600 font-medium">
+                                                    Pending Assignment
+                                                </span>
+                                            )}
+                                        </td>
+                                        <td>
+                                            <p className="font-semibold text-slate-800">{roomItem.checkIn} → {roomItem.checkOut}</p>
+                                            <p className="text-xs text-slate-400">{nights} night(s) x ৳{Number(roomItem.pricePerNight || 0).toLocaleString()}</p>
+                                        </td>
+                                        <td className="text-right font-extrabold text-slate-900 text-sm sm:text-base">
+                                            ৳{Number(getRoomTotal(roomItem) || 0).toLocaleString()}
+                                        </td>
+                                    </tr>
+                                )
+                            })}
                         </tbody>
                     </table>
                 </div>
 
-                {booking.address && (
-                    <div className="p-4 rounded-2xl bg-teal-50/70 border border-teal-200/60 text-xs text-teal-900 space-y-1">
+                {/* Notes if any */}
+                {booking.notes && (
+                    <div className="p-4 rounded-2xl bg-amber-50/70 border border-amber-200/60 text-xs text-amber-900 space-y-1">
                         <p className="font-bold flex items-center gap-1.5">
-                            <MapPin size={14} className="text-teal-700" /> Guest Address:
+                            <FileText size={14} className="text-amber-700" /> Internal Notes:
                         </p>
-                        <p className="pl-5 text-teal-800">{booking.address}</p>
+                        <p className="pl-5 text-amber-800 whitespace-pre-line">{booking.notes}</p>
                     </div>
                 )}
 
@@ -390,27 +456,55 @@ const BookingDetails = () => {
 
                     <div className="bg-slate-50 p-5 rounded-2xl border border-slate-100 space-y-3 text-xs sm:text-sm">
                         <div className="flex justify-between items-center text-slate-600">
-                            <span>Subtotal:</span>
-                            <span>৳{Number(booking.totalAmount || 0).toLocaleString()}</span>
+                            <span>Total Bill:</span>
+                            <span>৳{Number(totalAmount || 0).toLocaleString()}</span>
                         </div>
-                        <div className="flex justify-between items-center text-slate-600">
-                            <span>Advance Paid:</span>
-                            <span className="text-emerald-700 font-semibold">৳{Number(booking.advanceAmount || 0).toLocaleString()}</span>
-                        </div>
-                        <div className="flex justify-between items-center text-slate-600">
-                            <span>Due Balance:</span>
-                            <span className="text-rose-700 font-semibold">
-                                ৳{(Number(booking.totalAmount || 0) - Number(booking.advanceAmount || 0)).toLocaleString()}
-                            </span>
-                        </div>
+                        {booking.paidAmount !== undefined && (
+                            <div className="flex justify-between items-center text-slate-600">
+                                <span>Paid Amount:</span>
+                                <span className="text-emerald-700 font-semibold">৳{Number(booking.paidAmount || 0).toLocaleString()}</span>
+                            </div>
+                        )}
+                        {booking.advanceAmount > 0 && (
+                            <div className="flex justify-between items-center text-slate-600">
+                                <span>Advance Paid:</span>
+                                <span className="text-emerald-700 font-semibold">৳{Number(booking.advanceAmount || 0).toLocaleString()}</span>
+                            </div>
+                        )}
                         <hr className="border-slate-200" />
                         <div className="flex justify-between items-center font-extrabold text-slate-900 text-base">
-                            <span>Total Bill:</span>
-                            <span className="text-teal-800">৳{Number(booking.totalAmount || 0).toLocaleString()}</span>
+                            <span>Final Amount:</span>
+                            <span className="text-teal-800">৳{Number(booking.totalAmount !== undefined ? booking.totalAmount : totalAmount).toLocaleString()}</span>
                         </div>
                     </div>
                 </div>
             </div>
+
+            {/* Confirm Booking Modal */}
+            {isConfirmOpen && (
+                <ConfirmBookingModal
+                    booking={booking}
+                    isOpen={isConfirmOpen}
+                    onClose={() => setIsConfirmOpen(false)}
+                    onSuccess={() => {
+                        queryClient.invalidateQueries({ queryKey: ["booking-details", id] })
+                        queryClient.invalidateQueries({ queryKey: ["bookings"] })
+                    }}
+                />
+            )}
+
+            {/* Edit Booking Modal */}
+            {isEditOpen && (
+                <EditBookingModal
+                    booking={booking}
+                    isOpen={isEditOpen}
+                    onClose={() => setIsEditOpen(false)}
+                    onSuccess={() => {
+                        queryClient.invalidateQueries({ queryKey: ["booking-details", id] })
+                        queryClient.invalidateQueries({ queryKey: ["bookings"] })
+                    }}
+                />
+            )}
         </div>
     )
 }
