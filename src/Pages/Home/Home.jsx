@@ -45,6 +45,25 @@ const formatLocalDate = (date) => {
     return `${y}-${m}-${d}`
 }
 
+const getWhatsAppBookingUrl = (bookingData) => {
+    const message = [
+        "Booking Request",
+        "",
+        `bookingId: ${bookingData.bookingId}`,
+        `name: ${bookingData.name}`,
+        `mobile: ${bookingData.mobile}`,
+        `address: ${bookingData.address || ""}`,
+        `roomName: ${bookingData.roomName}`,
+        `roomCategory: ${bookingData.roomCategory}`,
+        `adults: ${bookingData.adults}`,
+        `babies: ${bookingData.babies}`,
+        `checkIn: ${bookingData.checkIn}`,
+        `checkOut: ${bookingData.checkOut}`,
+        `nights: ${bookingData.nights}`,
+    ].join("\n")
+    return `https://wa.me/8801616472282?text=${encodeURIComponent(message)}`
+}
+
 const Home = () => {
     const [selectedRoom, setSelectedRoom] = useState(null)
     const [bookingModalOpen, setBookingModalOpen] = useState(false)
@@ -53,7 +72,7 @@ const Home = () => {
     const [calcNights, setCalcNights] = useState(0)
     const [calcTotal, setCalcTotal] = useState(0)
     const [activeImageIndices, setActiveImageIndices] = useState({})
-    const [formData, setFormData] = useState({ name: '', mobile: '', adults: 2, babies: 0, specialNeeds: '' })
+    const [formData, setFormData] = useState({ name: '', mobile: '', adults: 2, babies: 0, address: '' })
     const [formErrors, setFormErrors] = useState({})
     const [isSubmitting, setIsSubmitting] = useState(false)
     const [searchQuery, setSearchQuery] = useState('')
@@ -156,7 +175,7 @@ const Home = () => {
         setSelectedRoom(room)
         setCheckInDate(null)
         setCheckOutDate(null)
-        setFormData({ name: '', mobile: '', adults: 2, babies: 0, specialNeeds: '' })
+        setFormData({ name: '', mobile: '', adults: 2, babies: 0, address: '' })
         setFormErrors({})
         setBookingModalOpen(true)
     }
@@ -235,7 +254,7 @@ const Home = () => {
             mobile: formData.mobile,
             adults: Number(formData.adults),
             babies: Number(formData.babies || 0),
-            specialNeeds: formData.specialNeeds,
+            address: formData.address,
             checkIn: checkInStr,
             checkOut: checkOutStr,
             totalAmount: calcTotal,
@@ -244,6 +263,11 @@ const Home = () => {
 
         try {
             const res = await axios.post(`${import.meta.env.VITE_SERVER_URL}/bookings`, bookingData)
+            window.open(
+                getWhatsAppBookingUrl({ ...bookingData, bookingId: res.data.bookingId, nights: calcNights }),
+                "_blank",
+                "noopener,noreferrer"
+            )
             handleCloseModal()
             showSuccessAlert(
                 "Reservation Confirmed! 🎉",
@@ -493,7 +517,7 @@ const Home = () => {
                                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                                     <div>
                                         <p className="font-bold text-teal-900">{getRoomDisplayName(selectedRoom)}{selectedRoom.view ? ` (${selectedRoom.view})` : ""}</p>
-                                        <p className="text-teal-700 text-[11px]">৳{selectedRoom.price?.toLocaleString()} / night • Max {selectedRoom.capacity} Guests</p>
+                                        <p className="text-teal-700 text-[11px]">৳{selectedRoom.price?.toLocaleString()} / night </p>
                                     </div>
                                     {calcNights > 0 && (
                                         <div className="font-semibold text-teal-800 bg-white/60 px-2.5 py-1 rounded-xl text-right">
@@ -607,13 +631,12 @@ const Home = () => {
                                 </div>
                             </div>
 
-                            {/* Special Needs */}
+                            {/* Address */}
                             <div className="form-control">
-                                <label className="label py-0.5"><span className="label-text font-semibold text-slate-700 text-xs">Special Requests / Notes</span></label>
+                                <label className="label py-0.5"><span className="label-text font-semibold text-slate-700 text-xs">Address</span></label>
                                 <textarea
-                                    name="address" value={formData.specialNeeds} onChange={handleInput}
-                                    // placeholder="Arrival time, extra mattress (paid), floor preference..."
-                                    placeholder='Address'
+                                    name="address" value={formData.address} onChange={handleInput}
+                                    placeholder="Guest address"
                                     className="textarea textarea-bordered w-full rounded-xl bg-slate-50 focus:bg-white text-xs sm:text-sm"
                                     rows={2}
                                 />

@@ -20,6 +20,7 @@ import logo from '../../assets/logo.png'
 const Dashboard = () => {
     const { user, logOut } = useContext(AuthContext)
     const { role } = useRole()
+    console.log(role);
     const { pathname } = useLocation()
     const isCalendarRoute = pathname === "/dashboard/calender"
 

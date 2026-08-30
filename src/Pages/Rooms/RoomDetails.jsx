@@ -43,6 +43,25 @@ const formatLocalDate = (date) => {
     return `${y}-${m}-${d}`
 }
 
+const getWhatsAppBookingUrl = (bookingData) => {
+    const message = [
+        "Booking Request",
+        "",
+        `bookingId: ${bookingData.bookingId}`,
+        `name: ${bookingData.name}`,
+        `mobile: ${bookingData.mobile}`,
+        `address: ${bookingData.address || ""}`,
+        `roomName: ${bookingData.roomName}`,
+        `roomCategory: ${bookingData.roomCategory}`,
+        `adults: ${bookingData.adults}`,
+        `babies: ${bookingData.babies}`,
+        `checkIn: ${bookingData.checkIn}`,
+        `checkOut: ${bookingData.checkOut}`,
+        `nights: ${bookingData.nights}`,
+    ].join("\n")
+    return `https://wa.me/8801616472282?text=${encodeURIComponent(message)}`
+}
+
 const RoomDetails = () => {
     const { id } = useParams()
     const navigate = useNavigate()
@@ -52,7 +71,7 @@ const RoomDetails = () => {
     const [checkOutDate, setCheckOutDate] = useState(null)
     const [calcNights, setCalcNights] = useState(0)
     const [calcTotal, setCalcTotal] = useState(0)
-    const [formData, setFormData] = useState({ name: '', mobile: '', adults: 2, babies: 0, specialNeeds: '' })
+    const [formData, setFormData] = useState({ name: '', mobile: '', adults: 2, babies: 0, address: '' })
     const [formErrors, setFormErrors] = useState({})
     const [isSubmitting, setIsSubmitting] = useState(false)
     const [copied, setCopied] = useState(false)
@@ -135,7 +154,7 @@ const RoomDetails = () => {
     const handleOpenBookingModal = () => {
         setCheckInDate(null)
         setCheckOutDate(null)
-        setFormData({ name: '', mobile: '', adults: room?.capacity || 2, babies: 0, specialNeeds: '' })
+        setFormData({ name: '', mobile: '', adults: room?.capacity || 2, babies: 0, address: '' })
         setFormErrors({})
         setBookingModalOpen(true)
     }
@@ -209,7 +228,7 @@ const RoomDetails = () => {
             mobile: formData.mobile,
             adults: Number(formData.adults),
             babies: Number(formData.babies || 0),
-            specialNeeds: formData.specialNeeds,
+            address: formData.address,
             checkIn: checkInStr,
             checkOut: checkOutStr,
             totalAmount: calcTotal,
@@ -218,6 +237,11 @@ const RoomDetails = () => {
 
         try {
             const res = await axios.post(`${import.meta.env.VITE_SERVER_URL}/bookings`, bookingData)
+            window.open(
+                getWhatsAppBookingUrl({ ...bookingData, bookingId: res.data.bookingId, nights: calcNights }),
+                "_blank",
+                "noopener,noreferrer"
+            )
             handleCloseModal()
             showSuccessAlert(
                 "Reservation Confirmed! 🎉",
@@ -664,10 +688,10 @@ const RoomDetails = () => {
                             </div>
 
                             <div className="form-control">
-                                <label className="label py-0.5"><span className="label-text font-semibold text-slate-700 text-xs">Special Requests / Notes</span></label>
+                                <label className="label py-0.5"><span className="label-text font-semibold text-slate-700 text-xs">Address</span></label>
                                 <textarea
-                                    name="specialNeeds" value={formData.specialNeeds} onChange={handleInput}
-                                    placeholder="Arrival time, extra mattress (paid), floor preference..."
+                                    name="address" value={formData.address} onChange={handleInput}
+                                    placeholder="Guest address"
                                     className="textarea textarea-bordered w-full rounded-xl bg-slate-50 focus:bg-white text-xs sm:text-sm"
                                     rows={2}
                                 />

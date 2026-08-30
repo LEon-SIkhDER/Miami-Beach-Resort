@@ -20,12 +20,12 @@ import {
     Calendar, 
     BedDouble, 
     Users, 
-    FileText, 
     CreditCard, 
     Sparkles,
     ShieldAlert,
     Copy,
-    Check
+    Check,
+    MapPin
 } from 'lucide-react'
 
 const BookingDetails = () => {
@@ -291,6 +291,12 @@ const BookingDetails = () => {
                                 <span className="text-slate-400">Contact / WhatsApp:</span>
                                 <span className="font-semibold text-slate-800">{booking.mobile}</span>
                             </div>
+                            {booking.address && (
+                                <div className="flex justify-between gap-4">
+                                    <span className="text-slate-400">Address:</span>
+                                    <span className="font-semibold text-slate-800 text-right">{booking.address}</span>
+                                </div>
+                            )}
                             <div className="flex justify-between">
                                 <span className="text-slate-400">Guests:</span>
                                 <span className="font-semibold text-slate-800">
@@ -364,13 +370,12 @@ const BookingDetails = () => {
                     </table>
                 </div>
 
-                {/* Special Requests if any */}
-                {booking.specialNeeds && (
-                    <div className="p-4 rounded-2xl bg-amber-50/70 border border-amber-200/60 text-xs text-amber-900 space-y-1">
+                {booking.address && (
+                    <div className="p-4 rounded-2xl bg-teal-50/70 border border-teal-200/60 text-xs text-teal-900 space-y-1">
                         <p className="font-bold flex items-center gap-1.5">
-                            <FileText size={14} className="text-amber-700" /> Guest Special Requests / Notes:
+                            <MapPin size={14} className="text-teal-700" /> Guest Address:
                         </p>
-                        <p className="pl-5 text-amber-800">{booking.specialNeeds}</p>
+                        <p className="pl-5 text-teal-800">{booking.address}</p>
                     </div>
                 )}
 

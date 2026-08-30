@@ -103,7 +103,7 @@ const Rooms = () => {
                     >
                         <option value="">All Statuses</option>
                         <option value="active">Active (Bookable)</option>
-                        <option value="inactive">Out of Order</option>
+                        <option value="inactive" className=''>Out of Order</option>
                     </select>
                 </div>
             </div>

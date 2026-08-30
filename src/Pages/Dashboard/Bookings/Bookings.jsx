@@ -17,8 +17,8 @@ import {
     Filter,
     BedDouble,
     Clock,
-    FileText,
-    Eye
+    Eye,
+    MapPin
 } from 'lucide-react'
 
 const Bookings = () => {
@@ -148,6 +148,7 @@ const Bookings = () => {
         const s = search.toLowerCase()
         return b.name?.toLowerCase().includes(s) ||
             b.mobile?.toLowerCase().includes(s) ||
+            b.address?.toLowerCase().includes(s) ||
             b.bookingId?.toLowerCase().includes(s) ||
             b.roomName?.toLowerCase().includes(s) ||
             b.roomCategory?.toLowerCase().includes(s)
@@ -186,12 +187,13 @@ const Bookings = () => {
                         onChange={e => setStatusFilter(e.target.value)}
                     >
                         <option value="">All Statuses</option>
+                        <option value="request">Cancel</option>
                         <option value="request">Request Booking</option>
                         <option value="waiting">Payment Waiting</option>
                         <option value="confirm">Booking Confirm</option>
                         <option value="checked_in">Checked-In</option>
                         <option value="checked_out">Checked-Out</option>
-                        <option value="out_of_order">Out Of Order</option>
+                        {/* <option value="out_of_order">Out Of Order</option> */}
                     </select>
                 </div>
             </div>
@@ -253,6 +255,7 @@ const Bookings = () => {
                                         <td className="whitespace-nowrap">
                                             <p className="font-bold text-slate-900">{b.name}</p>
                                             <p className="text-xs text-slate-500 font-medium">{b.mobile}</p>
+                                            {b.address && <p className="text-[11px] text-slate-400 max-w-[220px] truncate">{b.address}</p>}
                                         </td>
                                         <td>
                                             <span className="text-xs font-semibold text-slate-700 line-clamp-1 max-w-[200px]" title={b.roomName || b.roomCategory}>
@@ -364,11 +367,11 @@ const Bookings = () => {
 
                             <div className="text-xs text-slate-600 space-y-1.5 bg-slate-50 p-3 sm:p-3.5 rounded-xl">
                                 <p className="flex items-center gap-2"><Phone size={13} className="text-teal-600 shrink-0" /> {b.mobile}</p>
+                                {b.address && <p className="flex items-start gap-2"><MapPin size={13} className="text-teal-600 shrink-0 mt-0.5" /> <span>{b.address}</span></p>}
                                 <p className="flex items-center gap-2"><BedDouble size={13} className="text-teal-600 shrink-0" /> {b.roomName || b.roomCategory}</p>
                                 <p className="flex items-center gap-2"><Calendar size={13} className="text-teal-600 shrink-0" /> {b.checkIn} to {b.checkOut}</p>
                                 <p className="flex items-center gap-2"><UsersIcon size={13} className="text-teal-600 shrink-0" /> {b.adults} Adults {b.babies > 0 ? `• ${b.babies} Baby` : ""}</p>
                                 <p className="pt-1 font-bold text-teal-900">Total: ৳{Number(b.totalAmount || 0).toLocaleString()}</p>
-                                {b.specialNeeds && <p className="text-[11px] text-slate-500 italic">Notes: {b.specialNeeds}</p>}
                             </div>
 
                             <div className="flex flex-wrap items-center gap-2 pt-1">
