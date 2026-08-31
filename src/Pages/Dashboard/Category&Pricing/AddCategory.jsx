@@ -5,7 +5,7 @@ import { X } from 'lucide-react';
 import CategoryImageUploader from './CategoryImageUploader';
 import { getYouTubeEmbedUrl } from './categoryRoomUtils';
 
-const SERVER_URL = import.meta.env.VITE_SERVER_URL || "http://localhost:5000"
+const SERVER_URL = import.meta.env.VITE_SERVER_URL || "https://miami-beach-resort.vercel.app"
 
 const AddCategory = ({ children, className, refetch }) => {
     const modalRef = useRef()
@@ -171,7 +171,7 @@ const AddCategory = ({ children, className, refetch }) => {
                         </div>
 
                         {/* Video URL */}
-                        <div className="form-control">
+                        {/* <div className="form-control">
                             <label className="label py-1">
                                 <span className="label-text font-semibold text-slate-700">Video (YouTube)</span>
                             </label>
@@ -181,7 +181,7 @@ const AddCategory = ({ children, className, refetch }) => {
                                 placeholder="https://www.youtube.com/watch?v=ZOxMPa-JBbY"
                                 className="input input-bordered w-full rounded-xl"
                             />
-                        </div>
+                        </div> */}
 
                         {/* Image Upload */}
                         <CategoryImageUploader

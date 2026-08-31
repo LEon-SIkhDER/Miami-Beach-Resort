@@ -23,6 +23,7 @@ const ConfirmBookingModal = ({ booking, isOpen, onClose, onSuccess, targetStatus
     const queryClient = useQueryClient()
     const [isSubmitting, setIsSubmitting] = useState(false)
     const [assignedRooms, setAssignedRooms] = useState([])
+    const [paymentMethod, setPaymentMethod] = useState('bKash')
     const [reference, setReference] = useState('')
     const [customTotalAmount, setCustomTotalAmount] = useState('')
     const [paidAmount, setPaidAmount] = useState('')
@@ -74,6 +75,7 @@ const ConfirmBookingModal = ({ booking, isOpen, onClose, onSuccess, targetStatus
             const initialTotal = booking.totalAmount !== undefined ? booking.totalAmount : defaultTotal
             setCustomTotalAmount(initialTotal || '')
             setPaidAmount(booking.paidAmount !== undefined ? String(booking.paidAmount) : (targetStatus === 'payment_waiting' ? '0' : String(initialTotal)))
+            setPaymentMethod(booking.paymentMethod || 'bKash')
             setReference(booking.reference || "")
             setTransactionId(booking.transactionId || "")
         }
@@ -128,6 +130,8 @@ const ConfirmBookingModal = ({ booking, isOpen, onClose, onSuccess, targetStatus
         })
     }
 
+    const totalRooms = assignedRooms.length
+    const originalTotal = getBookingTotal(booking)
     const standardTotal = originalTotal || 0
     const finalTotal = customTotalAmount !== '' ? Number(customTotalAmount) : standardTotal
     const discountAmount = Math.max(0, standardTotal - finalTotal)
@@ -148,6 +152,7 @@ const ConfirmBookingModal = ({ booking, isOpen, onClose, onSuccess, targetStatus
                 paidAmount: Number(effectivePaid || 0),
                 dueAmount: Number(dueAmount || 0),
                 advanceAmount: Number(effectivePaid || 0),
+                paymentMethod: paymentMethod || "Cash",
                 reference: reference.trim(),
                 transactionId: transactionId.trim(),
                 changedBy: {
@@ -177,9 +182,6 @@ const ConfirmBookingModal = ({ booking, isOpen, onClose, onSuccess, targetStatus
             setIsSubmitting(false)
         }
     }
-
-    const totalRooms = assignedRooms.length
-    const originalTotal = getBookingTotal(booking)
 
     return createPortal(
         <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs overflow-y-auto">
@@ -396,14 +398,14 @@ const ConfirmBookingModal = ({ booking, isOpen, onClose, onSuccess, targetStatus
                                     <button
                                         type="button"
                                         onClick={() => setPaidAmount(String(finalTotal))}
-                                        className="btn btn-2xs btn-outline border-emerald-300 text-emerald-700 hover:bg-emerald-50 rounded-lg text-[10px]"
+                                        className="btn btn-xs btn-outline border-emerald-300 text-emerald-700 hover:bg-emerald-50 rounded-lg text-[10px]"
                                     >
                                         Full Paid (৳{finalTotal.toLocaleString()})
                                     </button>
                                     <button
                                         type="button"
                                         onClick={() => setPaidAmount('0')}
-                                        className="btn btn-2xs btn-outline border-orange-300 text-orange-700 hover:bg-orange-50 rounded-lg text-[10px]"
+                                        className="btn btn-xs btn-outline border-orange-300 text-orange-700 hover:bg-orange-50 rounded-lg text-[10px]"
                                     >
                                         ৳0 / Full Due
                                     </button>
@@ -411,7 +413,7 @@ const ConfirmBookingModal = ({ booking, isOpen, onClose, onSuccess, targetStatus
                                         <button
                                             type="button"
                                             onClick={() => setPaidAmount(String(Math.round(finalTotal / 2)))}
-                                            className="btn btn-2xs btn-outline border-slate-300 text-slate-600 hover:bg-slate-50 rounded-lg text-[10px]"
+                                            className="btn btn-xs btn-outline border-slate-300 text-slate-600 hover:bg-slate-50 rounded-lg text-[10px]"
                                         >
                                             50% (৳{Math.round(finalTotal / 2).toLocaleString()})
                                         </button>
@@ -433,23 +435,47 @@ const ConfirmBookingModal = ({ booking, isOpen, onClose, onSuccess, targetStatus
                         </div>
                     </div>
 
-                    {/* Transaction ID */}
-                    <div className="form-control">
-                        <label className="label py-0.5">
-                            <span className="label-text font-semibold text-slate-700 text-xs flex items-center gap-1">
-                                <Receipt size={14} className="text-teal-600" /> Transaction ID / Receipt
-                            </span>
-                        </label>
-                        <input
-                            type="text"
-                            value={transactionId}
-                            onChange={e => setTransactionId(e.target.value)}
-                            placeholder="e.g. TRX-982314 / Cash"
-                            className="input input-sm input-bordered w-full rounded-xl bg-white text-xs sm:text-sm"
-                        />
-                        <span className="text-[10px] text-slate-400 mt-0.5">
-                            Bank, bKash, Nagad or Cash receipt.
-                        </span>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {/* Payment Method */}
+                        <div className="form-control">
+                            <label className="label py-0.5">
+                                <span className="label-text font-semibold text-slate-700 text-xs flex items-center gap-1">
+                                    <CreditCard size={14} className="text-teal-600" /> Payment Method
+                                </span>
+                            </label>
+                            <select
+                                value={paymentMethod}
+                                onChange={e => setPaymentMethod(e.target.value)}
+                                className="select select-sm select-bordered w-full rounded-xl bg-white text-xs font-semibold"
+                            >
+                                <option value="bKash">bKash (Mobile)</option>
+                                <option value="Nagad">Nagad (Mobile)</option>
+                                <option value="Rocket">Rocket (DBBL)</option>
+                                <option value="Upay">Upay (UCB)</option>
+                                <option value="Card / POS">Card / POS (Visa/Master/Amex)</option>
+                                <option value="Cash">Cash (Front Desk)</option>
+                                <option value="Bank Cheque">Bank Cheque / Cheque</option>
+                                <option value="Bank Transfer">Bank Transfer / EFT / BEFTN</option>
+                                <option value="Online Gateway">Online Payment Gateway</option>
+                                <option value="Other">Other</option>
+                            </select>
+                        </div>
+
+                        {/* Transaction ID */}
+                        <div className="form-control">
+                            <label className="label py-0.5">
+                                <span className="label-text font-semibold text-slate-700 text-xs flex items-center gap-1">
+                                    <Receipt size={14} className="text-teal-600" /> Transaction ID / Receipt
+                                </span>
+                            </label>
+                            <input
+                                type="text"
+                                value={transactionId}
+                                onChange={e => setTransactionId(e.target.value)}
+                                placeholder="e.g. TRX-982314 / Cash / Cheque"
+                                className="input input-sm input-bordered w-full rounded-xl bg-white text-xs"
+                            />
+                        </div>
                     </div>
 
                     {/* Submit Actions */}
@@ -458,21 +484,23 @@ const ConfirmBookingModal = ({ booking, isOpen, onClose, onSuccess, targetStatus
                             type="button"
                             onClick={onClose}
                             disabled={isSubmitting}
-                            className="btn btn-sm btn-ghost rounded-xl px-4"
+                            className="btn btn-sm btn-ghost rounded-xl px-4 text-slate-600"
                         >
                             Cancel
                         </button>
                         <button
                             type="submit"
                             disabled={isSubmitting}
-                            className={`btn btn-sm rounded-xl px-5 text-white font-bold shadow-md ${
-                                isPaymentWaiting ? 'btn-info shadow-sky-600/20' : 'btn-primary shadow-teal-600/20'
+                            className={`btn btn-sm rounded-xl px-5 font-bold shadow-md border-none ${
+                                isPaymentWaiting 
+                                    ? 'bg-[#eab308] hover:bg-yellow-500 text-amber-950 shadow-amber-500/20' 
+                                    : 'bg-[#5261d6] hover:bg-[#4351be] text-white shadow-indigo-600/20'
                             }`}
                         >
                             {isSubmitting ? (
                                 <span className="loading loading-spinner loading-sm" />
                             ) : (
-                                isPaymentWaiting ? "Save & Set Payment Waiting" : "Booking Confirmed"
+                                isPaymentWaiting ? "Save & Set Payment Waiting" : "Confirm Booking"
                             )}
                         </button>
                     </div>

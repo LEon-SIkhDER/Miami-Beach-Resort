@@ -9,7 +9,7 @@ import AddCategory from './AddCategory';
 import EditCategory from './EditCategory';
 import { parseFacilityList, parseRoomNumbers } from './categoryRoomUtils';
 
-const SERVER_URL = import.meta.env.VITE_SERVER_URL || "http://localhost:5000"
+const SERVER_URL = import.meta.env.VITE_SERVER_URL || "https://miami-beach-resort.vercel.app"
 
 const CategoryAndPricing = () => {
     const { data: categories = [], refetch } = useQuery({

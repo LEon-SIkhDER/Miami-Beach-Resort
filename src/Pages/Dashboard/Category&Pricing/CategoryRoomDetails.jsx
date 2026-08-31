@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useContext } from 'react'
 import { useParams, Link, useNavigate } from 'react-router'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import axios from 'axios'
 import {
     ArrowLeft,
@@ -13,22 +13,45 @@ import {
     Pencil,
     Trash2,
     Hash,
-    Play
+    Play,
+    Wrench,
+    CheckCircle2,
+    Calendar,
+    Plus,
+    Clock,
+    DollarSign,
+    Tag
 } from 'lucide-react'
 import { parseFacilityList, parseRoomNumbers } from './categoryRoomUtils'
 import EditCategory from './EditCategory'
+import OutOfOrderModal from '../Calender/OutOfOrderModal'
+import { AuthContext } from '../../../Context/AuthContext'
+import useRole from '../../../hooks/useRole'
 import Swal from 'sweetalert2'
 import toast from 'react-hot-toast'
 
-const SERVER_URL = import.meta.env.VITE_SERVER_URL || "http://localhost:5000"
+const SERVER_URL = import.meta.env.VITE_SERVER_URL || "https://miami-beach-resort.vercel.app"
 
 const CategoryRoomDetails = () => {
     const { id } = useParams()
     const navigate = useNavigate()
+    const { user } = useContext(AuthContext)
+    const { role } = useRole()
+    const queryClient = useQueryClient()
 
     // mediaType: 'video' | 'image'
     const [mediaType, setMediaType] = useState('video')
     const [activeImageIndex, setActiveImageIndex] = useState(0)
+
+    // Out of Order modal state
+    const [isOutOfOrderOpen, setIsOutOfOrderOpen] = useState(false)
+    const [selectedOOORoom, setSelectedOOORoom] = useState(null)
+
+    // Schedule Price Form State
+    const [scheduleDate, setScheduleDate] = useState('')
+    const [schedulePrice, setSchedulePrice] = useState('')
+    const [scheduleNote, setScheduleNote] = useState('')
+    const [isSavingSchedule, setIsSavingSchedule] = useState(false)
 
     const { data: category, isLoading, refetch } = useQuery({
         queryKey: ["category-detail", id],
@@ -37,6 +60,15 @@ const CategoryRoomDetails = () => {
             return data
         },
         enabled: !!id
+    })
+
+    // Fetch Out of Order records
+    const { data: oooList = [], refetch: refetchOOO } = useQuery({
+        queryKey: ["out-of-order-for-category-details"],
+        queryFn: async () => {
+            const { data } = await axios.get(`${SERVER_URL}/out-of-order`)
+            return data
+        }
     })
 
     const photos = category?.images?.length
@@ -83,6 +115,7 @@ const CategoryRoomDetails = () => {
 
     const roomNumbers = parseRoomNumbers(category.roomNumbers || [])
     const amenities = parseFacilityList(category.amenities || "")
+    const scheduledPrices = Array.isArray(category.scheduledPrices) ? category.scheduledPrices : []
 
     const prevImage = () => {
         if (photos.length === 0) return
@@ -120,8 +153,95 @@ const CategoryRoomDetails = () => {
         })
     }
 
+    const handleOpenOOOForRoom = (num) => {
+        setSelectedOOORoom({
+            roomNo: String(num).trim(),
+            categoryId: category._id,
+            categoryName: category.name
+        })
+        setIsOutOfOrderOpen(true)
+    }
+
+    const handleResolveOOO = async (oooRecord) => {
+        const confirmed = await Swal.fire({
+            title: `Resolve Out of Order for Room ${oooRecord.roomNo}?`,
+            text: `This will mark Room ${oooRecord.roomNo} as active and available for guest reservations.`,
+            icon: "question",
+            showCancelButton: true,
+            confirmButtonText: "Yes, Mark Active",
+            confirmButtonColor: "#01966e"
+        })
+        if (!confirmed.isConfirmed) return
+
+        const toastId = toast.loading("Resolving room maintenance...")
+        try {
+            await axios.patch(`${SERVER_URL}/out-of-order/${oooRecord._id}`, {
+                status: "resolved",
+                resolvedBy: {
+                    name: user?.displayName || "Staff",
+                    email: user?.email || "",
+                    role: role || "admin"
+                }
+            })
+            await Promise.all([
+                refetchOOO(),
+                queryClient.invalidateQueries({ queryKey: ["out-of-order-calendar"] }),
+                queryClient.invalidateQueries({ queryKey: ["all-bookings-for-calendar"] })
+            ])
+            toast.success(`Room ${oooRecord.roomNo} is now Active! 🎉`, { id: toastId })
+        } catch (err) {
+            toast.error(err.response?.data?.message || "Failed to resolve out of order status", { id: toastId })
+        }
+    }
+
+    const handleSaveSchedulePrice = async (e) => {
+        e.preventDefault()
+        if (!scheduleDate || !schedulePrice) {
+            toast.error("Please enter effective date and price.")
+            return
+        }
+
+        setIsSavingSchedule(true)
+        const toastId = toast.loading("Scheduling price change...")
+        try {
+            await axios.post(`${SERVER_URL}/categoryandroom/${category._id}/schedule-price`, {
+                effectiveDate: scheduleDate,
+                price: Number(schedulePrice),
+                note: scheduleNote.trim()
+            })
+            await Promise.all([
+                refetch(),
+                queryClient.invalidateQueries({ queryKey: ["all-categories-for-calendar"] }),
+                queryClient.invalidateQueries({ queryKey: ["categories"] })
+            ])
+            toast.success(`Price of ৳${Number(schedulePrice).toLocaleString()} scheduled for ${scheduleDate}!`, { id: toastId })
+            setScheduleDate('')
+            setSchedulePrice('')
+            setScheduleNote('')
+        } catch (err) {
+            toast.error(err.response?.data?.message || "Failed to schedule price change", { id: toastId })
+        } finally {
+            setIsSavingSchedule(false)
+        }
+    }
+
+    const handleDeleteSchedulePrice = async (effectiveDate) => {
+        const toastId = toast.loading("Removing scheduled price...")
+        try {
+            await axios.delete(`${SERVER_URL}/categoryandroom/${category._id}/schedule-price/${effectiveDate}`)
+            await Promise.all([
+                refetch(),
+                queryClient.invalidateQueries({ queryKey: ["all-categories-for-calendar"] }),
+                queryClient.invalidateQueries({ queryKey: ["categories"] })
+            ])
+            toast.success("Scheduled price removed", { id: toastId })
+        } catch (err) {
+            toast.error("Failed to remove scheduled price", { id: toastId })
+        }
+    }
+
     return (
-        <div className="space-y-6 max-w-4xl">
+        <div className="space-y-6 max-w-5xl">
             {/* Back nav & Actions */}
             <div className="flex items-center justify-between">
                 <Link
@@ -238,7 +358,6 @@ const CategoryRoomDetails = () => {
 
                 {/* Combined Media Thumbnails Strip */}
                 <div className="flex items-center gap-2.5 p-3.5 overflow-x-auto bg-slate-50 border-t border-slate-100">
-                    {/* Video thumbnail item */}
                     {category.video && (
                         <button
                             type="button"
@@ -254,7 +373,6 @@ const CategoryRoomDetails = () => {
                         </button>
                     )}
 
-                    {/* Image thumbnails */}
                     {photos.map((photo, idx) => (
                         <button
                             key={idx}
@@ -288,7 +406,7 @@ const CategoryRoomDetails = () => {
                             </div>
                             <div className="text-right shrink-0 bg-teal-50 px-4 py-2 rounded-2xl border border-teal-100">
                                 <p className="text-2xl font-bold text-[#009689]">৳{Number(category.price).toLocaleString()}</p>
-                                <p className="text-xs text-slate-500">per night</p>
+                                <p className="text-xs text-slate-500">base price / night</p>
                             </div>
                         </div>
 
@@ -297,6 +415,205 @@ const CategoryRoomDetails = () => {
                                 {category.description}
                             </p>
                         )}
+                    </div>
+
+                    {/* Room Inventory & Out-of-Order Controls */}
+                    <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-4">
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                                <BedDouble size={18} className="text-teal-600" />
+                                <h2 className="font-bold text-slate-900">Rooms & Maintenance Status ({roomNumbers.length})</h2>
+                            </div>
+                        </div>
+
+                        {roomNumbers.length > 0 ? (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                {roomNumbers.map((num) => {
+                                    const oooRecord = oooList.find(
+                                        (o) => o.status === "active" && String(o.roomNo).trim() === String(num).trim()
+                                    )
+                                    const isOOO = !!oooRecord
+
+                                    return (
+                                        <div 
+                                            key={num} 
+                                            className={`p-3.5 rounded-2xl border transition-all flex flex-col justify-between space-y-2.5 ${
+                                                isOOO 
+                                                    ? 'bg-neutral-900 border-amber-500 text-white shadow-xs' 
+                                                    : 'bg-slate-50 border-slate-200 hover:border-teal-300'
+                                            }`}
+                                        >
+                                            <div className="flex items-center justify-between">
+                                                <div className="flex items-center gap-2">
+                                                    <div className={`w-8 h-8 rounded-xl flex items-center justify-center font-bold text-sm ${
+                                                        isOOO ? 'bg-amber-400/20 text-amber-300' : 'bg-teal-100 text-teal-800'
+                                                    }`}>
+                                                        <Hash size={14} />
+                                                    </div>
+                                                    <div>
+                                                        <strong className={`text-base font-bold ${isOOO ? 'text-white' : 'text-slate-900'}`}>
+                                                            Room {num}
+                                                        </strong>
+                                                        <span className="block text-[10px] text-slate-400">{category.name}</span>
+                                                    </div>
+                                                </div>
+
+                                                <span className={`badge badge-sm font-bold border-none ${
+                                                    isOOO ? 'bg-amber-400 text-neutral-950' : 'bg-emerald-100 text-emerald-800'
+                                                }`}>
+                                                    {isOOO ? 'Out of Order' : 'Active'}
+                                                </span>
+                                            </div>
+
+                                            {isOOO && (
+                                                <div className="text-[11px] text-amber-200/90 bg-black/40 p-2 rounded-xl space-y-0.5">
+                                                    <p><strong>Reason:</strong> {oooRecord.reason}</p>
+                                                    <p className="text-[10px] opacity-80">Period: {oooRecord.startDate} → {oooRecord.endDate}</p>
+                                                </div>
+                                            )}
+
+                                            <div className="pt-1 border-t border-slate-200/40 flex justify-end">
+                                                {isOOO ? (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleResolveOOO(oooRecord)}
+                                                        className="btn btn-xs bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg gap-1 border-none shadow-xs"
+                                                    >
+                                                        <CheckCircle2 size={12} />
+                                                        <span>Resolve / Make Active</span>
+                                                    </button>
+                                                ) : (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleOpenOOOForRoom(num)}
+                                                        className="btn btn-xs btn-outline border-amber-400 text-amber-800 hover:bg-amber-100 rounded-lg gap-1"
+                                                    >
+                                                        <Wrench size={12} className="text-amber-600" />
+                                                        <span>Set Out of Order</span>
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </div>
+                                    )
+                                })}
+                            </div>
+                        ) : (
+                            <p className="text-sm text-slate-400">No room numbers assigned to this category.</p>
+                        )}
+                    </div>
+
+                    {/* Date-wise Scheduled Price History & Management */}
+                    <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-5">
+                        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                            <div className="flex items-center gap-2">
+                                <Tag size={18} className="text-teal-600" />
+                                <div>
+                                    <h2 className="font-bold text-slate-900">Scheduled Date-wise Pricing</h2>
+                                    <p className="text-xs text-slate-500">Schedule future price changes (e.g. ৳2,999 from 26 Sep).</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Add Schedule Form */}
+                        <form onSubmit={handleSaveSchedulePrice} className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
+                            <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
+                                📅 Schedule New Price Change
+                            </h4>
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                <div className="form-control">
+                                    <label className="label py-0.5">
+                                        <span className="label-text text-xs font-semibold text-slate-700">Effective Date *</span>
+                                    </label>
+                                    <input
+                                        type="date"
+                                        required
+                                        value={scheduleDate}
+                                        onChange={e => setScheduleDate(e.target.value)}
+                                        className="input input-sm input-bordered rounded-xl bg-white text-xs"
+                                    />
+                                </div>
+
+                                <div className="form-control">
+                                    <label className="label py-0.5">
+                                        <span className="label-text text-xs font-semibold text-slate-700">New Price / Night (৳) *</span>
+                                    </label>
+                                    <input
+                                        type="number"
+                                        required
+                                        min="0"
+                                        placeholder="e.g. 2999"
+                                        value={schedulePrice}
+                                        onChange={e => setSchedulePrice(e.target.value)}
+                                        className="input input-sm input-bordered rounded-xl bg-white text-xs font-bold text-teal-800"
+                                    />
+                                </div>
+
+                                <div className="form-control">
+                                    <label className="label py-0.5">
+                                        <span className="label-text text-xs font-semibold text-slate-700">Event / Note (Optional)</span>
+                                    </label>
+                                    <input
+                                        type="text"
+                                        placeholder="e.g. Peak Season Rate"
+                                        value={scheduleNote}
+                                        onChange={e => setScheduleNote(e.target.value)}
+                                        className="input input-sm input-bordered rounded-xl bg-white text-xs"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="flex justify-end pt-1">
+                                <button
+                                    type="submit"
+                                    disabled={isSavingSchedule}
+                                    className="btn btn-sm bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-xl px-4 border-none shadow-xs gap-1.5"
+                                >
+                                    {isSavingSchedule ? <span className="loading loading-spinner loading-xs" /> : <Plus size={14} />}
+                                    <span>Schedule Price</span>
+                                </button>
+                            </div>
+                        </form>
+
+                        {/* List of Scheduled Prices */}
+                        <div className="space-y-2">
+                            <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                                Active Price Schedules ({scheduledPrices.length})
+                            </h4>
+
+                            {scheduledPrices.length > 0 ? (
+                                <div className="divide-y divide-slate-100 border border-slate-200 rounded-2xl overflow-hidden bg-white">
+                                    {scheduledPrices
+                                        .sort((a, b) => a.effectiveDate.localeCompare(b.effectiveDate))
+                                        .map((sp, idx) => (
+                                            <div key={idx} className="p-3 flex items-center justify-between text-xs hover:bg-slate-50 transition">
+                                                <div className="flex items-center gap-3">
+                                                    <span className="badge badge-sm bg-teal-50 text-teal-800 border border-teal-200 font-bold">
+                                                        From {sp.effectiveDate}
+                                                    </span>
+                                                    <strong className="text-slate-900 text-sm font-bold">
+                                                        ৳{Number(sp.price).toLocaleString()} / night
+                                                    </strong>
+                                                    {sp.note && (
+                                                        <span className="text-slate-500 italic">({sp.note})</span>
+                                                    )}
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleDeleteSchedulePrice(sp.effectiveDate)}
+                                                    className="btn btn-ghost btn-xs text-rose-600 hover:bg-rose-50"
+                                                    title="Remove schedule"
+                                                >
+                                                    <Trash2 size={13} />
+                                                </button>
+                                            </div>
+                                        ))}
+                                </div>
+                            ) : (
+                                <p className="text-xs text-slate-400 bg-slate-50 p-4 rounded-xl text-center">
+                                    No scheduled price changes. Base price of <strong>৳{Number(category.price).toLocaleString()}</strong> applies for all dates.
+                                </p>
+                            )}
+                        </div>
                     </div>
 
                     {/* Amenities */}
@@ -317,32 +634,21 @@ const CategoryRoomDetails = () => {
                     )}
                 </div>
 
-                {/* Right Col — Room Numbers & Stats */}
+                {/* Right Col — Quick Stats */}
                 <div className="space-y-5">
-                    <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs">
-                        <div className="flex items-center gap-2 mb-4">
-                            <BedDouble size={18} className="text-teal-600" />
-                            <h2 className="font-bold text-slate-900">Rooms ({roomNumbers.length})</h2>
-                        </div>
-                        {roomNumbers.length > 0 ? (
-                            <div className="grid grid-cols-3 gap-2">
-                                {roomNumbers.map(num => (
-                                    <div key={num} className="bg-teal-50 border border-teal-200 rounded-xl p-2 text-center">
-                                        <Hash size={12} className="text-teal-500 mx-auto mb-0.5" />
-                                        <span className="text-sm font-bold text-teal-800">{num}</span>
-                                    </div>
-                                ))}
-                            </div>
-                        ) : (
-                            <p className="text-sm text-slate-400">No room numbers assigned</p>
-                        )}
-                    </div>
-
-                    {/* Quick Stats */}
                     <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs space-y-3 text-sm">
+                        <h3 className="font-bold text-slate-900 text-base">Category Overview</h3>
                         <div className="flex justify-between">
                             <span className="text-slate-500">Total Rooms</span>
                             <span className="font-bold text-slate-900">{roomNumbers.length}</span>
+                        </div>
+                        <div className="flex justify-between">
+                            <span className="text-slate-500">Base Price</span>
+                            <span className="font-bold text-[#009689]">৳{Number(category.price).toLocaleString()}</span>
+                        </div>
+                        <div className="flex justify-between">
+                            <span className="text-slate-500">Scheduled Rates</span>
+                            <span className="font-bold text-slate-900">{scheduledPrices.length}</span>
                         </div>
                         <div className="flex justify-between">
                             <span className="text-slate-500">Amenities</span>
@@ -360,7 +666,22 @@ const CategoryRoomDetails = () => {
                 </div>
             </div>
 
-
+            {/* Out of Order Modal */}
+            <OutOfOrderModal
+                isOpen={isOutOfOrderOpen}
+                onClose={() => setIsOutOfOrderOpen(false)}
+                initialRoom={selectedOOORoom}
+                categories={category ? [category] : []}
+                currentUser={user}
+                role={role}
+                onSuccess={async () => {
+                    await Promise.all([
+                        refetchOOO(),
+                        queryClient.invalidateQueries({ queryKey: ["out-of-order-calendar"] }),
+                        queryClient.invalidateQueries({ queryKey: ["all-bookings-for-calendar"] })
+                    ])
+                }}
+            />
         </div>
     )
 }

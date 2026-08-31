@@ -53,7 +53,7 @@ const createRoomEntry = (initialCategoryId = "", initialSameCategory = false) =>
 })
 
 const Home = () => {
-    const SERVER_URL = import.meta.env.VITE_SERVER_URL || "http://localhost:5000"
+    const SERVER_URL = import.meta.env.VITE_SERVER_URL || ""
 
     const [selectedCategory, setSelectedCategory] = useState(null)
     const [bookingModalOpen, setBookingModalOpen] = useState(false)
@@ -66,16 +66,25 @@ const Home = () => {
     const [searchQuery, setSearchQuery] = useState('')
     const [categoryFilter, setCategoryFilter] = useState('')
 
-    // Fetch categories
-    const { data: categories = [], isLoading: categoriesLoading } = useQuery({
+    // Fetch categories safely
+    const { data: rawCategories = [], isLoading: categoriesLoading } = useQuery({
         queryKey: ["public-categories"],
         queryFn: async () => {
-            const res = await axios.get(`${SERVER_URL}/categoryandroom`)
-            return res.data
+            if (!SERVER_URL) return []
+            try {
+                const res = await axios.get(`${SERVER_URL}/categoryandroom`)
+                return Array.isArray(res.data) ? res.data : []
+            } catch (err) {
+                console.error("Categories fetch error:", err)
+                return []
+            }
         }
     })
 
+    const categories = Array.isArray(rawCategories) ? rawCategories : []
+
     const filteredCategories = categories.filter(cat => {
+        if (!cat) return false
         if (categoryFilter && cat.name !== categoryFilter) return false
         if (searchQuery) {
             const q = searchQuery.toLowerCase()

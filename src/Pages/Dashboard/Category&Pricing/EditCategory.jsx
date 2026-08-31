@@ -6,7 +6,7 @@ import { createPortal } from 'react-dom';
 import CategoryImageUploader from './CategoryImageUploader';
 import { getYouTubeEmbedUrl } from './categoryRoomUtils';
 
-const SERVER_URL = import.meta.env.VITE_SERVER_URL || "http://localhost:5000"
+const SERVER_URL = import.meta.env.VITE_SERVER_URL || "https://miami-beach-resort.vercel.app"
 
 const EditCategory = ({ children, className, refetch, category }) => {
     const modalRef = useRef()
@@ -188,7 +188,7 @@ const EditCategory = ({ children, className, refetch, category }) => {
                             </div>
 
                             {/* Video URL */}
-                            <div className="form-control">
+                            {/* <div className="form-control">
                                 <label className="label py-1">
                                     <span className="label-text font-semibold text-slate-700">Video (YouTube)</span>
                                 </label>
@@ -199,7 +199,7 @@ const EditCategory = ({ children, className, refetch, category }) => {
                                     placeholder="https://www.youtube.com/watch?v=ZOxMPa-JBbY"
                                     className="input input-bordered w-full rounded-xl"
                                 />
-                            </div>
+                            </div> */}
 
                             {/* Image Upload */}
                             <CategoryImageUploader

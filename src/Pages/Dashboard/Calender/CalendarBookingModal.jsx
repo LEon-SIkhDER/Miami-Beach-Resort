@@ -62,6 +62,7 @@ const CalendarBookingModal = ({
     const [bookingRooms, setBookingRooms] = useState([])
 
     // Payment / Confirmation fields
+    const [paymentMethod, setPaymentMethod] = useState('bKash')
     const [reference, setReference] = useState('')
     const [customTotalAmount, setCustomTotalAmount] = useState('')
     const [paidAmount, setPaidAmount] = useState('')
@@ -308,6 +309,7 @@ const CalendarBookingModal = ({
                 paidAmount: Number(submittedPaid || 0),
                 dueAmount: Number(submittedDue || 0),
                 advanceAmount: Number(submittedPaid || 0),
+                paymentMethod: paymentMethod || "Cash",
                 reference: reference.trim(),
                 transactionId: transactionId.trim(),
                 notes: notes.trim(),
@@ -743,7 +745,32 @@ const CalendarBookingModal = ({
                             </div>
                         </div>
 
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                            {/* Payment Method */}
+                            <div className="form-control">
+                                <label className="label py-0.5">
+                                    <span className="label-text font-semibold text-slate-700 text-xs flex items-center gap-1">
+                                        <CreditCard size={13} className="text-teal-600" /> Payment Method
+                                    </span>
+                                </label>
+                                <select
+                                    value={paymentMethod}
+                                    onChange={e => setPaymentMethod(e.target.value)}
+                                    className="select select-sm select-bordered rounded-xl bg-white text-xs font-semibold"
+                                >
+                                    <option value="bKash">bKash (Mobile)</option>
+                                    <option value="Nagad">Nagad (Mobile)</option>
+                                    <option value="Rocket">Rocket (DBBL)</option>
+                                    <option value="Upay">Upay (UCB)</option>
+                                    <option value="Card / POS">Card / POS (Visa/Master/Amex)</option>
+                                    <option value="Cash">Cash (Front Desk)</option>
+                                    <option value="Bank Cheque">Bank Cheque / Cheque</option>
+                                    <option value="Bank Transfer">Bank Transfer / EFT / BEFTN</option>
+                                    <option value="Online Gateway">Online Payment Gateway</option>
+                                    <option value="Other">Other</option>
+                                </select>
+                            </div>
+
                             {/* Staff Reference */}
                             <div className="form-control">
                                 <label className="label py-0.5">
@@ -775,20 +802,20 @@ const CalendarBookingModal = ({
                             <div className="form-control">
                                 <label className="label py-0.5">
                                     <span className="label-text font-semibold text-slate-700 text-xs flex items-center gap-1">
-                                        <Receipt size={13} className="text-teal-600" /> Transaction ID / Receipt
+                                        <Receipt size={13} className="text-teal-600" /> Transaction ID / Cheque No
                                     </span>
                                 </label>
                                 <input
                                     type="text"
                                     value={transactionId}
                                     onChange={e => setTransactionId(e.target.value)}
-                                    placeholder="e.g. TRX-129482 / Cash"
+                                    placeholder="e.g. TRX-129482 / Cheque #..."
                                     className="input input-sm input-bordered rounded-xl bg-white text-xs"
                                 />
                             </div>
 
                             {/* Notes */}
-                            <div className="form-control sm:col-span-2 flex flex-col">
+                            <div className="form-control sm:col-span-3 flex flex-col">
                                 <label className="label py-0.5">
                                     <span className="label-text font-semibold text-slate-700 text-xs flex items-center gap-1">
                                         <FileText size={13} className="text-teal-600" /> Internal Notes
@@ -799,7 +826,7 @@ const CalendarBookingModal = ({
                                     value={notes}
                                     onChange={e => setNotes(e.target.value)}
                                     placeholder="Special requests, advance notes..."
-                                    className="input  w-full input-bordered rounded-xl bg-white text-xs"
+                                    className="input w-full input-bordered rounded-xl bg-white text-xs"
                                 />
                             </div>
                         </div>
@@ -817,22 +844,13 @@ const CalendarBookingModal = ({
                         </div>
                     </div>
 
-                    <div className="flex  items-center gap-2">
-                        {/* <button
-                            type="button"
-                            onClick={onClose}
-                            disabled={submittingStatus !== null}
-                            className="btn btn-sm btn-ghost rounded-xl px-3 text-slate-600"
-                        >
-                            Cancel
-                        </button> */}
-                        
+                    <div className="flex flex-wrap items-center gap-2">
                         {/* Button 1: Save as Request Booking */}
                         <button
                             type="button"
                             onClick={() => handleSubmit("request_booking")}
                             disabled={submittingStatus !== null}
-                            className="btn btn-sm bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl px-3 shadow-xs border-none"
+                            className="btn btn-sm bg-[#f59e0b] hover:bg-amber-600 text-white font-bold rounded-xl px-3 shadow-xs border-none"
                         >
                             {submittingStatus === "request_booking" ? (
                                 <span className="loading loading-spinner loading-xs" />
@@ -847,7 +865,7 @@ const CalendarBookingModal = ({
                             type="button"
                             onClick={() => handleSubmit("payment_waiting")}
                             disabled={submittingStatus !== null}
-                            className="btn btn-sm bg-sky-500 hover:bg-sky-600 text-white font-bold rounded-xl px-3 shadow-xs border-none"
+                            className="btn btn-sm bg-[#eab308] hover:bg-yellow-500 text-amber-950 font-bold rounded-xl px-3 shadow-xs border-none"
                         >
                             {submittingStatus === "payment_waiting" ? (
                                 <span className="loading loading-spinner loading-xs" />
@@ -862,14 +880,14 @@ const CalendarBookingModal = ({
                             type="button"
                             onClick={() => handleSubmit("booking_confirmed")}
                             disabled={submittingStatus !== null}
-                            className="btn btn-sm bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-xl px-4 shadow-xs border-none"
+                            className="btn btn-sm bg-[#5261d6] hover:bg-[#4351be] text-white font-bold rounded-xl px-4 shadow-xs border-none"
                         >
                             {submittingStatus === "booking_confirmed" ? (
                                 <span className="loading loading-spinner loading-xs" />
                             ) : (
                                 <CheckCircle2 size={14} />
                             )}
-                            <span>Booking Confirmed</span>
+                            <span>Confirm Booking</span>
                         </button>
                     </div>
                 </div>

@@ -54,7 +54,7 @@ const createRoomEntry = (initialCategoryId = "", initialSameCategory = false) =>
 const RoomDetails = () => {
     const { id } = useParams()
     const navigate = useNavigate()
-    const SERVER_URL = import.meta.env.VITE_SERVER_URL || "http://localhost:5000"
+    const SERVER_URL = import.meta.env.VITE_SERVER_URL || ""
 
     const [selectedImgIndex, setSelectedImgIndex] = useState(0)
     const [bookingModalOpen, setBookingModalOpen] = useState(false)
@@ -69,30 +69,40 @@ const RoomDetails = () => {
     const { data: item, isLoading, isError } = useQuery({
         queryKey: ["room-details", id],
         queryFn: async () => {
+            if (!SERVER_URL) throw new Error("Server URL not configured")
             try {
                 const res = await axios.get(`${SERVER_URL}/categoryandroom/${id}`)
-                if (res.data) return res.data
+                if (res.data && typeof res.data === 'object') return res.data
             } catch (_) {}
 
             try {
                 const res2 = await axios.get(`${SERVER_URL}/room/${id}`)
-                if (res2.data) return res2.data
+                if (res2.data && typeof res2.data === 'object') return res2.data
             } catch (_) {}
 
             const allRes = await axios.get(`${SERVER_URL}/categoryandroom`)
-            const matched = allRes.data.find(r => r._id === id)
-            if (!matched) throw new Error("Item not found")
-            return matched
+            if (Array.isArray(allRes.data)) {
+                const matched = allRes.data.find(r => r._id === id)
+                if (matched) return matched
+            }
+            throw new Error("Item not found")
         }
     })
 
-    const { data: categories = [] } = useQuery({
+    const { data: rawCategories = [] } = useQuery({
         queryKey: ["all-categories-for-details"],
         queryFn: async () => {
-            const res = await axios.get(`${SERVER_URL}/categoryandroom`)
-            return res.data
+            if (!SERVER_URL) return []
+            try {
+                const res = await axios.get(`${SERVER_URL}/categoryandroom`)
+                return Array.isArray(res.data) ? res.data : []
+            } catch (_) {
+                return []
+            }
         }
     })
+
+    const categories = Array.isArray(rawCategories) ? rawCategories : []
 
     const photos = item?.images?.length
         ? item.images.map(img => typeof img === 'string' ? img : img.url)

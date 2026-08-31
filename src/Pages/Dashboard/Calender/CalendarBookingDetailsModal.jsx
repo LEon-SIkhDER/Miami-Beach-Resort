@@ -47,14 +47,15 @@ import AddPaymentModal from '../Bookings/AddPaymentModal'
 const getStatusBadge = (status) => {
     switch (status) {
         case "request_booking":
-            return <span className="badge badge-sm bg-amber-500 text-white font-bold border-none">Request Booking</span>
+            return <span className="badge badge-sm bg-[#f59e0b] text-white font-bold border-none">Request Booking</span>
         case "payment_waiting":
-            return <span className="badge badge-sm bg-sky-500 text-white font-bold border-none">Payment Waiting</span>
+            return <span className="badge badge-sm bg-[#eab308] text-amber-950 font-extrabold border-none">Payment Waiting</span>
         case "booking_confirmed":
         case "confirmed":
-            return <span className="badge badge-sm bg-blue-600 text-white font-bold border-none">Confirmed</span>
+            return <span className="badge badge-sm bg-[#5261d6] text-white font-bold border-none">Confirmed</span>
         case "checked_id":
-            return <span className="badge badge-sm bg-indigo-600 text-white font-bold border-none">Checked In</span>
+        case "checked_in":
+            return <span className="badge badge-sm bg-[#01966e] text-white font-bold border-none">Checked In</span>
         case "checked_out":
             return <span className="badge badge-sm bg-slate-500 text-white font-bold border-none">Checked Out</span>
         case "cancel":
@@ -405,12 +406,18 @@ const CalendarBookingDetailsModal = ({
 
                                 <div className="space-y-1.5 sm:border-l sm:border-slate-200 sm:pl-3">
                                     <div>
+                                        <span className="text-slate-400 block text-[10px] uppercase font-semibold">Payment Method:</span>
+                                        <span className="font-bold text-slate-800 bg-slate-100 px-2 py-0.5 rounded-md inline-block mt-0.5">
+                                            {booking.paymentMethod || booking.paymentHistory?.[0]?.paymentMethod || "Cash / Direct"}
+                                        </span>
+                                    </div>
+                                    <div>
                                         <span className="text-slate-400 block text-[10px] uppercase font-semibold">Reference:</span>
-                                        <span className="font-medium text-slate-800">{booking.reference || "None"}</span>
+                                        <span className="font-medium text-slate-800">{booking.reference || "Direct"}</span>
                                     </div>
                                     <div>
                                         <span className="text-slate-400 block text-[10px] uppercase font-semibold">Transaction ID:</span>
-                                        <span className="font-medium text-slate-800">{booking.transactionId || "None"}</span>
+                                        <span className="font-medium text-slate-800 font-mono">{booking.transactionId || "None"}</span>
                                     </div>
                                     {booking.notes && (
                                         <div>
@@ -448,14 +455,12 @@ const CalendarBookingDetailsModal = ({
                         {/* View Full Details Page Button */}
                         <Link
                             to={`/dashboard/bookings/${bookingId}`}
-                            className="btn btn-sm btn-outline border-slate-300 text-slate-700 hover:bg-slate-100 rounded-xl gap-1 font-bold"
-                            title="Go to full reservation audit and receipt page"
+                            className="btn btn-sm btn-outline border-slate-300 text-slate-700 hover:bg-slate-100 rounded-xl gap-1"
                         >
-                            <Eye size={14} />
-                            <span>View Full Details Page</span>
-                            <ExternalLink size={12} className="opacity-60" />
+                            <ExternalLink size={13} /> Full Details Page
                         </Link>
 
+                        {/* Edit Booking */}
                         {booking && (
                             <button
                                 type="button"
@@ -466,6 +471,7 @@ const CalendarBookingDetailsModal = ({
                             </button>
                         )}
 
+                        {/* Delete Reservation */}
                         {booking && canDelete && (
                             <button
                                 type="button"
@@ -496,7 +502,7 @@ const CalendarBookingDetailsModal = ({
                                 <button
                                     type="button"
                                     onClick={() => setConfirmModalData({ booking, targetStatus: "payment_waiting" })}
-                                    className="btn btn-sm bg-sky-500 hover:bg-sky-600 text-white font-bold rounded-xl gap-1 shadow-xs border-none"
+                                    className="btn btn-sm bg-[#eab308] hover:bg-yellow-500 text-amber-950 font-bold rounded-xl gap-1 shadow-xs border-none"
                                 >
                                     <Clock size={14} /> Payment Waiting
                                 </button>
@@ -507,7 +513,7 @@ const CalendarBookingDetailsModal = ({
                                 <button
                                     type="button"
                                     onClick={() => setConfirmModalData({ booking, targetStatus: "booking_confirmed" })}
-                                    className="btn btn-sm bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-xl gap-1 shadow-xs border-none"
+                                    className="btn btn-sm bg-[#5261d6] hover:bg-[#4351be] text-white font-bold rounded-xl gap-1 shadow-xs border-none"
                                 >
                                     <CheckCircle2 size={14} /> Confirm Booking
                                 </button>
@@ -519,7 +525,7 @@ const CalendarBookingDetailsModal = ({
                                     type="button"
                                     disabled={isUpdatingStatus}
                                     onClick={() => handleQuickStatusChange("checked_id", "Checked In")}
-                                    className="btn btn-sm bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl gap-1 shadow-xs border-none"
+                                    className="btn btn-sm bg-[#01966e] hover:bg-[#017c5b] text-white font-bold rounded-xl gap-1 shadow-xs border-none"
                                 >
                                     <LogIn size={14} /> Check In
                                 </button>

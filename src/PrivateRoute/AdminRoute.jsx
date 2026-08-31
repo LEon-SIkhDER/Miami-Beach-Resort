@@ -7,7 +7,7 @@ const AdminRoute = ({ children }) => {
     const { user, loading } = useContext(AuthContext)
     const { role, roleLoading } = useRole()
 
-    if (loading || roleLoading) return (
+    if (loading || roleLoading || role === undefined) return (
         <div className="min-h-screen flex flex-col items-center justify-center gap-3 bg-base-200">
             <span className="loading loading-spinner loading-lg text-primary"></span>
             <p className="text-sm font-medium text-base-content/60">Verifying admin access...</p>
