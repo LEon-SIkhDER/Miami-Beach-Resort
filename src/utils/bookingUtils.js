@@ -28,7 +28,7 @@ export const getBookingRooms = (booking = {}) => {
 }
 
 export const getRoomName = (roomItem = {}) => {
-    return roomItem.room?.name || roomItem.roomName || roomItem.room?.category || roomItem.roomCategory || "Room"
+    return roomItem.categoryName || roomItem.room?.name || roomItem.name || roomItem.roomName || roomItem.room?.category || roomItem.roomCategory || "Category Room"
 }
 
 export const getRoomTotal = (roomItem = {}) => {

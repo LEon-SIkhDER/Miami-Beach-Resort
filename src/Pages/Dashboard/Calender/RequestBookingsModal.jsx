@@ -20,16 +20,28 @@ import {
     Pencil,
     Trash2,
     Eye,
-    EllipsisVertical,
-    AlertCircle,
-    ExternalLink
+    ExternalLink,
+    Mail,
+    MapPin,
+    Tag,
+    FileText,
+    ShieldAlert,
+    Copy,
+    Check
 } from 'lucide-react'
-import { getBookingDateSummary, getBookingGuestTotals, getBookingRooms, getBookingTotal, getRoomName } from '../../../utils/bookingUtils'
+import { 
+    getBookingDateSummary, 
+    getBookingGuestTotals, 
+    getBookingRooms, 
+    getBookingTotal, 
+    getNightCount, 
+    getRoomName 
+} from '../../../utils/bookingUtils'
 import ConfirmBookingModal from '../Bookings/ConfirmBookingModal'
 import EditBookingModal from '../Bookings/EditBookingModal'
 import CancelBookingModal from '../Bookings/CancelBookingModal'
 
-const RequestBookingsModal = ({ isOpen, onClose, requestBookings = [], role, currentUser }) => {
+const RequestBookingsModal = ({ isOpen, onClose, requestBookings = [], role, currentUser, onSuccess }) => {
     const axiosSecure = useAxiosSecure()
     const queryClient = useQueryClient()
 
@@ -37,8 +49,17 @@ const RequestBookingsModal = ({ isOpen, onClose, requestBookings = [], role, cur
     const [confirmModalData, setConfirmModalData] = useState(null) // { booking, targetStatus }
     const [editBooking, setEditBooking] = useState(null)
     const [cancelBooking, setCancelBooking] = useState(null)
+    const [copiedId, setCopiedId] = useState(null)
 
     const canDelete = role === "admin" || role === "manager"
+
+    const handleCopyBookingId = (bookingId) => {
+        if (!bookingId) return
+        navigator.clipboard.writeText(bookingId)
+        setCopiedId(bookingId)
+        toast.success(`Copied ID: ${bookingId}`)
+        setTimeout(() => setCopiedId(null), 2000)
+    }
 
     const deleteMutation = useMutation({
         mutationFn: async (id) => {
@@ -47,9 +68,13 @@ const RequestBookingsModal = ({ isOpen, onClose, requestBookings = [], role, cur
         },
         onMutate: () => ({ toastId: toast.loading("Deleting request reservation...") }),
         onSuccess: async (_, __, context) => {
-            await queryClient.invalidateQueries({ queryKey: ["requestBookings"] })
-            await queryClient.invalidateQueries({ queryKey: ["bookings"] })
-            await queryClient.invalidateQueries({ queryKey: ["admin-overview"] })
+            await Promise.all([
+                queryClient.invalidateQueries({ queryKey: ["requestBookings"] }),
+                queryClient.invalidateQueries({ queryKey: ["all-bookings-for-calendar"] }),
+                queryClient.invalidateQueries({ queryKey: ["bookings"] }),
+                queryClient.invalidateQueries({ queryKey: ["admin-overview"] }),
+                onSuccess?.()
+            ])
             toast.dismiss(context?.toastId)
             toast.success("Reservation deleted successfully.")
         },
@@ -79,22 +104,22 @@ const RequestBookingsModal = ({ isOpen, onClose, requestBookings = [], role, cur
 
     return createPortal(
         <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-slate-900/60 backdrop-blur-xs overflow-y-auto">
-            <div className="bg-white rounded-3xl shadow-2xl border border-slate-100 w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            <div className="bg-white rounded-3xl shadow-2xl border border-slate-100 w-full max-w-4xl max-h-[92vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
                 {/* Modal Header */}
                 <div className="flex items-center justify-between px-6 py-4 border-b border-amber-100 bg-amber-50/70 shrink-0">
                     <div className="flex items-center gap-2.5">
-                        <div className="w-9 h-9 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center font-bold">
+                        <div className="w-9 h-9 rounded-xl bg-amber-500 text-white flex items-center justify-center font-bold shadow-sm shadow-amber-500/30">
                             <Clock size={20} />
                         </div>
                         <div>
                             <div className="flex items-center gap-2">
                                 <h3 className="font-bold text-slate-900 text-base sm:text-lg">Pending Booking Requests</h3>
-                                <span className="badge badge-sm bg-amber-500 text-white font-bold">
+                                <span className="badge badge-sm bg-amber-500 text-white font-bold border-none">
                                     {requestBookings.length} Request{requestBookings.length !== 1 ? 's' : ''}
                                 </span>
                             </div>
                             <p className="text-xs text-slate-500">
-                                Review new guest requests, change status to Payment Waiting or Confirm, edit, or cancel.
+                                Full details view · Change status, confirm room assignments, edit, or cancel directly.
                             </p>
                         </div>
                     </div>
@@ -108,101 +133,208 @@ const RequestBookingsModal = ({ isOpen, onClose, requestBookings = [], role, cur
                 </div>
 
                 {/* Modal Body */}
-                <div className="p-6 overflow-y-auto space-y-4 flex-1">
+                <div className="p-4 sm:p-6 overflow-y-auto space-y-4 flex-1">
                     {requestBookings.length === 0 ? (
-                        <div className="text-center py-12 text-slate-400 space-y-2">
-                            <Clock size={40} className="mx-auto opacity-40 text-amber-500" />
-                            <p className="font-medium text-slate-600">No pending booking requests at this moment.</p>
-                            <p className="text-xs text-slate-400">All guest booking requests have been processed.</p>
+                        <div className="text-center py-16 text-slate-400 space-y-2">
+                            <Clock size={44} className="mx-auto opacity-40 text-amber-500" />
+                            <p className="font-bold text-slate-700 text-base">No pending booking requests</p>
+                            <p className="text-xs text-slate-400">All guest booking requests have been confirmed or processed.</p>
                         </div>
                     ) : (
-                        <div className="space-y-3.5">
+                        <div className="space-y-4">
                             {requestBookings.map((b) => {
                                 const bookingRooms = getBookingRooms(b)
                                 const guestTotals = getBookingGuestTotals(b)
-                                const roomTitle = bookingRooms.map(room => getRoomName(room)).join(", ") || b.roomName || b.roomCategory
-                                const dateSummary = getBookingDateSummary(b) || `${b.checkIn || ""} to ${b.checkOut || ""}`
                                 const totalAmount = getBookingTotal(b)
+                                const paidAmount = Number(b.paidAmount || b.advanceAmount || 0)
+                                const dueAmount = Math.max(0, totalAmount - paidAmount)
 
                                 return (
                                     <div 
                                         key={b._id} 
-                                        className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200 hover:border-amber-300 transition-all shadow-xs hover:shadow-md space-y-3"
+                                        className="p-5 rounded-3xl bg-white border border-slate-200 hover:border-amber-400 transition-all shadow-xs hover:shadow-md space-y-4"
                                     >
-                                        {/* Top Card Info */}
-                                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2.5 border-b border-slate-100">
-                                            <div className="flex items-center gap-2">
-                                                <Link
-                                                    to={`/dashboard/bookings/${b._id}`}
-                                                    className="font-mono text-xs font-bold text-amber-800 bg-amber-100/80 hover:bg-amber-200 px-2.5 py-1 rounded-lg border border-amber-300/60 inline-flex items-center gap-1 transition-colors"
-                                                    title="View Full Booking Details"
+                                        {/* Header Row: ID, Name, Total, Role */}
+                                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+                                            <div className="flex flex-wrap items-center gap-2">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleCopyBookingId(b.bookingId)}
+                                                    className="font-mono text-xs font-bold text-amber-900 bg-amber-100/90 hover:bg-amber-200 px-2.5 py-1 rounded-xl border border-amber-300 flex items-center gap-1.5 transition-colors cursor-pointer"
+                                                    title="Click to copy Booking ID"
                                                 >
                                                     <span>{b.bookingId}</span>
-                                                    <ExternalLink size={11} />
-                                                </Link>
-                                                <Link
-                                                    to={`/dashboard/bookings/${b._id}`}
-                                                    className="font-bold text-slate-900 text-sm sm:text-base hover:text-teal-700 transition-colors"
-                                                    title="Click to view details"
-                                                >
+                                                    {copiedId === b.bookingId ? <Check size={12} className="text-emerald-700" /> : <Copy size={12} />}
+                                                </button>
+
+                                                <h4 className="font-extrabold text-slate-900 text-base">
                                                     {b.name}
-                                                </Link>
-                                            </div>
+                                                </h4>
 
-                                            <div className="flex items-center gap-2">
-                                                <span className="badge badge-sm bg-amber-50 text-amber-700 border border-amber-200 font-semibold">
-                                                    <Clock size={11} className="mr-1" /> Request Booking
-                                                </span>
-                                                <span className="font-extrabold text-slate-900 text-sm sm:text-base">
-                                                    ৳{Number(totalAmount || 0).toLocaleString()}
-                                                </span>
-                                            </div>
-                                        </div>
-
-                                        {/* Details Grid */}
-                                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-xs text-slate-600 bg-slate-50/80 p-3 rounded-xl">
-                                            <div className="space-y-1">
-                                                <p className="flex items-center gap-1.5"><Phone size={13} className="text-teal-600" /> {b.mobile}</p>
-                                                {b.userEmail && <p className="text-[11px] text-slate-500 truncate">{b.userEmail}</p>}
-                                                {b.address && <p className="text-[11px] text-slate-400 truncate">{b.address}</p>}
-                                            </div>
-
-                                            <div className="space-y-1">
-                                                <p className="flex items-center gap-1.5 font-semibold text-slate-800">
-                                                    <BedDouble size={13} className="text-teal-600" /> 
-                                                    <span className="truncate">{roomTitle}</span>
-                                                </p>
-                                                <p className="flex items-center gap-1.5">
-                                                    <UsersIcon size={13} className="text-teal-600" /> 
-                                                    {guestTotals.adults} Adults {guestTotals.babies > 0 ? `• ${guestTotals.babies} Baby` : ""}
-                                                </p>
-                                            </div>
-
-                                            <div className="space-y-1 sm:text-right">
-                                                <p className="flex items-center sm:justify-end gap-1.5 font-medium text-slate-800">
-                                                    <Calendar size={13} className="text-teal-600" /> {dateSummary}
-                                                </p>
-                                                {b.createdAt && (
-                                                    <p className="text-[11px] text-slate-400">
-                                                        Requested: {new Date(b.createdAt).toLocaleDateString()}
-                                                    </p>
+                                                {b.requestedByRole && (
+                                                    <span className="badge badge-xs uppercase font-bold tracking-wider bg-slate-100 text-slate-600 border border-slate-200">
+                                                        {b.requestedByRole}
+                                                    </span>
                                                 )}
                                             </div>
+
+                                            <div className="flex items-center gap-3 shrink-0">
+                                                <div className="text-right">
+                                                    <span className="text-[10px] uppercase font-bold text-slate-400 block leading-tight">Total Bill</span>
+                                                    <span className="font-black text-slate-900 text-base sm:text-lg">
+                                                        ৳{Number(totalAmount || 0).toLocaleString()}
+                                                    </span>
+                                                </div>
+                                                <span className="badge badge-md bg-amber-500 text-white font-bold border-none shadow-xs">
+                                                    <Clock size={12} className="mr-1" /> Request Booking
+                                                </span>
+                                            </div>
                                         </div>
 
-                                        {/* Action Bar */}
-                                        <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+                                        {/* Guest Contact Details */}
+                                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-xs bg-slate-50/80 p-3 rounded-2xl border border-slate-100">
+                                            <div className="flex items-center gap-2 text-slate-700">
+                                                <Phone size={14} className="text-teal-600 shrink-0" />
+                                                <div>
+                                                    <span className="text-[10px] text-slate-400 uppercase font-semibold block">Mobile</span>
+                                                    <a href={`tel:${b.mobile}`} className="font-bold hover:text-teal-700 transition-colors">
+                                                        {b.mobile}
+                                                    </a>
+                                                </div>
+                                            </div>
+
+                                            <div className="flex items-center gap-2 text-slate-700">
+                                                <Mail size={14} className="text-teal-600 shrink-0" />
+                                                <div className="min-w-0">
+                                                    <span className="text-[10px] text-slate-400 uppercase font-semibold block">Email</span>
+                                                    <span className="truncate block font-medium">
+                                                        {b.userEmail || "Not provided"}
+                                                    </span>
+                                                </div>
+                                            </div>
+
+                                            <div className="flex items-center gap-2 text-slate-700">
+                                                <MapPin size={14} className="text-teal-600 shrink-0" />
+                                                <div className="min-w-0">
+                                                    <span className="text-[10px] text-slate-400 uppercase font-semibold block">Address</span>
+                                                    <span className="truncate block font-medium">
+                                                        {b.address || "Not provided"}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Booked Rooms & Category Details */}
+                                        <div className="space-y-2">
+                                            <h5 className="text-[11px] font-bold text-slate-600 uppercase tracking-wider flex items-center gap-1.5">
+                                                <BedDouble size={13} className="text-teal-600" />
+                                                <span>Booked Accommodation Breakdown ({bookingRooms.length} Room{bookingRooms.length !== 1 ? 's' : ''})</span>
+                                            </h5>
+
+                                            <div className="grid grid-cols-1 gap-2">
+                                                {bookingRooms.map((room, rIdx) => {
+                                                    const categoryName = getRoomName(room)
+                                                    const nights = getNightCount(room.checkIn, room.checkOut)
+                                                    const pricePerNight = Number(room.pricePerNight || room.price || 0)
+                                                    const roomSubtotal = pricePerNight * nights
+
+                                                    return (
+                                                        <div 
+                                                            key={rIdx} 
+                                                            className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 p-3 rounded-2xl bg-teal-50/40 border border-teal-100 text-xs"
+                                                        >
+                                                            {/* Room Category & Room Number */}
+                                                            <div className="space-y-0.5">
+                                                                <div className="flex items-center gap-2">
+                                                                    <span className="badge badge-sm bg-teal-600 text-white font-bold">
+                                                                        Room {rIdx + 1}
+                                                                    </span>
+                                                                    <span className="font-bold text-slate-900 text-xs sm:text-sm">
+                                                                        {categoryName}
+                                                                    </span>
+                                                                    {room.roomNo ? (
+                                                                        <span className="badge badge-xs bg-emerald-100 text-emerald-900 font-bold border border-emerald-300">
+                                                                            Room No: {room.roomNo}
+                                                                        </span>
+                                                                    ) : (
+                                                                        <span className="badge badge-xs bg-amber-100 text-amber-900 font-semibold border border-amber-300">
+                                                                            Room No Pending
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+
+                                                                <div className="flex items-center gap-3 text-[11px] text-slate-600 pt-0.5">
+                                                                    <span className="flex items-center gap-1 font-medium">
+                                                                        <Calendar size={12} className="text-teal-600" />
+                                                                        {room.checkIn} → {room.checkOut} ({nights} Night{nights !== 1 ? 's' : ''})
+                                                                    </span>
+                                                                    <span className="flex items-center gap-1">
+                                                                        <UsersIcon size={12} className="text-teal-600" />
+                                                                        {room.adults || 1} Adult{Number(room.adults) > 1 ? 's' : ''}
+                                                                        {Number(room.babies) > 0 ? ` • ${room.babies} Baby` : ''}
+                                                                    </span>
+                                                                </div>
+                                                            </div>
+
+                                                            {/* Rate & Subtotal */}
+                                                            <div className="sm:text-right shrink-0">
+                                                                <span className="text-[10px] text-slate-400 block">
+                                                                    ৳{pricePerNight.toLocaleString()} / night
+                                                                </span>
+                                                                <span className="font-extrabold text-teal-900 text-xs sm:text-sm">
+                                                                    ৳{roomSubtotal.toLocaleString()}
+                                                                </span>
+                                                            </div>
+                                                        </div>
+                                                    )
+                                                })}
+                                            </div>
+                                        </div>
+
+                                        {/* Financial / Notes Footer */}
+                                        {(b.reference || b.notes || paidAmount > 0) && (
+                                            <div className="flex flex-wrap items-center justify-between gap-2 p-2.5 rounded-xl bg-slate-50 border border-slate-100 text-[11px] text-slate-600">
+                                                <div className="flex flex-wrap items-center gap-3">
+                                                    {b.reference && (
+                                                        <span>
+                                                            <strong className="text-slate-800">Reference:</strong> {b.reference}
+                                                        </span>
+                                                    )}
+                                                    {b.transactionId && (
+                                                        <span>
+                                                            <strong className="text-slate-800">Trx ID:</strong> {b.transactionId}
+                                                        </span>
+                                                    )}
+                                                    {b.notes && (
+                                                        <span className="italic text-slate-500">
+                                                            <strong className="text-slate-700 not-italic">Note:</strong> "{b.notes}"
+                                                        </span>
+                                                    )}
+                                                </div>
+
+                                                {paidAmount > 0 && (
+                                                    <div className="flex items-center gap-2 font-semibold">
+                                                        <span className="text-emerald-700">Paid: ৳{paidAmount.toLocaleString()}</span>
+                                                        <span className="text-rose-700">Due: ৳{dueAmount.toLocaleString()}</span>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+
+                                        {/* Direct Action Buttons */}
+                                        <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-slate-100">
                                             <div className="flex items-center gap-1.5">
                                                 <Link
                                                     to={`/dashboard/bookings/${b._id}`}
-                                                    className="btn btn-xs btn-outline border-slate-300 text-slate-700 hover:bg-slate-50 rounded-lg gap-1"
+                                                    className="btn btn-xs btn-outline border-slate-300 text-slate-700 hover:bg-slate-50 rounded-xl gap-1"
+                                                    title="View complete booking audit and logs"
                                                 >
-                                                    <Eye size={12} /> View Details
+                                                    <Eye size={12} /> View Page
                                                 </Link>
                                                 <button
                                                     type="button"
                                                     onClick={() => setEditBooking(b)}
-                                                    className="btn btn-xs btn-ghost text-teal-700 hover:bg-teal-50 rounded-lg gap-1"
+                                                    className="btn btn-xs btn-ghost text-teal-700 hover:bg-teal-50 rounded-xl gap-1"
                                                 >
                                                     <Pencil size={12} /> Edit
                                                 </button>
@@ -210,35 +342,39 @@ const RequestBookingsModal = ({ isOpen, onClose, requestBookings = [], role, cur
                                                     <button
                                                         type="button"
                                                         onClick={() => handleDelete(b)}
-                                                        className="btn btn-xs btn-ghost text-rose-600 hover:bg-rose-50 rounded-lg gap-1"
-                                                        title="Delete booking (Admin/Manager only)"
+                                                        className="btn btn-xs btn-ghost text-rose-600 hover:bg-rose-50 rounded-xl gap-1"
+                                                        title="Delete booking request (Admin/Manager only)"
                                                     >
                                                         <Trash2 size={12} /> Delete
                                                     </button>
                                                 )}
                                             </div>
 
-                                            <div className="flex items-center gap-2">
+                                            <div className="flex flex-wrap items-center gap-2">
                                                 <button
                                                     type="button"
                                                     onClick={() => setCancelBooking(b)}
-                                                    className="btn btn-xs btn-outline border-rose-200 text-rose-600 hover:bg-rose-50 rounded-lg gap-1"
+                                                    className="btn btn-xs btn-outline border-rose-200 text-rose-600 hover:bg-rose-50 rounded-xl gap-1"
                                                 >
-                                                    <XCircle size={12} /> Cancel
+                                                    <XCircle size={13} /> Cancel
                                                 </button>
+
+                                                {/* Status Change Action 1: Payment Waiting */}
                                                 <button
                                                     type="button"
                                                     onClick={() => setConfirmModalData({ booking: b, targetStatus: "payment_waiting" })}
-                                                    className="btn btn-xs btn-info text-white rounded-lg gap-1 font-bold shadow-xs"
+                                                    className="btn btn-xs bg-sky-500 hover:bg-sky-600 text-white font-bold rounded-xl gap-1 shadow-xs border-none"
                                                 >
-                                                    <CreditCard size={12} /> Payment Waiting
+                                                    <CreditCard size={13} /> Payment Waiting
                                                 </button>
+
+                                                {/* Status Change Action 2: Confirm Booking */}
                                                 <button
                                                     type="button"
                                                     onClick={() => setConfirmModalData({ booking: b, targetStatus: "booking_confirmed" })}
-                                                    className="btn btn-xs btn-primary text-white rounded-lg gap-1 font-bold shadow-xs"
+                                                    className="btn btn-xs bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-xl gap-1 shadow-xs border-none"
                                                 >
-                                                    <CheckCircle2 size={12} /> Booking Confirmed
+                                                    <CheckCircle2 size={13} /> Confirm Booking
                                                 </button>
                                             </div>
                                         </div>
@@ -248,62 +384,66 @@ const RequestBookingsModal = ({ isOpen, onClose, requestBookings = [], role, cur
                         </div>
                     )}
                 </div>
-
-                {/* Modal Footer */}
-                <div className="flex items-center justify-between px-6 py-3.5 border-t border-slate-100 bg-slate-50/60 shrink-0">
-                    <span className="text-xs text-slate-500">
-                        {canDelete ? "🔒 Admin & Manager delete access enabled." : "👀 View & status modification access."}
-                    </span>
-                    <button
-                        type="button"
-                        onClick={onClose}
-                        className="btn btn-sm btn-ghost rounded-xl px-4"
-                    >
-                        Close
-                    </button>
-                </div>
             </div>
 
-            {/* Sub-modals */}
+            {/* Status Change Confirm Modal */}
             {confirmModalData && (
                 <ConfirmBookingModal
-                    booking={confirmModalData.booking}
-                    targetStatus={confirmModalData.targetStatus}
                     isOpen={!!confirmModalData}
                     onClose={() => setConfirmModalData(null)}
-                    onSuccess={() => {
-                        queryClient.invalidateQueries({ queryKey: ["requestBookings"] })
-                        queryClient.invalidateQueries({ queryKey: ["bookings"] })
-                        queryClient.invalidateQueries({ queryKey: ["admin-overview"] })
-                    }}
-                />
-            )}
-
-            {editBooking && (
-                <EditBookingModal
-                    booking={editBooking}
-                    isOpen={!!editBooking}
-                    onClose={() => setEditBooking(null)}
-                    onSuccess={() => {
-                        queryClient.invalidateQueries({ queryKey: ["requestBookings"] })
-                        queryClient.invalidateQueries({ queryKey: ["bookings"] })
-                        queryClient.invalidateQueries({ queryKey: ["admin-overview"] })
-                    }}
-                />
-            )}
-
-            {cancelBooking && (
-                <CancelBookingModal
-                    booking={cancelBooking}
-                    isOpen={!!cancelBooking}
-                    onClose={() => setCancelBooking(null)}
-                    onSuccess={() => {
-                        queryClient.invalidateQueries({ queryKey: ["requestBookings"] })
-                        queryClient.invalidateQueries({ queryKey: ["bookings"] })
-                        queryClient.invalidateQueries({ queryKey: ["admin-overview"] })
-                    }}
+                    booking={confirmModalData.booking}
+                    targetStatus={confirmModalData.targetStatus}
                     currentUser={currentUser}
                     role={role}
+                    onSuccess={async () => {
+                        await Promise.all([
+                            queryClient.invalidateQueries({ queryKey: ["requestBookings"] }),
+                            queryClient.invalidateQueries({ queryKey: ["all-bookings-for-calendar"] }),
+                            queryClient.invalidateQueries({ queryKey: ["bookings"] }),
+                            queryClient.invalidateQueries({ queryKey: ["admin-overview"] }),
+                            onSuccess?.()
+                        ])
+                    }}
+                />
+            )}
+
+            {/* Edit Booking Modal */}
+            {editBooking && (
+                <EditBookingModal
+                    isOpen={!!editBooking}
+                    onClose={() => setEditBooking(null)}
+                    booking={editBooking}
+                    currentUser={currentUser}
+                    role={role}
+                    onSuccess={async () => {
+                        await Promise.all([
+                            queryClient.invalidateQueries({ queryKey: ["requestBookings"] }),
+                            queryClient.invalidateQueries({ queryKey: ["all-bookings-for-calendar"] }),
+                            queryClient.invalidateQueries({ queryKey: ["bookings"] }),
+                            queryClient.invalidateQueries({ queryKey: ["admin-overview"] }),
+                            onSuccess?.()
+                        ])
+                    }}
+                />
+            )}
+
+            {/* Cancel Reason Modal */}
+            {cancelBooking && (
+                <CancelBookingModal
+                    isOpen={!!cancelBooking}
+                    onClose={() => setCancelBooking(null)}
+                    booking={cancelBooking}
+                    currentUser={currentUser}
+                    role={role}
+                    onSuccess={async () => {
+                        await Promise.all([
+                            queryClient.invalidateQueries({ queryKey: ["requestBookings"] }),
+                            queryClient.invalidateQueries({ queryKey: ["all-bookings-for-calendar"] }),
+                            queryClient.invalidateQueries({ queryKey: ["bookings"] }),
+                            queryClient.invalidateQueries({ queryKey: ["admin-overview"] }),
+                            onSuccess?.()
+                        ])
+                    }}
                 />
             )}
         </div>,

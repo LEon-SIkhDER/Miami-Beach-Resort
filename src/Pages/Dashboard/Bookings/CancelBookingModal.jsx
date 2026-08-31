@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import { createPortal } from 'react-dom'
+import { useQueryClient } from '@tanstack/react-query'
 import useAxiosSecure from '../../../hooks/useAxiosSecure'
 import toast from 'react-hot-toast'
 import { XCircle, X, AlertTriangle, FileText } from 'lucide-react'
@@ -7,6 +8,7 @@ import { getBookingDateSummary } from '../../../utils/bookingUtils'
 
 const CancelBookingModal = ({ booking, isOpen, onClose, onSuccess, currentUser, role }) => {
     const axiosSecure = useAxiosSecure()
+    const queryClient = useQueryClient()
     const [cancelReason, setCancelReason] = useState('')
     const [isSubmitting, setIsSubmitting] = useState(false)
 
@@ -30,8 +32,16 @@ const CancelBookingModal = ({ booking, isOpen, onClose, onSuccess, currentUser, 
 
             const res = await axiosSecure.patch(`/booking/${booking._id}`, payload)
             if (res.data) {
+                await Promise.all([
+                    queryClient.invalidateQueries({ queryKey: ["requestBookings"] }),
+                    queryClient.invalidateQueries({ queryKey: ["all-bookings-for-calendar"] }),
+                    queryClient.invalidateQueries({ queryKey: ["bookings"] }),
+                    queryClient.invalidateQueries({ queryKey: ["cancelledBookings"] }),
+                    queryClient.invalidateQueries({ queryKey: ["admin-overview"] }),
+                    queryClient.invalidateQueries({ queryKey: ["booking", booking._id] })
+                ])
+                if (onSuccess) await onSuccess()
                 toast.success("Reservation cancelled.", { id: toastId })
-                onSuccess?.()
                 onClose()
             }
         } catch (err) {

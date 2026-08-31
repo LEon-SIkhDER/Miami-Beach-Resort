@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import useAxiosSecure from '../../../hooks/useAxiosSecure'
 import toast from 'react-hot-toast'
 import DatePicker from 'react-datepicker'
@@ -51,6 +51,7 @@ const STATUS_OPTIONS = [
 
 const EditBookingModal = ({ booking, isOpen, onClose, onSuccess }) => {
     const axiosSecure = useAxiosSecure()
+    const queryClient = useQueryClient()
     const [isSubmitting, setIsSubmitting] = useState(false)
     const [name, setName] = useState('')
     const [mobile, setMobile] = useState('')
@@ -118,6 +119,16 @@ const EditBookingModal = ({ booking, isOpen, onClose, onSuccess }) => {
 
     if (!isOpen || !booking) return null
 
+    const standardTotal = rooms.reduce((sum, r) => {
+        if (!r.checkInDate || !r.checkOutDate) return sum
+        const nights = Math.ceil((r.checkOutDate - r.checkInDate) / (1000 * 60 * 60 * 24))
+        return sum + (nights > 0 ? nights * Number(r.pricePerNight || 0) : 0)
+    }, 0)
+    const finalTotal = Number(totalAmount || 0)
+    const discountAmount = Math.max(0, standardTotal - finalTotal)
+    const effectivePaid = Number(paidAmount || 0)
+    const dueAmount = Math.max(0, finalTotal - effectivePaid)
+
     const handleRoomChange = (index, changes) => {
         setRooms(prev => prev.map((r, idx) => {
             if (idx !== index) return r
@@ -184,6 +195,16 @@ const EditBookingModal = ({ booking, isOpen, onClose, onSuccess }) => {
                 pricePerNight: Number(r.pricePerNight || 0)
             }))
 
+            const standardTotal = rooms.reduce((sum, r) => {
+                if (!r.checkInDate || !r.checkOutDate) return sum
+                const nights = Math.ceil((r.checkOutDate - r.checkInDate) / (1000 * 60 * 60 * 24))
+                return sum + (nights > 0 ? nights * Number(r.pricePerNight || 0) : 0)
+            }, 0)
+            const finalTotal = Number(totalAmount || 0)
+            const discountAmount = Math.max(0, standardTotal - finalTotal)
+            const effectivePaid = Number(paidAmount || 0)
+            const dueAmount = Math.max(0, finalTotal - effectivePaid)
+
             const payload = {
                 name: name.trim(),
                 mobile: mobile.trim(),
@@ -191,9 +212,11 @@ const EditBookingModal = ({ booking, isOpen, onClose, onSuccess }) => {
                 userEmail: userEmail.trim(),
                 status,
                 rooms: normalizedRooms,
-                totalAmount: Number(totalAmount || 0),
-                paidAmount: Number(paidAmount || 0),
-                advanceAmount: Number(advanceAmount || 0),
+                totalAmount: finalTotal,
+                discountAmount: discountAmount,
+                paidAmount: effectivePaid,
+                dueAmount: dueAmount,
+                advanceAmount: effectivePaid,
                 reference: reference.trim(),
                 transactionId: transactionId.trim(),
                 notes: notes.trim()
@@ -201,8 +224,15 @@ const EditBookingModal = ({ booking, isOpen, onClose, onSuccess }) => {
 
             const res = await axiosSecure.patch(`/booking/${booking._id}`, payload)
             if (res.data) {
+                await Promise.all([
+                    queryClient.invalidateQueries({ queryKey: ["requestBookings"] }),
+                    queryClient.invalidateQueries({ queryKey: ["all-bookings-for-calendar"] }),
+                    queryClient.invalidateQueries({ queryKey: ["bookings"] }),
+                    queryClient.invalidateQueries({ queryKey: ["admin-overview"] }),
+                    queryClient.invalidateQueries({ queryKey: ["booking", booking._id] })
+                ])
+                if (onSuccess) await onSuccess()
                 toast.success("Reservation updated successfully! 🎉", { id: toastId })
-                onSuccess?.()
                 onClose()
             }
         } catch (err) {
@@ -422,49 +452,95 @@ const EditBookingModal = ({ booking, isOpen, onClose, onSuccess }) => {
                             </button>
                         </div>
 
-                        <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-                            <div className="form-control">
-                                <label className="label py-0.5"><span className="label-text font-semibold text-slate-700 text-xs">Total Bill (৳) *</span></label>
-                                <input
-                                    type="number"
-                                    required
-                                    min="0"
-                                    value={totalAmount}
-                                    onChange={e => setTotalAmount(e.target.value)}
-                                    className="input input-sm input-bordered w-full rounded-xl bg-white text-xs font-bold text-teal-900"
-                                />
+                        {/* Financial Calculation Card */}
+                        <div className="p-3.5 bg-white border border-slate-200 rounded-2xl space-y-3">
+                            <div className="flex items-center justify-between text-xs border-b border-slate-100 pb-2">
+                                <span className="text-slate-600 font-semibold">Standard Room Subtotal:</span>
+                                <strong className="text-slate-900 font-bold">৳{standardTotal.toLocaleString()}</strong>
                             </div>
-                            <div className="form-control">
-                                <label className="label py-0.5"><span className="label-text font-semibold text-slate-700 text-xs">Paid Amount (৳)</span></label>
-                                <input
-                                    type="number"
-                                    min="0"
-                                    value={paidAmount}
-                                    onChange={e => setPaidAmount(e.target.value)}
-                                    className="input input-sm input-bordered w-full rounded-xl bg-white text-xs"
-                                />
+
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                {/* Total Bill */}
+                                <div className="form-control">
+                                    <label className="label py-0.5">
+                                        <span className="label-text font-bold text-slate-800 text-xs">Total Bill (৳) *</span>
+                                    </label>
+                                    <input
+                                        type="number"
+                                        required
+                                        min="0"
+                                        value={totalAmount}
+                                        onChange={e => setTotalAmount(e.target.value)}
+                                        className="input input-sm input-bordered w-full rounded-xl bg-white text-xs font-bold text-teal-900"
+                                    />
+                                    {discountAmount > 0 ? (
+                                        <span className="text-[10px] text-emerald-700 font-bold mt-0.5">
+                                            🎉 Discount: -৳{discountAmount.toLocaleString()}
+                                        </span>
+                                    ) : (
+                                        <span className="text-[10px] text-slate-400 mt-0.5">
+                                            Standard is ৳{standardTotal.toLocaleString()}
+                                        </span>
+                                    )}
+                                </div>
+
+                                {/* Paid Amount */}
+                                <div className="form-control">
+                                    <label className="label py-0.5">
+                                        <span className="label-text font-bold text-slate-800 text-xs">Paid / Done (৳)</span>
+                                    </label>
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        value={paidAmount}
+                                        onChange={e => setPaidAmount(e.target.value)}
+                                        className="input input-sm input-bordered w-full rounded-xl bg-white text-xs font-bold text-emerald-800"
+                                    />
+                                    <div className="flex gap-1 mt-1">
+                                        <button
+                                            type="button"
+                                            onClick={() => setPaidAmount(String(finalTotal))}
+                                            className="btn btn-2xs btn-outline border-emerald-300 text-emerald-700 hover:bg-emerald-50 rounded-lg text-[9px]"
+                                        >
+                                            Full
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setPaidAmount('0')}
+                                            className="btn btn-2xs btn-outline border-orange-300 text-orange-700 hover:bg-orange-50 rounded-lg text-[9px]"
+                                        >
+                                            ৳0 Due
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {/* Status */}
+                                <div className="form-control">
+                                    <label className="label py-0.5">
+                                        <span className="label-text font-semibold text-slate-700 text-xs">Reservation Status</span>
+                                    </label>
+                                    <select
+                                        value={status}
+                                        onChange={e => setStatus(e.target.value)}
+                                        className="select select-sm select-bordered w-full rounded-xl bg-white text-xs font-medium"
+                                    >
+                                        {STATUS_OPTIONS.map(opt => (
+                                            <option key={opt.value} value={opt.value}>{opt.label}</option>
+                                        ))}
+                                    </select>
+                                </div>
                             </div>
-                            <div className="form-control">
-                                <label className="label py-0.5"><span className="label-text font-semibold text-slate-700 text-xs">Advance Amount (৳)</span></label>
-                                <input
-                                    type="number"
-                                    min="0"
-                                    value={advanceAmount}
-                                    onChange={e => setAdvanceAmount(e.target.value)}
-                                    className="input input-sm input-bordered w-full rounded-xl bg-white text-xs"
-                                />
-                            </div>
-                            <div className="form-control">
-                                <label className="label py-0.5"><span className="label-text font-semibold text-slate-700 text-xs">Reservation Status</span></label>
-                                <select
-                                    value={status}
-                                    onChange={e => setStatus(e.target.value)}
-                                    className="select select-sm select-bordered w-full rounded-xl bg-white text-xs font-medium"
-                                >
-                                    {STATUS_OPTIONS.map(opt => (
-                                        <option key={opt.value} value={opt.value}>{opt.label}</option>
-                                    ))}
-                                </select>
+
+                            {/* Live Payment Due Display */}
+                            <div className="flex items-center justify-between pt-2 border-t border-slate-100 text-xs">
+                                <span className="font-bold text-slate-700">Remaining Payment Due:</span>
+                                <span className={`px-2.5 py-1 rounded-xl text-xs font-extrabold ${
+                                    dueAmount > 0 
+                                        ? 'bg-orange-100 text-orange-800 border border-orange-300' 
+                                        : 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                                }`}>
+                                    {dueAmount > 0 ? `⚠️ Due: ৳${dueAmount.toLocaleString()}` : '✅ Fully Paid (৳0 Due)'}
+                                </span>
                             </div>
                         </div>
 

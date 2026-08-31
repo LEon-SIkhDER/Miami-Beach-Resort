@@ -37,6 +37,7 @@ import { getBookingGuestTotals, getBookingRooms, getBookingTotal, getNightCount,
 import ConfirmBookingModal from './ConfirmBookingModal'
 import EditBookingModal from './EditBookingModal'
 import CancelBookingModal from './CancelBookingModal'
+import AddPaymentModal from './AddPaymentModal'
 
 const BookingDetails = () => {
     const { id } = useParams()
@@ -51,6 +52,7 @@ const BookingDetails = () => {
     const [confirmModalTarget, setConfirmModalTarget] = useState(null) // "payment_waiting" or "booking_confirmed"
     const [isEditOpen, setIsEditOpen] = useState(false)
     const [isCancelOpen, setIsCancelOpen] = useState(false)
+    const [isAddPaymentOpen, setIsAddPaymentOpen] = useState(false)
 
     const isAdmin = role === "admin"
 
@@ -250,6 +252,15 @@ const BookingDetails = () => {
                             className="btn btn-sm btn-primary text-white gap-1.5 rounded-xl shadow-xs"
                         >
                             <CheckCircle2 size={15} /> Booking Confirmed
+                        </button>
+                    )}
+
+                    {!isCancelled && (
+                        <button 
+                            onClick={() => setIsAddPaymentOpen(true)}
+                            className="btn btn-sm bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5 rounded-xl shadow-xs border-none"
+                        >
+                            <CreditCard size={15} /> Record Payment
                         </button>
                     )}
 
@@ -474,25 +485,50 @@ const BookingDetails = () => {
                     <div className="bg-slate-50 p-5 rounded-2xl border border-slate-100 space-y-3 text-xs sm:text-sm">
                         <div className="flex justify-between items-center text-slate-600">
                             <span>Total Bill:</span>
-                            <span>৳{Number(totalAmount || 0).toLocaleString()}</span>
+                            <span className="font-bold text-slate-900">৳{Number(booking.totalAmount !== undefined ? booking.totalAmount : totalAmount).toLocaleString()}</span>
                         </div>
+                        {Number(booking.discountAmount || 0) > 0 && (
+                            <div className="flex justify-between items-center text-emerald-700 font-semibold">
+                                <span>Special Discount:</span>
+                                <span>-৳{Number(booking.discountAmount).toLocaleString()}</span>
+                            </div>
+                        )}
                         {booking.paidAmount !== undefined && (
                             <div className="flex justify-between items-center text-slate-600">
-                                <span>Paid Amount:</span>
+                                <span>Paid / Done:</span>
                                 <span className="text-emerald-700 font-semibold">৳{Number(booking.paidAmount || 0).toLocaleString()}</span>
                             </div>
                         )}
-                        {booking.advanceAmount > 0 && (
+                        {booking.advanceAmount > 0 && booking.paidAmount === undefined && (
                             <div className="flex justify-between items-center text-slate-600">
                                 <span>Advance Paid:</span>
                                 <span className="text-emerald-700 font-semibold">৳{Number(booking.advanceAmount || 0).toLocaleString()}</span>
                             </div>
                         )}
-                        <hr className="border-slate-200" />
-                        <div className="flex justify-between items-center font-extrabold text-slate-900 text-base">
-                            <span>Final Amount:</span>
-                            <span className="text-teal-800">৳{Number(booking.totalAmount !== undefined ? booking.totalAmount : totalAmount).toLocaleString()}</span>
-                        </div>
+                        {(() => {
+                            const finalTotal = Number(booking.totalAmount !== undefined ? booking.totalAmount : totalAmount);
+                            const finalPaid = Number(booking.paidAmount || booking.advanceAmount || 0);
+                            const finalDue = Math.max(0, finalTotal - finalPaid);
+                            return (
+                                <>
+                                    <div className="flex justify-between items-center border-t border-slate-200 pt-2">
+                                        <span className="font-bold text-slate-700">Due Balance:</span>
+                                        <span className={`font-extrabold ${finalDue > 0 ? 'text-orange-600' : 'text-emerald-600'}`}>
+                                            ৳{finalDue.toLocaleString()}
+                                        </span>
+                                    </div>
+                                    {finalDue > 0 && !isCancelled && (
+                                        <button
+                                            onClick={() => setIsAddPaymentOpen(true)}
+                                            className="btn btn-xs bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl gap-1 border-none shadow-xs w-full"
+                                        >
+                                            <CreditCard size={12} />
+                                            <span>Collect Due Payment (৳{finalDue.toLocaleString()})</span>
+                                        </button>
+                                    )}
+                                </>
+                            );
+                        })()}
                     </div>
                 </div>
             </div>
@@ -587,6 +623,24 @@ const BookingDetails = () => {
                     onSuccess={() => {
                         queryClient.invalidateQueries({ queryKey: ["booking-details", id] })
                         queryClient.invalidateQueries({ queryKey: ["bookings"] })
+                    }}
+                    currentUser={currentUser}
+                    role={role}
+                />
+            )}
+
+            {/* Add Due Payment Modal */}
+            {isAddPaymentOpen && (
+                <AddPaymentModal
+                    booking={booking}
+                    isOpen={isAddPaymentOpen}
+                    onClose={() => setIsAddPaymentOpen(false)}
+                    onSuccess={async () => {
+                        await Promise.all([
+                            queryClient.invalidateQueries({ queryKey: ["booking-details", id] }),
+                            queryClient.invalidateQueries({ queryKey: ["bookings"] }),
+                            queryClient.invalidateQueries({ queryKey: ["all-bookings-for-calendar"] })
+                        ])
                     }}
                     currentUser={currentUser}
                     role={role}

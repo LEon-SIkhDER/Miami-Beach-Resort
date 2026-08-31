@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useContext } from 'react'
 import { createPortal } from 'react-dom'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { AuthContext } from '../../../Context/AuthContext'
 import useRole from '../../../hooks/useRole'
 import useAxiosSecure from '../../../hooks/useAxiosSecure'
@@ -20,10 +20,12 @@ const ConfirmBookingModal = ({ booking, isOpen, onClose, onSuccess, targetStatus
     const { user: currentUser } = useContext(AuthContext)
     const { role } = useRole()
     const axiosSecure = useAxiosSecure()
+    const queryClient = useQueryClient()
     const [isSubmitting, setIsSubmitting] = useState(false)
     const [assignedRooms, setAssignedRooms] = useState([])
     const [reference, setReference] = useState('')
-    const [paymentAmount, setPaymentAmount] = useState(0)
+    const [customTotalAmount, setCustomTotalAmount] = useState('')
+    const [paidAmount, setPaidAmount] = useState('')
     const [transactionId, setTransactionId] = useState('')
 
     const isPaymentWaiting = targetStatus === "payment_waiting"
@@ -69,13 +71,31 @@ const ConfirmBookingModal = ({ booking, isOpen, onClose, onSuccess, targetStatus
                 roomNo: r.roomNo || ""
             })))
             const defaultTotal = getBookingTotal(booking) || 0
-            setPaymentAmount(booking.paidAmount !== undefined ? booking.paidAmount : (booking.totalAmount !== undefined ? booking.totalAmount : defaultTotal))
+            const initialTotal = booking.totalAmount !== undefined ? booking.totalAmount : defaultTotal
+            setCustomTotalAmount(initialTotal || '')
+            setPaidAmount(booking.paidAmount !== undefined ? String(booking.paidAmount) : (targetStatus === 'payment_waiting' ? '0' : String(initialTotal)))
             setReference(booking.reference || "")
             setTransactionId(booking.transactionId || "")
         }
-    }, [booking, isOpen])
+    }, [booking, isOpen, targetStatus])
 
-    if (!isOpen || !booking) return null
+    // Out of order rooms check
+    const { data: outOfOrderList = [] } = useQuery({
+        queryKey: ["out-of-order-for-confirm-modal"],
+        queryFn: async () => {
+            const res = await axiosSecure.get("/out-of-order")
+            return res.data
+        },
+        enabled: isOpen
+    })
+
+    const isRoomOutOfOrder = (roomNo, checkIn, checkOut) => {
+        if (!roomNo || !checkIn || !checkOut) return false
+        return outOfOrderList.some(ooo => {
+            if (!ooo || ooo.status !== "active") return false
+            return String(ooo.roomNo).trim() === String(roomNo).trim() && ooo.startDate < checkOut && ooo.endDate > checkIn
+        })
+    }
 
     const handleRoomNoChange = (index, val) => {
         setAssignedRooms(prev => prev.map((r, idx) => idx === index ? { ...r, roomNo: val } : r))
@@ -108,6 +128,12 @@ const ConfirmBookingModal = ({ booking, isOpen, onClose, onSuccess, targetStatus
         })
     }
 
+    const standardTotal = originalTotal || 0
+    const finalTotal = customTotalAmount !== '' ? Number(customTotalAmount) : standardTotal
+    const discountAmount = Math.max(0, standardTotal - finalTotal)
+    const effectivePaid = paidAmount !== '' ? Number(paidAmount) : 0
+    const dueAmount = Math.max(0, finalTotal - effectivePaid)
+
     const handleSubmit = async (e) => {
         e.preventDefault()
         setIsSubmitting(true)
@@ -117,8 +143,11 @@ const ConfirmBookingModal = ({ booking, isOpen, onClose, onSuccess, targetStatus
             const payload = {
                 status: targetStatus,
                 rooms: assignedRooms,
-                totalAmount: Number(paymentAmount || 0),
-                paidAmount: Number(paymentAmount || 0),
+                totalAmount: Number(finalTotal || 0),
+                discountAmount: Number(discountAmount || 0),
+                paidAmount: Number(effectivePaid || 0),
+                dueAmount: Number(dueAmount || 0),
+                advanceAmount: Number(effectivePaid || 0),
                 reference: reference.trim(),
                 transactionId: transactionId.trim(),
                 changedBy: {
@@ -130,8 +159,15 @@ const ConfirmBookingModal = ({ booking, isOpen, onClose, onSuccess, targetStatus
 
             const res = await axiosSecure.patch(`/booking/${booking._id}`, payload)
             if (res.data) {
+                await Promise.all([
+                    queryClient.invalidateQueries({ queryKey: ["requestBookings"] }),
+                    queryClient.invalidateQueries({ queryKey: ["all-bookings-for-calendar"] }),
+                    queryClient.invalidateQueries({ queryKey: ["bookings"] }),
+                    queryClient.invalidateQueries({ queryKey: ["admin-overview"] }),
+                    queryClient.invalidateQueries({ queryKey: ["booking", booking._id] })
+                ])
+                if (onSuccess) await onSuccess()
                 toast.success(isPaymentWaiting ? "Status updated to Payment Waiting! ⏳" : "Booking confirmed successfully! 🎉", { id: toastId })
-                onSuccess?.()
                 onClose()
             }
         } catch (err) {
@@ -246,6 +282,7 @@ const ConfirmBookingModal = ({ booking, isOpen, onClose, onSuccess, targetStatus
                                                 <option value="">-- Choose Physical Room Number --</option>
                                                 {availableRoomNumbers.length > 0 ? (
                                                     availableRoomNumbers.map(num => {
+                                                        const ooo = isRoomOutOfOrder(num, room.checkIn, room.checkOut)
                                                         const occupied = isRoomNoOccupied(
                                                             num, 
                                                             room.checkIn, 
@@ -253,13 +290,14 @@ const ConfirmBookingModal = ({ booking, isOpen, onClose, onSuccess, targetStatus
                                                             booking._id, 
                                                             index
                                                         )
+                                                        const disabled = (ooo || occupied) && room.roomNo !== num
                                                         return (
                                                             <option 
                                                                 key={num} 
                                                                 value={num} 
-                                                                disabled={occupied && room.roomNo !== num}
+                                                                disabled={disabled}
                                                             >
-                                                                {num} {occupied && room.roomNo !== num ? "(Occupied on these dates)" : "(Available)"}
+                                                                {num} {ooo ? "(Out of Order - Maintenance)" : occupied && room.roomNo !== num ? "(Occupied on these dates)" : "(Available)"}
                                                             </option>
                                                         )
                                                     })
@@ -301,47 +339,117 @@ const ConfirmBookingModal = ({ booking, isOpen, onClose, onSuccess, targetStatus
                         </select>
                     </div>
 
-                    {/* Payment Amount & Transaction ID */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 pt-1">
-                        {/* Payment / Final Amount */}
-                        <div className="form-control">
-                            <label className="label py-0.5">
-                                <span className="label-text font-semibold text-slate-700 text-xs flex items-center gap-1">
-                                    <CreditCard size={14} className="text-teal-600" /> Final Bill / Payment (৳) *
-                                </span>
-                            </label>
-                            <input
-                                type="number"
-                                required
-                                min="0"
-                                value={paymentAmount}
-                                onChange={e => setPaymentAmount(e.target.value)}
-                                placeholder="Final payment amount"
-                                className="input input-sm input-bordered w-full rounded-xl bg-white text-xs sm:text-sm font-bold text-teal-800"
-                            />
-                            <span className="text-[10px] text-slate-400 mt-0.5">
-                                Default is ৳{Number(originalTotal || 0).toLocaleString()} (can be discounted).
-                            </span>
+                    {/* Financial Calculation Card */}
+                    <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
+                        <div className="flex items-center justify-between text-xs border-b border-slate-200 pb-2">
+                            <span className="text-slate-600 font-semibold">Standard Room Subtotal:</span>
+                            <strong className="text-slate-900 font-bold">৳{standardTotal.toLocaleString()}</strong>
                         </div>
 
-                        {/* Transaction ID */}
-                        <div className="form-control">
-                            <label className="label py-0.5">
-                                <span className="label-text font-semibold text-slate-700 text-xs flex items-center gap-1">
-                                    <Receipt size={14} className="text-teal-600" /> Transaction ID / TrxID
-                                </span>
-                            </label>
-                            <input
-                                type="text"
-                                value={transactionId}
-                                onChange={e => setTransactionId(e.target.value)}
-                                placeholder="e.g. TRX-982314 / Cash"
-                                className="input input-sm input-bordered w-full rounded-xl bg-white text-xs sm:text-sm"
-                            />
-                            <span className="text-[10px] text-slate-400 mt-0.5">
-                                Bank, bKash, Nagad or Cash receipt.
+                        {/* Final Total Bill & Payment Done Fields */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                            {/* Final Total Bill Input */}
+                            <div className="form-control">
+                                <label className="label py-0.5">
+                                    <span className="label-text font-bold text-slate-800 text-xs flex items-center gap-1">
+                                        <CreditCard size={13} className="text-teal-600" /> Final Total Bill (৳) *
+                                    </span>
+                                </label>
+                                <input
+                                    type="number"
+                                    required
+                                    min="0"
+                                    value={customTotalAmount !== '' ? customTotalAmount : standardTotal}
+                                    onChange={e => setCustomTotalAmount(e.target.value)}
+                                    placeholder={String(standardTotal)}
+                                    className="input input-sm input-bordered w-full rounded-xl bg-white text-xs font-bold text-teal-800"
+                                />
+                                {discountAmount > 0 ? (
+                                    <span className="text-[11px] text-emerald-700 font-bold mt-1">
+                                        🎉 Discount Given: -৳{discountAmount.toLocaleString()} ({Math.round((discountAmount / (standardTotal || 1)) * 100)}% off)
+                                    </span>
+                                ) : (
+                                    <span className="text-[10px] text-slate-400 mt-0.5">
+                                        Standard total is ৳{standardTotal.toLocaleString()}. Modify to apply discount.
+                                    </span>
+                                )}
+                            </div>
+
+                            {/* Payment Done / Received Input */}
+                            <div className="form-control">
+                                <label className="label py-0.5">
+                                    <span className="label-text font-bold text-slate-800 text-xs flex items-center gap-1">
+                                        <CreditCard size={13} className="text-emerald-600" /> Payment Done / Received (৳)
+                                    </span>
+                                </label>
+                                <input
+                                    type="number"
+                                    min="0"
+                                    max={finalTotal * 2}
+                                    value={paidAmount}
+                                    onChange={e => setPaidAmount(e.target.value)}
+                                    placeholder="0"
+                                    className="input input-sm input-bordered w-full rounded-xl bg-white text-xs font-bold text-emerald-800"
+                                />
+                                {/* Quick payment helper buttons */}
+                                <div className="flex gap-1.5 mt-1.5">
+                                    <button
+                                        type="button"
+                                        onClick={() => setPaidAmount(String(finalTotal))}
+                                        className="btn btn-2xs btn-outline border-emerald-300 text-emerald-700 hover:bg-emerald-50 rounded-lg text-[10px]"
+                                    >
+                                        Full Paid (৳{finalTotal.toLocaleString()})
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setPaidAmount('0')}
+                                        className="btn btn-2xs btn-outline border-orange-300 text-orange-700 hover:bg-orange-50 rounded-lg text-[10px]"
+                                    >
+                                        ৳0 / Full Due
+                                    </button>
+                                    {finalTotal > 1000 && (
+                                        <button
+                                            type="button"
+                                            onClick={() => setPaidAmount(String(Math.round(finalTotal / 2)))}
+                                            className="btn btn-2xs btn-outline border-slate-300 text-slate-600 hover:bg-slate-50 rounded-lg text-[10px]"
+                                        >
+                                            50% (৳{Math.round(finalTotal / 2).toLocaleString()})
+                                        </button>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Live Payment Due Display */}
+                        <div className="flex items-center justify-between pt-2 border-t border-slate-200 text-xs">
+                            <span className="font-bold text-slate-700">Remaining Payment Due:</span>
+                            <span className={`px-2.5 py-1 rounded-xl text-xs font-extrabold ${
+                                dueAmount > 0 
+                                    ? 'bg-orange-100 text-orange-800 border border-orange-300' 
+                                    : 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                            }`}>
+                                {dueAmount > 0 ? `⚠️ Due: ৳${dueAmount.toLocaleString()}` : '✅ Fully Paid (৳0 Due)'}
                             </span>
                         </div>
+                    </div>
+
+                    {/* Transaction ID */}
+                    <div className="form-control">
+                        <label className="label py-0.5">
+                            <span className="label-text font-semibold text-slate-700 text-xs flex items-center gap-1">
+                                <Receipt size={14} className="text-teal-600" /> Transaction ID / Receipt
+                            </span>
+                        </label>
+                        <input
+                            type="text"
+                            value={transactionId}
+                            onChange={e => setTransactionId(e.target.value)}
+                            placeholder="e.g. TRX-982314 / Cash"
+                            className="input input-sm input-bordered w-full rounded-xl bg-white text-xs sm:text-sm"
+                        />
+                        <span className="text-[10px] text-slate-400 mt-0.5">
+                            Bank, bKash, Nagad or Cash receipt.
+                        </span>
                     </div>
 
                     {/* Submit Actions */}
