@@ -1,28 +1,32 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useContext } from 'react'
 import { createPortal } from 'react-dom'
 import { useQuery } from '@tanstack/react-query'
+import { AuthContext } from '../../../Context/AuthContext'
+import useRole from '../../../hooks/useRole'
 import useAxiosSecure from '../../../hooks/useAxiosSecure'
 import toast from 'react-hot-toast'
 import { 
     CheckCircle2, 
+    CreditCard, 
     X, 
     BedDouble, 
-    CreditCard, 
     UserCheck, 
-    Hash, 
-    Calendar,
-    AlertCircle,
-    Receipt
+    Receipt, 
+    Clock
 } from 'lucide-react'
 import { getBookingRooms, getBookingTotal, getBookingDateSummary } from '../../../utils/bookingUtils'
 
-const ConfirmBookingModal = ({ booking, isOpen, onClose, onSuccess }) => {
+const ConfirmBookingModal = ({ booking, isOpen, onClose, onSuccess, targetStatus = "booking_confirmed" }) => {
+    const { user: currentUser } = useContext(AuthContext)
+    const { role } = useRole()
     const axiosSecure = useAxiosSecure()
     const [isSubmitting, setIsSubmitting] = useState(false)
     const [assignedRooms, setAssignedRooms] = useState([])
     const [reference, setReference] = useState('')
     const [paymentAmount, setPaymentAmount] = useState(0)
     const [transactionId, setTransactionId] = useState('')
+
+    const isPaymentWaiting = targetStatus === "payment_waiting"
 
     // Fetch all categories to get room numbers under each category
     const { data: categories = [] } = useQuery({
@@ -60,7 +64,7 @@ const ConfirmBookingModal = ({ booking, isOpen, onClose, onSuccess }) => {
     useEffect(() => {
         if (booking && isOpen) {
             const rawRooms = getBookingRooms(booking)
-            setAssignedRooms(rawRooms.map((r, idx) => ({
+            setAssignedRooms(rawRooms.map((r) => ({
                 ...r,
                 roomNo: r.roomNo || ""
             })))
@@ -107,27 +111,32 @@ const ConfirmBookingModal = ({ booking, isOpen, onClose, onSuccess }) => {
     const handleSubmit = async (e) => {
         e.preventDefault()
         setIsSubmitting(true)
-        const toastId = toast.loading("Confirming booking...")
+        const toastId = toast.loading(isPaymentWaiting ? "Setting to Payment Waiting..." : "Confirming booking...")
 
         try {
             const payload = {
-                status: "booking_confirmed",
+                status: targetStatus,
                 rooms: assignedRooms,
                 totalAmount: Number(paymentAmount || 0),
                 paidAmount: Number(paymentAmount || 0),
                 reference: reference.trim(),
-                transactionId: transactionId.trim()
+                transactionId: transactionId.trim(),
+                changedBy: {
+                    name: currentUser?.displayName || "Admin / Staff",
+                    email: currentUser?.email || "",
+                    role: role || "admin"
+                }
             }
 
             const res = await axiosSecure.patch(`/booking/${booking._id}`, payload)
             if (res.data) {
-                toast.success("Booking confirmed successfully! 🎉", { id: toastId })
+                toast.success(isPaymentWaiting ? "Status updated to Payment Waiting! ⏳" : "Booking confirmed successfully! 🎉", { id: toastId })
                 onSuccess?.()
                 onClose()
             }
         } catch (err) {
             console.error(err)
-            toast.error(err.response?.data?.message || "Failed to confirm booking", { id: toastId })
+            toast.error(err.response?.data?.message || "Failed to update booking", { id: toastId })
         } finally {
             setIsSubmitting(false)
         }
@@ -140,13 +149,19 @@ const ConfirmBookingModal = ({ booking, isOpen, onClose, onSuccess }) => {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs overflow-y-auto">
             <div className="bg-white rounded-3xl shadow-2xl border border-slate-100 w-full max-w-xl max-h-[92vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
                 {/* Header */}
-                <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/50 shrink-0">
+                <div className={`flex items-center justify-between px-6 py-4 border-b shrink-0 ${
+                    isPaymentWaiting ? 'border-sky-100 bg-sky-50/60' : 'border-emerald-100 bg-emerald-50/50'
+                }`}>
                     <div className="flex items-center gap-2.5">
-                        <div className="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center">
-                            <CheckCircle2 size={20} />
+                        <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${
+                            isPaymentWaiting ? 'bg-sky-100 text-sky-700' : 'bg-emerald-100 text-emerald-700'
+                        }`}>
+                            {isPaymentWaiting ? <Clock size={20} /> : <CheckCircle2 size={20} />}
                         </div>
                         <div>
-                            <h3 className="font-bold text-slate-900 text-base sm:text-lg">Confirm Booking</h3>
+                            <h3 className="font-bold text-slate-900 text-base sm:text-lg">
+                                {isPaymentWaiting ? "Set to Payment Waiting" : "Booking Confirmed"}
+                            </h3>
                             <p className="text-xs text-slate-500 font-mono">
                                 {booking.bookingId} · {booking.name}
                             </p>
@@ -183,11 +198,17 @@ const ConfirmBookingModal = ({ booking, isOpen, onClose, onSuccess }) => {
                         </div>
                     </div>
 
+                    {isPaymentWaiting && (
+                        <p className="text-[11px] text-sky-800 bg-sky-50 border border-sky-200 rounded-xl p-2.5">
+                            💡 <strong>Optional:</strong> You can assign room numbers, payment, and transaction details now or skip them. Any entered information will be saved and pre-filled for final confirmation.
+                        </p>
+                    )}
+
                     {/* Room Assignment (Multiple fields for each booked room) */}
                     <div className="space-y-3">
                         <div className="flex items-center gap-1.5 text-slate-900 font-bold text-xs uppercase tracking-wider">
                             <BedDouble size={15} className="text-teal-600" />
-                            <span>Assign Room Number{totalRooms > 1 ? 's' : ''} *</span>
+                            <span>Assign Room Number{totalRooms > 1 ? 's' : ''} {!isPaymentWaiting ? '*' : '(Optional)'}</span>
                         </div>
 
                         <div className="space-y-2.5">
@@ -213,11 +234,11 @@ const ConfirmBookingModal = ({ booking, isOpen, onClose, onSuccess }) => {
                                         <div className="form-control">
                                             <label className="label py-0.5">
                                                 <span className="label-text font-semibold text-slate-700 text-xs">
-                                                    Select Room Number *
+                                                    Select Room Number {!isPaymentWaiting && "*"}
                                                 </span>
                                             </label>
                                             <select
-                                                required
+                                                required={!isPaymentWaiting}
                                                 value={room.roomNo || ""}
                                                 onChange={e => handleRoomNoChange(index, e.target.value)}
                                                 className="select select-sm select-bordered w-full rounded-xl bg-white text-xs font-medium"
@@ -282,7 +303,7 @@ const ConfirmBookingModal = ({ booking, isOpen, onClose, onSuccess }) => {
 
                     {/* Payment Amount & Transaction ID */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 pt-1">
-                        {/* Payment / Final Amount (Default total, admin can reduce) */}
+                        {/* Payment / Final Amount */}
                         <div className="form-control">
                             <label className="label py-0.5">
                                 <span className="label-text font-semibold text-slate-700 text-xs flex items-center gap-1">
@@ -336,12 +357,14 @@ const ConfirmBookingModal = ({ booking, isOpen, onClose, onSuccess }) => {
                         <button
                             type="submit"
                             disabled={isSubmitting}
-                            className="btn btn-sm btn-primary rounded-xl px-5 text-white font-bold shadow-md shadow-teal-600/20"
+                            className={`btn btn-sm rounded-xl px-5 text-white font-bold shadow-md ${
+                                isPaymentWaiting ? 'btn-info shadow-sky-600/20' : 'btn-primary shadow-teal-600/20'
+                            }`}
                         >
                             {isSubmitting ? (
                                 <span className="loading loading-spinner loading-sm" />
                             ) : (
-                                "Confirm Reservation"
+                                isPaymentWaiting ? "Save & Set Payment Waiting" : "Booking Confirmed"
                             )}
                         </button>
                     </div>

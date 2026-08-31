@@ -11,6 +11,8 @@ import Dashboard from "../Layout/Dashboard/Dashboard"
 import DashboardHome from "../Pages/Dashboard/Home/DashboardHome"
 import Bookings from "../Pages/Dashboard/Bookings/Bookings"
 import BookingDetails from "../Pages/Dashboard/Bookings/BookingDetails"
+import CancelledBookings from "../Pages/Dashboard/Bookings/CancelledBookings"
+import IncomeAnalytics from "../Pages/Dashboard/Income/IncomeAnalytics"
 import RoomDetails from "../Pages/Rooms/RoomDetails"
 import Users from "../Pages/Dashboard/Users/Users"
 import Forbidden from "../Components/Forbidden"
@@ -45,6 +47,8 @@ export const router = createBrowserRouter([
             { path: "bookings", Component: Bookings },
             { path: "bookings/:id", Component: BookingDetails },
             // admin
+            { path: "cancellations", element: <AdminRoute><CancelledBookings /></AdminRoute> },
+            { path: "income", element: <AdminRoute><IncomeAnalytics /></AdminRoute> },
             { path: "category&room", element: <AdminRoute><CategoryAndPricing /></AdminRoute> },
             { path: "category&room/:id", element: <AdminRoute><CategoryRoomDetails /></AdminRoute> },
             { path: "users", element: <AdminRoute><Users /></AdminRoute> },

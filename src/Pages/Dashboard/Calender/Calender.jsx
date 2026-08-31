@@ -1,9 +1,14 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useContext } from "react";
 import DatePicker from "react-datepicker";
 import { eachDayOfInterval, format } from "date-fns";
-
 import "react-datepicker/dist/react-datepicker.css";
-import { RefreshCw } from "lucide-react";
+import { AuthContext } from "../../../Context/AuthContext";
+import useRole from "../../../hooks/useRole";
+import useAxiosSecure from "../../../hooks/useAxiosSecure";
+import RequestBookingsModal from "./RequestBookingsModal";
+import { Clock, RefreshCw } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+
 const categories = [
     {
         category: "Urban View",
@@ -205,44 +210,34 @@ const categories = [
 ];
 
 const Calender = () => {
-    const [startDate, setStartDate] = useState(() => {
-        // const savedDate = localStorage.getItem("startDate")
-        // if (savedDate) {
-        //     return new Date(savedDate);
-        // }
+    const { user } = useContext(AuthContext);
+    const { role } = useRole();
+    const axiosSecure = useAxiosSecure();
+    const [isRequestModalOpen, setIsRequestModalOpen] = useState(false);
 
+    const { data: requestBookings = [] } = useQuery({
+        queryKey: ["requestBookings"],
+        queryFn: async () => {
+            const { data: result } = await axiosSecure.get("/bookings?status=request_booking")
+            return result
+        }
+    })
+
+    const [startDate, setStartDate] = useState(() => {
         return new Date(
             new Date().setDate(new Date().getDate() - 7)
         );
-
     })
-    // console.log("hello this are the changes ") 
 
     const handleStartDate = (date) => {
         localStorage.setItem("startDate", date.toISOString())
         setStartDate(date)
     }
 
-
-
-
-
-
-
-
-
-
-
     const [endDate, setEndDate] = useState(() => {
-        // const savedDate = localStorage.getItem("endDate")
-        // if (savedDate) {
-        //     return new Date(savedDate);
-        // }
-
         return new Date(
             new Date().setDate(new Date().getDate() + 7)
         );
-
     })
 
     const handleEndDate = (date) => {
@@ -264,6 +259,7 @@ const Calender = () => {
             setDateRange([]);
         }
     }, [startDate, endDate]);
+
     const [loading, setLoading] = useState(false);
 
     const handleRefresh = () => {
@@ -273,6 +269,7 @@ const Calender = () => {
             setLoading(false);
         }, 500);
     };
+
     const isRoomBooked = (room, date) => {
         if (!room.startAt || !room.endAt) return false;
 
@@ -282,19 +279,27 @@ const Calender = () => {
 
         return currentDate >= startDate && currentDate <= endDate;
     };
+
     const handleLeftClick = (e, date, category, roomNo) => {
         e.preventDefault()
         console.log(date, category, roomNo)
     }
-    // 
-    // const handleRightClick = () => {
 
-    // }
     return (
         <div className="flex h-[calc(100dvh-65px)] w-full min-w-0 flex-col overflow-hidden">
             <div className="flex justify-between p-5 items-end">
-
-                <button className="btn">Booking Request</button>
+                <button 
+                    type="button"
+                    onClick={() => setIsRequestModalOpen(true)}
+                    className={`btn btn-sm rounded-xl transition-all duration-200 gap-1.5 font-bold ${
+                        requestBookings.length > 0
+                            ? 'bg-amber-500 hover:bg-amber-600 text-white border-none shadow-md shadow-amber-500/25 ring-2 ring-amber-400/40'
+                            : 'btn-outline border-slate-300 text-slate-700 hover:bg-slate-100'
+                    }`}
+                >
+                    <Clock size={15} />
+                    <span>Request Bookings ({requestBookings.length ? requestBookings.length : 0})</span>
+                </button>
 
                 <div className="shrink-0  flex flex-col gap-4 sm:flex-row sm:justify-end sm:items-end">
                     {/* Date Picker */}
@@ -413,7 +418,14 @@ const Calender = () => {
                 </table>
             </div>
 
-
+            {/* Request Bookings Modal (createPortal) */}
+            <RequestBookingsModal
+                isOpen={isRequestModalOpen}
+                onClose={() => setIsRequestModalOpen(false)}
+                requestBookings={requestBookings}
+                role={role}
+                currentUser={user}
+            />
         </div>
     );
 };

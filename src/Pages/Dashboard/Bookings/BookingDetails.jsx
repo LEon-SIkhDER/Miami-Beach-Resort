@@ -3,7 +3,7 @@ import { useParams, Link, useNavigate } from 'react-router'
 import { AuthContext } from '../../../Context/AuthContext'
 import useRole from '../../../hooks/useRole'
 import useAxiosSecure from '../../../hooks/useAxiosSecure'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
 import { showConfirmAlert } from '../../../utils/customSwal'
 import logo from '../../../assets/logo.png'
@@ -19,25 +19,28 @@ import {
     User, 
     Calendar, 
     BedDouble, 
-    Users, 
     CreditCard, 
-    Sparkles,
-    ShieldAlert,
-    Copy,
-    Check,
-    MapPin,
-    Pencil,
-    UserCheck,
-    Receipt,
-    FileText
+    Copy, 
+    Check, 
+    MapPin, 
+    Pencil, 
+    UserCheck, 
+    Receipt, 
+    FileText,
+    History,
+    AlertCircle,
+    Building2,
+    Briefcase,
+    Shield
 } from 'lucide-react'
 import { getBookingGuestTotals, getBookingRooms, getBookingTotal, getNightCount, getRoomName, getRoomTotal } from '../../../utils/bookingUtils'
 import ConfirmBookingModal from './ConfirmBookingModal'
 import EditBookingModal from './EditBookingModal'
+import CancelBookingModal from './CancelBookingModal'
 
 const BookingDetails = () => {
     const { id } = useParams()
-    const { user } = useContext(AuthContext)
+    const { user: currentUser } = useContext(AuthContext)
     const { role } = useRole()
     const axiosSecure = useAxiosSecure()
     const queryClient = useQueryClient()
@@ -45,15 +48,16 @@ const BookingDetails = () => {
     const [copied, setCopied] = useState(false)
 
     // Modals
-    const [isConfirmOpen, setIsConfirmOpen] = useState(false)
+    const [confirmModalTarget, setConfirmModalTarget] = useState(null) // "payment_waiting" or "booking_confirmed"
     const [isEditOpen, setIsEditOpen] = useState(false)
+    const [isCancelOpen, setIsCancelOpen] = useState(false)
 
     const isAdmin = role === "admin"
 
-    // Fetch booking details by ID (with fallback to searching list)
+    // Fetch booking details by ID
     const { data: booking, isLoading, isError } = useQuery({
         queryKey: ["booking-details", id],
-        enabled: !!user && !!id,
+        enabled: !!currentUser && !!id,
         queryFn: async () => {
             try {
                 const res = await axiosSecure.get(`/booking/${id}`)
@@ -65,30 +69,6 @@ const BookingDetails = () => {
             const matched = listRes.data.find(b => b._id === id || b.bookingId === id)
             if (!matched) throw new Error("Booking not found")
             return matched
-        }
-    })
-
-    const statusMutation = useMutation({
-        mutationFn: async ({ status }) => {
-            const res = await axiosSecure.patch(`/booking/${booking._id}`, { status })
-            return res.data
-        },
-        onMutate: ({ status }) => {
-            const label = status === "booking_confirmed" ? "Confirming booking..." : "Cancelling booking..."
-            return { toastId: toast.loading(label) }
-        },
-        onSuccess: async (_, variables, context) => {
-            await queryClient.invalidateQueries({ queryKey: ["booking-details", id] })
-            await queryClient.invalidateQueries({ queryKey: ["bookings"] })
-            await queryClient.invalidateQueries({ queryKey: ["user-bookings-summary"] })
-            await queryClient.invalidateQueries({ queryKey: ["admin-overview"] })
-            toast.dismiss(context?.toastId)
-            if (variables.status === "booking_confirmed") toast.success("Booking marked as confirmed!")
-            else if (["cancel", "cancelled"].includes(variables.status)) toast.success("🚫 Booking cancelled.")
-        },
-        onError: (_, __, context) => {
-            toast.dismiss(context?.toastId)
-            toast.error("Failed to update booking status.")
         }
     })
 
@@ -110,21 +90,6 @@ const BookingDetails = () => {
             toast.error("Failed to delete reservation.")
         }
     })
-
-    const handleConfirmClick = () => {
-        setIsConfirmOpen(true)
-    }
-
-    const handleCancel = () => {
-        showConfirmAlert(
-            `Cancel Booking ${booking?.bookingId}?`,
-            "The dates and assigned rooms will be freed for other guests.",
-            "Yes, cancel reservation",
-            true
-        ).then(result => {
-            if (result.isConfirmed) statusMutation.mutate({ status: "cancel" })
-        })
-    }
 
     const handleDelete = () => {
         showConfirmAlert(
@@ -156,7 +121,7 @@ const BookingDetails = () => {
             case "confirmed":
                 return (
                     <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                        <CheckCircle2 size={14} /> Confirmed
+                        <CheckCircle2 size={14} /> Booking Confirmed
                     </span>
                 )
             case "checked_id":
@@ -193,6 +158,21 @@ const BookingDetails = () => {
         }
     }
 
+    const getActorRoleBadge = (actorRole) => {
+        switch (actorRole) {
+            case "admin":
+                return <span className="badge badge-xs bg-amber-100 text-amber-800 border-none font-bold">Admin</span>
+            case "manager":
+                return <span className="badge badge-xs bg-purple-100 text-purple-800 border-none font-bold">Manager</span>
+            case "agent":
+                return <span className="badge badge-xs bg-teal-100 text-teal-800 border-none font-bold">Agent</span>
+            case "b2b":
+                return <span className="badge badge-xs bg-blue-100 text-blue-800 border-none font-bold">B2B</span>
+            default:
+                return <span className="badge badge-xs bg-slate-200 text-slate-700 border-none">User</span>
+        }
+    }
+
     if (isLoading) {
         return (
             <div className="space-y-6 max-w-4xl mx-auto animate-pulse">
@@ -224,6 +204,8 @@ const BookingDetails = () => {
     const sortedCheckOuts = bookingRooms.map(room => room.checkOut).filter(Boolean).sort()
     const firstCheckIn = sortedCheckIns[0] || booking.checkIn
     const lastCheckOut = sortedCheckOuts[sortedCheckOuts.length - 1] || booking.checkOut
+    const statusHistory = Array.isArray(booking.statusHistory) ? booking.statusHistory : []
+    const isCancelled = ["cancel", "cancelled"].includes(booking.status)
 
     return (
         <div className="space-y-6 max-w-4xl mx-auto">
@@ -237,7 +219,7 @@ const BookingDetails = () => {
                 </Link>
 
                 <div className="flex flex-wrap items-center gap-2">
-                    <button 
+                    {/* <button 
                         onClick={handlePrint}
                         className="btn btn-sm btn-outline border-slate-300 gap-1.5 rounded-xl text-slate-700 hover:bg-slate-100"
                     >
@@ -251,20 +233,29 @@ const BookingDetails = () => {
                         >
                             <Pencil size={15} /> Edit Reservation
                         </button>
+                    )} */}
+
+                    {isAdmin && booking.status === "request_booking" && (
+                        <button 
+                            onClick={() => setConfirmModalTarget("payment_waiting")}
+                            className="btn btn-sm btn-info text-white gap-1.5 rounded-xl shadow-xs"
+                        >
+                            <CreditCard size={15} /> Set to Payment Waiting
+                        </button>
                     )}
 
                     {isAdmin && ["request_booking", "payment_waiting", "pending"].includes(booking.status) && (
                         <button 
-                            onClick={handleConfirmClick}
+                            onClick={() => setConfirmModalTarget("booking_confirmed")}
                             className="btn btn-sm btn-primary text-white gap-1.5 rounded-xl shadow-xs"
                         >
-                            <CheckCircle2 size={15} /> Confirm Reservation
+                            <CheckCircle2 size={15} /> Booking Confirmed
                         </button>
                     )}
 
-                    {!["cancel", "cancelled", "checked_out"].includes(booking.status) && (
+                    {!isCancelled && booking.status !== "checked_out" && (
                         <button 
-                            onClick={handleCancel}
+                            onClick={() => setIsCancelOpen(true)}
                             className="btn btn-sm btn-outline border-rose-300 text-rose-600 hover:bg-rose-50 gap-1.5 rounded-xl"
                         >
                             <XCircle size={15} /> Cancel Booking
@@ -282,6 +273,32 @@ const BookingDetails = () => {
                     )}
                 </div>
             </div>
+
+            {/* Cancellation Banner if Cancelled */}
+            {isCancelled && (
+                <div className="p-5 rounded-2xl bg-rose-50 border border-rose-200 text-rose-900 space-y-2">
+                    <div className="flex items-center gap-2 font-bold text-sm">
+                        <XCircle size={18} className="text-rose-600" />
+                        <span>This Reservation was Cancelled</span>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs pt-1">
+                        <div>
+                            <span className="text-rose-700/80">Cancelled Date:</span>{" "}
+                            <span className="font-semibold">{booking.cancelledAt ? new Date(booking.cancelledAt).toLocaleString() : "—"}</span>
+                        </div>
+                        <div>
+                            <span className="text-rose-700/80">Cancelled By:</span>{" "}
+                            <span className="font-semibold">{booking.cancelledBy?.name || booking.cancelledBy?.email || "System"}</span>{" "}
+                            {booking.cancelledBy?.role && getActorRoleBadge(booking.cancelledBy.role)}
+                        </div>
+                    </div>
+                    {booking.cancelReason && (
+                        <div className="text-xs bg-white/70 p-2.5 rounded-xl border border-rose-100 mt-1">
+                            <span className="font-bold text-rose-900">Reason:</span> {booking.cancelReason}
+                        </div>
+                    )}
+                </div>
+            )}
 
             {/* Main Reservation Voucher Card */}
             <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden p-6 sm:p-10 space-y-8 print:border-none print:shadow-none print:p-0">
@@ -480,12 +497,67 @@ const BookingDetails = () => {
                 </div>
             </div>
 
-            {/* Confirm Booking Modal */}
-            {isConfirmOpen && (
+            {/* STATUS HISTORY TIMELINE (Who Changed Status & When) */}
+            <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 space-y-5 print:hidden">
+                <div className="flex items-center justify-between">
+                    <h3 className="text-base sm:text-lg font-bold text-slate-900 font-serif flex items-center gap-2">
+                        <History size={18} className="text-teal-600" /> Status Change History & Audit Log
+                    </h3>
+                    <span className="text-xs text-slate-400 font-medium">
+                        {statusHistory.length} Event{statusHistory.length !== 1 ? 's' : ''}
+                    </span>
+                </div>
+
+                {statusHistory.length === 0 ? (
+                    <p className="text-xs text-slate-400 italic">No status change events recorded yet.</p>
+                ) : (
+                    <div className="relative pl-6 border-l-2 border-slate-200 space-y-6 my-2">
+                        {statusHistory.map((hist, i) => {
+                            const actor = hist.changedBy || {}
+                            return (
+                                <div key={i} className="relative group">
+                                    {/* Timeline dot */}
+                                    <div className="absolute -left-[31px] top-1 w-4 h-4 rounded-full bg-teal-600 border-4 border-white ring-2 ring-teal-200" />
+
+                                    <div className="bg-slate-50 border border-slate-200/70 p-3.5 rounded-2xl space-y-1.5 text-xs">
+                                        <div className="flex flex-wrap items-center justify-between gap-2">
+                                            <div className="flex items-center gap-2">
+                                                {statusBadge(hist.status)}
+                                            </div>
+                                            <span className="text-[11px] text-slate-400">
+                                                {hist.time ? new Date(hist.time).toLocaleString() : "—"}
+                                            </span>
+                                        </div>
+
+                                        <div className="flex items-center gap-2 text-slate-700 pt-1">
+                                            <span className="text-slate-400">Changed by:</span>
+                                            <span className="font-bold text-slate-900">{actor.name || actor.email || "System"}</span>
+                                            {actor.role && getActorRoleBadge(actor.role)}
+                                            {actor.email && actor.email !== actor.name && (
+                                                <span className="text-slate-400 text-[11px]">({actor.email})</span>
+                                            )}
+                                        </div>
+
+                                        {hist.note && (
+                                            <p className="text-[11px] text-slate-600 bg-white p-2 rounded-xl border border-slate-100">
+                                                <strong>Note:</strong> {hist.note}
+                                            </p>
+                                        )}
+                                    </div>
+                                </div>
+                            )
+                        })}
+                    </div>
+                )}
+            </div>
+
+            {/* Confirm / Payment Waiting Modal */}
+            {confirmModalTarget && (
                 <ConfirmBookingModal
                     booking={booking}
-                    isOpen={isConfirmOpen}
-                    onClose={() => setIsConfirmOpen(false)}
+                    targetStatus={confirmModalTarget}
+                    isOpen={!!confirmModalTarget}
+                    onClose={() => setConfirmModalTarget(null)}
                     onSuccess={() => {
                         queryClient.invalidateQueries({ queryKey: ["booking-details", id] })
                         queryClient.invalidateQueries({ queryKey: ["bookings"] })
@@ -503,6 +575,21 @@ const BookingDetails = () => {
                         queryClient.invalidateQueries({ queryKey: ["booking-details", id] })
                         queryClient.invalidateQueries({ queryKey: ["bookings"] })
                     }}
+                />
+            )}
+
+            {/* Cancel Booking Modal */}
+            {isCancelOpen && (
+                <CancelBookingModal
+                    booking={booking}
+                    isOpen={isCancelOpen}
+                    onClose={() => setIsCancelOpen(false)}
+                    onSuccess={() => {
+                        queryClient.invalidateQueries({ queryKey: ["booking-details", id] })
+                        queryClient.invalidateQueries({ queryKey: ["bookings"] })
+                    }}
+                    currentUser={currentUser}
+                    role={role}
                 />
             )}
         </div>

@@ -27,6 +27,7 @@ import {
 import { getBookingDateSummary, getBookingGuestTotals, getBookingRooms, getBookingTotal, getRoomName } from '../../../utils/bookingUtils'
 import ConfirmBookingModal from './ConfirmBookingModal'
 import EditBookingModal from './EditBookingModal'
+import CancelBookingModal from './CancelBookingModal'
 
 const BOOKING_STATUS = {
     REQUEST_BOOKING: "request_booking",
@@ -51,7 +52,7 @@ const statusText = (status) => {
 }
 
 const Bookings = () => {
-    const { user } = useContext(AuthContext)
+    const { user: currentUser } = useContext(AuthContext)
     const { role } = useRole()
     const axiosSecure = useAxiosSecure()
     const queryClient = useQueryClient()
@@ -59,17 +60,18 @@ const Bookings = () => {
     const [search, setSearch] = useState("")
 
     // Modals state
-    const [confirmModalBooking, setConfirmModalBooking] = useState(null)
+    const [confirmModalData, setConfirmModalData] = useState(null) // { booking, targetStatus }
     const [editModalBooking, setEditModalBooking] = useState(null)
+    const [cancelModalBooking, setCancelModalBooking] = useState(null)
 
     const isAdmin = role === "admin"
 
     const { data: bookings = [], isLoading } = useQuery({
-        queryKey: ["bookings", user?.email, role, statusFilter],
-        enabled: !!user && role !== undefined,
+        queryKey: ["bookings", currentUser?.email, role, statusFilter],
+        enabled: !!currentUser && role !== undefined,
         queryFn: async () => {
             const params = new URLSearchParams()
-            if (!isAdmin) params.set("email", user.email)
+            if (!isAdmin) params.set("email", currentUser.email)
             if (statusFilter) params.set("status", statusFilter)
             const res = await axiosSecure.get(`/bookings?${params.toString()}`)
             return res.data
@@ -78,7 +80,15 @@ const Bookings = () => {
 
     const statusMutation = useMutation({
         mutationFn: async ({ id, status }) => {
-            const res = await axiosSecure.patch(`/booking/${id}`, { status, requestedByRole: role || "user" })
+            const res = await axiosSecure.patch(`/booking/${id}`, { 
+                status, 
+                requestedByRole: role || "user",
+                changedBy: {
+                    name: currentUser?.displayName || "Admin / Staff",
+                    email: currentUser?.email || "",
+                    role: role || "admin"
+                }
+            })
             return res.data
         },
         onMutate: ({ status }) => {
@@ -118,17 +128,22 @@ const Bookings = () => {
     })
 
     const handleStatusChange = (booking, status) => {
-        // Open interactive confirmation modal when selecting booking_confirmed
-        if (status === BOOKING_STATUS.BOOKING_CONFIRMED) {
-            setConfirmModalBooking(booking)
+        // Payment Waiting or Booking Confirmed opens the interactive modal
+        if (status === BOOKING_STATUS.PAYMENT_WAITING || status === BOOKING_STATUS.BOOKING_CONFIRMED) {
+            setConfirmModalData({ booking, targetStatus: status })
+            return
+        }
+
+        // Cancel opens the cancel modal with reason input
+        if (status === BOOKING_STATUS.CANCEL) {
+            setCancelModalBooking(booking)
             return
         }
 
         showConfirmAlert(
             `Change ${booking.bookingId} to ${statusText(status)}?`,
             "This will update the reservation status.",
-            "Yes, update status",
-            status === BOOKING_STATUS.CANCEL
+            "Yes, update status"
         ).then(result => {
             if (result.isConfirmed) {
                 statusMutation.mutate({ id: booking._id, status })
@@ -169,7 +184,7 @@ const Bookings = () => {
     const getStatusActions = (booking) => {
         switch (booking.status) {
             case BOOKING_STATUS.REQUEST_BOOKING:
-                return [BOOKING_STATUS.PAYMENT_WAITING, BOOKING_STATUS.BOOKING_CONFIRMED, BOOKING_STATUS.CANCEL]
+                return [BOOKING_STATUS.PAYMENT_WAITING, BOOKING_STATUS.CANCEL]
             case BOOKING_STATUS.PAYMENT_WAITING:
                 return [BOOKING_STATUS.BOOKING_CONFIRMED, BOOKING_STATUS.CANCEL]
             case BOOKING_STATUS.BOOKING_CONFIRMED:
@@ -202,7 +217,7 @@ const Bookings = () => {
                         {isAdmin ? "All Guest Bookings" : "My Reservations"}
                     </h1>
                     <p className="text-xs sm:text-sm text-slate-500 mt-1">
-                        {isAdmin ? "Manage, confirm, edit, and review all customer reservations." : "View stay history and booking confirmations."}
+                        {isAdmin ? "Manage, confirm, edit, and review customer reservations." : "View stay history and booking confirmations."}
                     </p>
                 </div>
 
@@ -232,8 +247,8 @@ const Bookings = () => {
             </div>
 
             {/* Desktop Table View */}
-            <div className="hidden lg:block bg-white border border-slate-200 shadow-xs ">
-                <div className="">
+            <div className="hidden lg:block bg-white border border-slate-200 shadow-xs rounded-2xl overflow-hidden">
+                <div className="overflow-x-auto">
                     <table className="table table-zebra w-full whitespace-nowrap">
                         <thead>
                             <tr className="bg-slate-50 text-slate-600 font-bold text-xs uppercase tracking-wider whitespace-nowrap">
@@ -339,10 +354,10 @@ const Bookings = () => {
                                                             <button
                                                                 type="button"
                                                                 onClick={() => handleStatusChange(b, status)}
-                                                                className={status === BOOKING_STATUS.CANCEL ? "text-rose-600 hover:bg-rose-50" : status === BOOKING_STATUS.BOOKING_CONFIRMED ? "text-emerald-700 hover:bg-emerald-50 font-semibold" : "text-slate-600 hover:text-teal-700 hover:bg-teal-50"}
+                                                                className={status === BOOKING_STATUS.CANCEL ? "text-rose-600 hover:bg-rose-50" : status === BOOKING_STATUS.BOOKING_CONFIRMED ? "text-emerald-700 hover:bg-emerald-50 font-semibold" : status === BOOKING_STATUS.PAYMENT_WAITING ? "text-sky-700 hover:bg-sky-50 font-semibold" : "text-slate-600 hover:text-teal-700 hover:bg-teal-50"}
                                                             >
                                                                 {status === BOOKING_STATUS.CANCEL ? <XCircle size={15} /> : <CheckCircle2 size={15} />}
-                                                                {status === BOOKING_STATUS.BOOKING_CONFIRMED ? "Confirm (Assign Room)" : statusText(status)}
+                                                                {statusText(status)}
                                                             </button>
                                                         </li>
                                                     ))}
@@ -442,10 +457,10 @@ const Bookings = () => {
                                                 <button
                                                     type="button"
                                                     onClick={() => handleStatusChange(b, status)}
-                                                    className={status === BOOKING_STATUS.CANCEL ? "text-rose-600 hover:bg-rose-50" : status === BOOKING_STATUS.BOOKING_CONFIRMED ? "text-emerald-700 hover:bg-emerald-50 font-semibold" : "text-slate-600 hover:text-teal-700 hover:bg-teal-50"}
+                                                    className={status === BOOKING_STATUS.CANCEL ? "text-rose-600 hover:bg-rose-50" : status === BOOKING_STATUS.BOOKING_CONFIRMED ? "text-emerald-700 hover:bg-emerald-50 font-semibold" : status === BOOKING_STATUS.PAYMENT_WAITING ? "text-sky-700 hover:bg-sky-50 font-semibold" : "text-slate-600 hover:text-teal-700 hover:bg-teal-50"}
                                                 >
                                                     {status === BOOKING_STATUS.CANCEL ? <XCircle size={15} /> : <CheckCircle2 size={15} />}
-                                                    {status === BOOKING_STATUS.BOOKING_CONFIRMED ? "Confirm (Assign Room)" : statusText(status)}
+                                                    {statusText(status)}
                                                 </button>
                                             </li>
                                         ))}
@@ -464,12 +479,13 @@ const Bookings = () => {
                 )}
             </div>
 
-            {/* Confirmation Modal (createPortal) */}
-            {confirmModalBooking && (
+            {/* Payment Waiting / Confirm Booking Modal (createPortal) */}
+            {confirmModalData && (
                 <ConfirmBookingModal
-                    booking={confirmModalBooking}
-                    isOpen={!!confirmModalBooking}
-                    onClose={() => setConfirmModalBooking(null)}
+                    booking={confirmModalData.booking}
+                    targetStatus={confirmModalData.targetStatus}
+                    isOpen={!!confirmModalData}
+                    onClose={() => setConfirmModalData(null)}
                     onSuccess={() => {
                         queryClient.invalidateQueries({ queryKey: ["bookings"] })
                         queryClient.invalidateQueries({ queryKey: ["admin-overview"] })
@@ -487,6 +503,21 @@ const Bookings = () => {
                         queryClient.invalidateQueries({ queryKey: ["bookings"] })
                         queryClient.invalidateQueries({ queryKey: ["admin-overview"] })
                     }}
+                />
+            )}
+
+            {/* Cancel Booking Modal (createPortal) */}
+            {cancelModalBooking && (
+                <CancelBookingModal
+                    booking={cancelModalBooking}
+                    isOpen={!!cancelModalBooking}
+                    onClose={() => setCancelModalBooking(null)}
+                    onSuccess={() => {
+                        queryClient.invalidateQueries({ queryKey: ["bookings"] })
+                        queryClient.invalidateQueries({ queryKey: ["admin-overview"] })
+                    }}
+                    currentUser={currentUser}
+                    role={role}
                 />
             )}
         </div>

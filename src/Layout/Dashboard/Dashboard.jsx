@@ -12,7 +12,9 @@ import {
     Menu,
     X,
     Shield,
-    CalendarDays
+    CalendarDays,
+    XCircle,
+    DollarSign
 } from 'lucide-react'
 import { showConfirmAlert } from '../../utils/customSwal'
 import logo from '../../assets/logo.png'
@@ -20,7 +22,6 @@ import logo from '../../assets/logo.png'
 const Dashboard = () => {
     const { user, logOut } = useContext(AuthContext)
     const { role } = useRole()
-    console.log(role);
     const { pathname } = useLocation()
     const isCalendarRoute = pathname === "/dashboard/calender"
 
@@ -48,12 +49,12 @@ const Dashboard = () => {
         { to: "/dashboard", label: "Overview", icon: <LayoutDashboard size={18} /> },
         { to: "/dashboard/category&room", label: "Category & Room", icon: <BedDouble size={18} /> },
         { to: "/dashboard/bookings", label: "All Bookings", icon: <CalendarCheck size={18} /> },
+        { to: "/dashboard/income", label: "Room Income", icon: <DollarSign size={18} /> },
+        { to: "/dashboard/cancellations", label: "Cancellations", icon: <XCircle size={18} /> },
         { to: "/dashboard/users", label: "Users and Roles", icon: <Users size={18} /> },
         { to: "/dashboard/calender", label: "Booking Calender", icon: <CalendarDays size={18} /> },
     ]
     const links = role === "admin" ? adminLinks : userLinks
-    // console.log(location)
-
 
     const SidebarContent = () => (
         <div className="flex flex-col h-full p-5 bg-white border-r border-slate-200">
@@ -87,7 +88,7 @@ const Dashboard = () => {
             </div>
 
             {/* Navigation links */}
-            <nav className="flex-1 space-y-1.5">
+            <nav className="flex-1 space-y-1.5 overflow-y-auto">
                 <p className="text-[10px] font-bold tracking-wider text-slate-400 uppercase px-3 mb-2">Main Menu</p>
                 {links.map(link => (
                     <NavLink
