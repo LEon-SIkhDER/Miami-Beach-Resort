@@ -306,14 +306,26 @@ const EditBookingModal = ({ booking, isOpen, onClose, onSuccess }) => {
                                 />
                             </div>
                         </div>
-                        <div className="form-control">
-                            <label className="label py-0.5"><span className="label-text font-semibold text-slate-700 text-xs">Guest Address</span></label>
-                            <input
-                                type="text"
-                                value={address}
-                                onChange={e => setAddress(e.target.value)}
-                                className="input input-sm input-bordered w-full rounded-xl bg-white text-xs"
-                            />
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div className="form-control">
+                                <label className="label py-0.5"><span className="label-text font-semibold text-slate-700 text-xs">Guest Address</span></label>
+                                <input
+                                    type="text"
+                                    value={address}
+                                    onChange={e => setAddress(e.target.value)}
+                                    className="input input-sm input-bordered w-full rounded-xl bg-white text-xs"
+                                />
+                            </div>
+                            <div className="form-control">
+                                <label className="label py-0.5"><span className="label-text font-semibold text-slate-700 text-xs flex items-center gap-1"><FileText size={13} className="text-teal-600" /> Internal Notes / Guest Requests</span></label>
+                                <input
+                                    type="text"
+                                    value={notes}
+                                    onChange={e => setNotes(e.target.value)}
+                                    placeholder="Special requests, advance notes..."
+                                    className="input input-sm input-bordered w-full rounded-xl bg-white text-xs"
+                                />
+                            </div>
                         </div>
                     </div>
 
@@ -573,17 +585,6 @@ const EditBookingModal = ({ booking, isOpen, onClose, onSuccess }) => {
                                     className="input input-sm input-bordered w-full rounded-xl bg-white text-xs"
                                 />
                             </div>
-                        </div>
-
-                        <div className="form-control">
-                            <label className="label py-0.5"><span className="label-text font-semibold text-slate-700 text-xs flex items-center gap-1"><FileText size={13} /> Admin Internal Notes</span></label>
-                            <textarea
-                                value={notes}
-                                onChange={e => setNotes(e.target.value)}
-                                placeholder="Special requests, discount reason, guest preferences..."
-                                className="textarea textarea-bordered textarea-sm w-full rounded-xl bg-white text-xs"
-                                rows={2}
-                            />
                         </div>
                     </div>
 

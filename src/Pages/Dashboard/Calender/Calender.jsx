@@ -10,7 +10,7 @@ import RequestBookingsModal from "./RequestBookingsModal";
 import CalendarBookingModal from "./CalendarBookingModal";
 import CalendarBookingDetailsModal from "./CalendarBookingDetailsModal";
 import OutOfOrderModal from "./OutOfOrderModal";
-import { Clock, RefreshCw, BedDouble, Wrench, AlertTriangle, Wallet, Filter, ChevronLeft, ChevronRight, Calendar as CalendarIcon } from "lucide-react";
+import { Clock, RefreshCw, BedDouble, Wrench, AlertTriangle, Wallet, Filter, ChevronLeft, ChevronRight, ChevronDown, Calendar as CalendarIcon } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getBookingRooms } from "../../../utils/bookingUtils";
 import toast from "react-hot-toast";
@@ -516,36 +516,25 @@ const Calender = () => {
                 </div>
             </div>
 
-            {/* Controls Header */}
-            <div className="flex flex-wrap justify-between p-3 sm:p-4 items-center gap-3 shrink-0 bg-white border-b border-slate-200">
-                <div className="flex flex-wrap items-center gap-2">
-                    {/* Category Filter Dropdown */}
-                    <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-300 rounded-xl px-2.5 py-1 shadow-2xs h-8">
-                        <Filter size={13} className="text-teal-600 shrink-0" />
-                        <span className="text-[11px] font-bold text-slate-500 hidden sm:inline">Category:</span>
+            {/* Controls Header — Left tools & Right-pinned Date Navigators */}
+            <div className="flex flex-wrap lg:flex-nowrap justify-between p-3 sm:p-4 items-center gap-3 shrink-0 bg-white border-b border-slate-200">
+                {/* Left Controls: Filter, Pricing Toggle, Request Bookings, OOO */}
+                <div className="flex flex-wrap items-center gap-2 shrink-0">
+                    {/* DaisyUI Category Filter Select */}
+                    {/* <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-300 rounded-xl px-2.5 py-0.5 shadow-2xs h-8"> */}
                         <select
                             value={selectedCategoryFilter}
                             onChange={(e) => handleCategoryFilterChange(e.target.value)}
-                            className="bg-transparent font-bold text-slate-800 text-xs focus:outline-none cursor-pointer pr-1 max-w-[170px] sm:max-w-[240px] truncate"
+                            className="select max-w-80 w-72 h-8 select-ghost select-sm font-bold text-slate-800 text-xs focus:outline-none cursor-pointer min-h-0    truncate bg-slate-50 border border-slate-300 rounded-xl px-2.5 py-0.5 shadow-2xs "
                         >
                             <option value="ALL">All Categories ({dbCategories.length})</option>
                             {dbCategories.map((c) => (
                                 <option key={c._id || c.name} value={c._id || c.name}>
-                                    {c.name}
+                                    {c.name} 
                                 </option>
                             ))}
                         </select>
-                        {selectedCategoryFilter !== "ALL" && (
-                            <button
-                                type="button"
-                                onClick={() => handleCategoryFilterChange("ALL")}
-                                className="text-[10px] bg-white hover:bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded-md font-semibold border border-slate-200"
-                                title="Show all categories"
-                            >
-                                Reset
-                            </button>
-                        )}
-                    </div>
+                    {/* </div> */}
 
                     {/* Date-wise Pricing Checkbox Toggle */}
                     <label className="flex items-center gap-2 bg-slate-50 hover:bg-teal-50/70 border border-slate-300 hover:border-teal-400 rounded-xl px-3 py-1 h-8 cursor-pointer transition select-none">
@@ -572,6 +561,12 @@ const Calender = () => {
                         <span>Request Bookings ({requestBookings.length ? requestBookings.length : 0})</span>
                     </button>
 
+
+                </div>
+
+                {/* Right Controls: Quick Date Shifters, Date Pickers, Refresh (Always pinned to right with ml-auto) */}
+                <div className="ml-auto shrink-0 flex flex-wrap items-center justify-end gap-2.5">
+
                     {/* Out of Order Rooms Button */}
                     <button
                         type="button"
@@ -588,44 +583,6 @@ const Calender = () => {
                         <Wrench size={13} className="text-amber-400" />
                         <span>Out of Order ({outOfOrderList.length})</span>
                     </button>
-                </div>
-
-                <div className="shrink-0 flex flex-wrap items-center gap-2.5">
-                    {/* Quick Date Shift Controls */}
-                    <div className="flex items-center bg-slate-100 p-0.5 rounded-xl border border-slate-200">
-                        <button
-                            type="button"
-                            onClick={() => handleShiftDays(-7)}
-                            className="btn btn-xs btn-ghost rounded-lg px-2 text-slate-700 hover:bg-white text-[11px] font-bold"
-                            title="Shift -7 days"
-                        >
-                            <ChevronLeft size={13} /> -7d
-                        </button>
-                        <button
-                            type="button"
-                            onClick={handleSetTodayView}
-                            className="btn btn-xs btn-ghost rounded-lg px-2 text-teal-800 hover:bg-white text-[11px] font-bold"
-                            title="Jump to Today"
-                        >
-                            Today
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => handleShiftDays(7)}
-                            className="btn btn-xs btn-ghost rounded-lg px-2 text-slate-700 hover:bg-white text-[11px] font-bold"
-                            title="Shift +7 days"
-                        >
-                            +7d <ChevronRight size={13} />
-                        </button>
-                        <button
-                            type="button"
-                            onClick={handleSetThisMonth}
-                            className="btn btn-xs btn-ghost rounded-lg px-2 text-slate-700 hover:bg-white text-[11px] font-semibold hidden md:inline-flex"
-                            title="This Month"
-                        >
-                            This Month
-                        </button>
-                    </div>
 
                     {/* Date Pickers with High z-index Poppers */}
                     <div className="flex items-center gap-1.5">
@@ -638,7 +595,8 @@ const Calender = () => {
                                 endDate={endDate}
                                 placeholderText="From date"
                                 dateFormat="dd MMM yyyy"
-                                popperClassName="z-[100]"
+                                popperClassName="z-[9999]"
+                                popperPlacement="bottom-end"
                                 className="rounded-lg border border-gray-300 outline-none focus:border-teal-500 input input-sm cursor-pointer text-xs w-28 sm:w-32 bg-white font-semibold shadow-2xs"
                             />
                         </div>
@@ -655,7 +613,8 @@ const Calender = () => {
                                 minDate={startDate}
                                 placeholderText="To date"
                                 dateFormat="dd MMM yyyy"
-                                popperClassName="z-[100]"
+                                popperClassName="z-[9999]"
+                                popperPlacement="bottom-end"
                                 className="rounded-lg border border-gray-300 outline-none focus:border-teal-500 input input-sm cursor-pointer text-xs w-28 sm:w-32 bg-white font-semibold shadow-2xs"
                             />
                         </div>
@@ -680,7 +639,7 @@ const Calender = () => {
 
             {/* Calendar Grid Table */}
             <div className="min-h-0 min-w-0 flex-1 overflow-auto border-t border-gray-300 bg-white">
-                <table className="min-w-max border-collapse border border-gray-300 text-xs">
+                <table className="min-w-max border-separate border-spacing-0 text-xs">
                     <tbody>
                         {isCategoriesLoading || isBookingsLoading ? (
                             <tr>

@@ -5,18 +5,18 @@ import useAxiosSecure from '../../../hooks/useAxiosSecure'
 import DatePicker from 'react-datepicker'
 import 'react-datepicker/dist/react-datepicker.css'
 import toast from 'react-hot-toast'
-import { 
-    X, 
-    Plus, 
-    Trash2, 
-    User, 
-    Phone, 
-    BedDouble, 
-    CreditCard, 
-    Receipt, 
-    UserCheck, 
-    CheckCircle2, 
-    Clock, 
+import {
+    X,
+    Plus,
+    Trash2,
+    User,
+    Phone,
+    BedDouble,
+    CreditCard,
+    Receipt,
+    UserCheck,
+    CheckCircle2,
+    Clock,
     Lock,
     FileText
 } from 'lucide-react'
@@ -40,14 +40,14 @@ const getRoomNights = (entry) => {
     return Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)))
 }
 
-const CalendarBookingModal = ({ 
-    isOpen, 
-    onClose, 
-    initialData, 
-    categories = [], 
-    onSuccess, 
-    currentUser, 
-    role 
+const CalendarBookingModal = ({
+    isOpen,
+    onClose,
+    initialData,
+    categories = [],
+    onSuccess,
+    currentUser,
+    role
 }) => {
     const axiosSecure = useAxiosSecure()
     const [submittingStatus, setSubmittingStatus] = useState(null)
@@ -363,9 +363,9 @@ const CalendarBookingModal = ({
                             </p>
                         </div>
                     </div>
-                    <button 
-                        type="button" 
-                        onClick={onClose} 
+                    <button
+                        type="button"
+                        onClick={onClose}
                         disabled={submittingStatus !== null}
                         className="btn btn-ghost btn-sm btn-circle text-slate-400 hover:text-slate-700"
                     >
@@ -435,6 +435,22 @@ const CalendarBookingModal = ({
                                     className="input input-sm input-bordered rounded-xl bg-white text-xs"
                                 />
                             </div>
+
+                            {/* Internal Notes / Special Requests */}
+                            <div className="form-control sm:col-span-2">
+                                <label className="label py-0.5">
+                                    <span className="label-text font-semibold text-slate-700 text-xs flex items-center gap-1">
+                                        <FileText size={13} className="text-teal-600" /> Internal Notes / Guest Requests
+                                    </span>
+                                </label>
+                                <input
+                                    type="text"
+                                    value={notes}
+                                    onChange={e => setNotes(e.target.value)}
+                                    placeholder="e.g. Special requests, late check-out, VIP, advance notes..."
+                                    className="input input-sm input-bordered rounded-xl bg-white text-xs w-full"
+                                />
+                            </div>
                         </div>
                     </div>
 
@@ -461,8 +477,8 @@ const CalendarBookingModal = ({
                                 const nights = getRoomNights(room)
 
                                 return (
-                                    <div 
-                                        key={room.itemId} 
+                                    <div
+                                        key={room.itemId}
                                         className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-3 relative"
                                     >
                                         <div className="flex items-center justify-between">
@@ -543,9 +559,9 @@ const CalendarBookingModal = ({
                                                                 formatLocalDate(room.checkOutDate)
                                                             )
                                                             const occupied = isRoomNoOccupied(
-                                                                num, 
-                                                                formatLocalDate(room.checkInDate), 
-                                                                formatLocalDate(room.checkOutDate), 
+                                                                num,
+                                                                formatLocalDate(room.checkInDate),
+                                                                formatLocalDate(room.checkOutDate),
                                                                 index
                                                             )
                                                             return (
@@ -560,8 +576,8 @@ const CalendarBookingModal = ({
 
                                             {/* Check-In Date */}
                                             <div className="form-control">
-                                                <label className="label py-0.5">
-                                                    <span className="label-text font-semibold text-slate-700 text-xs">Check-In Date</span>
+                                                <label className="label py-0.5 block">
+                                                    <span className="label-text font-semibold text-slate-700 text-xs ">Check-In Date</span>
                                                 </label>
                                                 {isFirstRoom ? (
                                                     <input
@@ -580,7 +596,8 @@ const CalendarBookingModal = ({
                                                         endDate={room.checkOutDate}
                                                         minDate={new Date()}
                                                         dateFormat="dd MMM yyyy"
-                                                        className="input input-sm input-bordered rounded-xl bg-white text-xs w-full cursor-pointer"
+                                                        wrapperClassName="w-full"
+                                                        className="input input-sm input-bordered rounded-xl bg-white text-xs w-full cursor-pointer "
                                                         onChangeRaw={e => e.preventDefault()}
                                                     />
                                                 )}
@@ -599,6 +616,7 @@ const CalendarBookingModal = ({
                                                     endDate={room.checkOutDate}
                                                     minDate={new Date(new Date(room.checkInDate).getTime() + 24 * 60 * 60 * 1000)}
                                                     dateFormat="dd MMM yyyy"
+                                                    wrapperClassName="w-full"
                                                     className="input input-sm input-bordered rounded-xl bg-white text-xs w-full cursor-pointer font-bold text-teal-800"
                                                     onChangeRaw={e => e.preventDefault()}
                                                 />
@@ -735,11 +753,10 @@ const CalendarBookingModal = ({
                             {/* Live Payment Due Display */}
                             <div className="flex items-center justify-between pt-2 border-t border-slate-200 text-xs">
                                 <span className="font-bold text-slate-700">Remaining Payment Due:</span>
-                                <span className={`px-2.5 py-1 rounded-xl text-xs font-extrabold ${
-                                    dueAmount > 0 
-                                        ? 'bg-orange-100 text-orange-800 border border-orange-300' 
+                                <span className={`px-2.5 py-1 rounded-xl text-xs font-extrabold ${dueAmount > 0
+                                        ? 'bg-orange-100 text-orange-800 border border-orange-300'
                                         : 'bg-emerald-100 text-emerald-800 border border-emerald-300'
-                                }`}>
+                                    }`}>
                                     {dueAmount > 0 ? `⚠️ Due: ৳${dueAmount.toLocaleString()}` : '✅ Fully Paid (৳0 Due)'}
                                 </span>
                             </div>
@@ -813,22 +830,6 @@ const CalendarBookingModal = ({
                                     className="input input-sm input-bordered rounded-xl bg-white text-xs"
                                 />
                             </div>
-
-                            {/* Notes */}
-                            <div className="form-control sm:col-span-3 flex flex-col">
-                                <label className="label py-0.5">
-                                    <span className="label-text font-semibold text-slate-700 text-xs flex items-center gap-1">
-                                        <FileText size={13} className="text-teal-600" /> Internal Notes
-                                    </span>
-                                </label>
-                                <input
-                                    type="text"
-                                    value={notes}
-                                    onChange={e => setNotes(e.target.value)}
-                                    placeholder="Special requests, advance notes..."
-                                    className="input w-full input-bordered rounded-xl bg-white text-xs"
-                                />
-                            </div>
                         </div>
                     </div>
                 </div>
@@ -838,6 +839,7 @@ const CalendarBookingModal = ({
                     <div className='w-max'>
                         <div className="text-xs text-slate-500 font-medium">
                             Total: <strong className="text-teal-900 font-extrabold text-sm">৳{Number(finalTotal || 0).toLocaleString()}</strong>
+                            <br />
                             {dueAmount > 0 && (
                                 <span className="ml-2 text-orange-600 font-bold">(Due: ৳{dueAmount.toLocaleString()})</span>
                             )}
