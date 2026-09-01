@@ -252,7 +252,8 @@ const RoomDetails = () => {
                 checkIn: formatLocalDate(entry.checkInDate),
                 checkOut: formatLocalDate(entry.checkOutDate),
                 adults: Number(entry.adults || 2),
-                babies: Number(entry.babies || 0),
+                babies: Number(entry.children !== undefined ? entry.children : (entry.babies || 0)),
+                children: Number(entry.children !== undefined ? entry.children : (entry.babies || 0)),
                 pricePerNight: Number(cat?.price || 0),
                 nights: getRoomNights(entry)
             }
@@ -271,7 +272,7 @@ const RoomDetails = () => {
             const roomLines = normalizedRooms.map((r, index) => [
                 `Room ${index + 1}: ${r.categoryName}`,
                 `Dates: ${r.checkIn} to ${r.checkOut} (${r.nights} nights)`,
-                `Guests: ${r.adults} adults${r.babies > 0 ? `, ${r.babies} babies` : ""}`,
+                `Guests: ${r.adults} adults${(r.children || r.babies) > 0 ? `, ${r.children || r.babies} ${(r.children || r.babies) === 1 ? 'child' : 'children'}` : ""}`,
                 `Rate: ৳${r.pricePerNight.toLocaleString()}/night`
             ].join("\n")).join("\n\n")
 
@@ -725,7 +726,7 @@ const RoomDetails = () => {
                                                     </div>
                                                 </div>
 
-                                                {/* Field 4 & 5: Adults & Babies */}
+                                                {/* Field 4 & 5: Adults & Children */}
                                                 <div className="grid grid-cols-2 gap-3">
                                                     <div className="form-control">
                                                         <label className="label py-0.5">
@@ -739,11 +740,11 @@ const RoomDetails = () => {
                                                     </div>
                                                     <div className="form-control">
                                                         <label className="label py-0.5">
-                                                            <span className="label-text font-semibold text-slate-700 text-xs">Children / Baby</span>
+                                                            <span className="label-text font-semibold text-slate-700 text-xs">Children</span>
                                                         </label>
                                                         <input
-                                                            type="number" min="0" value={entry.babies}
-                                                            onChange={e => handleRoomChange(entry.itemId, { babies: e.target.value })}
+                                                            type="number" min="0" value={entry.children !== undefined ? entry.children : (entry.babies || 0)}
+                                                            onChange={e => handleRoomChange(entry.itemId, { babies: e.target.value, children: e.target.value })}
                                                             className="input input-sm input-bordered w-full rounded-xl bg-white text-xs"
                                                         />
                                                     </div>

@@ -30,6 +30,7 @@ import {
     Check
 } from 'lucide-react'
 import { 
+    formatDate,
     getBookingDateSummary, 
     getBookingGuestTotals, 
     getBookingRooms, 
@@ -41,6 +42,37 @@ import ConfirmBookingModal from '../Bookings/ConfirmBookingModal'
 import EditBookingModal from '../Bookings/EditBookingModal'
 import CancelBookingModal from '../Bookings/CancelBookingModal'
 
+const getRequestBookingStatusBadge = (status) => {
+    switch (status) {
+        case "payment_waiting":
+            return (
+                <span className="badge badge-md bg-[#eab308] text-amber-950 font-extrabold border-none shadow-xs">
+                    <Clock size={12} className="mr-1" /> Payment Waiting
+                </span>
+            )
+        case "booking_confirmed":
+        case "confirmed":
+            return (
+                <span className="badge badge-md bg-[#5261d6] text-white font-bold border-none shadow-xs">
+                    <CheckCircle2 size={12} className="mr-1" /> Confirmed
+                </span>
+            )
+        case "checked_id":
+        case "checked_in":
+            return (
+                <span className="badge badge-md bg-[#01966e] text-white font-bold border-none shadow-xs">
+                    <CheckCircle2 size={12} className="mr-1" /> Checked In
+                </span>
+            )
+        default:
+            return (
+                <span className="badge badge-md bg-[#f59e0b] text-white font-bold border-none shadow-xs">
+                    <Clock size={12} className="mr-1" /> Request Booking
+                </span>
+            )
+    }
+}
+
 const RequestBookingsModal = ({ isOpen, onClose, requestBookings = [], role, currentUser, onSuccess }) => {
     const axiosSecure = useAxiosSecure()
     const queryClient = useQueryClient()
@@ -50,8 +82,9 @@ const RequestBookingsModal = ({ isOpen, onClose, requestBookings = [], role, cur
     const [editBooking, setEditBooking] = useState(null)
     const [cancelBooking, setCancelBooking] = useState(null)
     const [copiedId, setCopiedId] = useState(null)
-
-    const canDelete = role === "admin" || role === "manager"
+    const isB2B = role === "b2b"
+    const canDelete = ["admin", "manager"].includes(role)
+    const canEdit = ["admin", "manager", "agent"].includes(role)
 
     const handleCopyBookingId = (bookingId) => {
         if (!bookingId) return
@@ -185,9 +218,7 @@ const RequestBookingsModal = ({ isOpen, onClose, requestBookings = [], role, cur
                                                         ৳{Number(totalAmount || 0).toLocaleString()}
                                                     </span>
                                                 </div>
-                                                <span className="badge badge-md bg-amber-500 text-white font-bold border-none shadow-xs">
-                                                    <Clock size={12} className="mr-1" /> Request Booking
-                                                </span>
+                                                {getRequestBookingStatusBadge(b.status)}
                                             </div>
                                         </div>
 
@@ -266,7 +297,7 @@ const RequestBookingsModal = ({ isOpen, onClose, requestBookings = [], role, cur
                                                                 <div className="flex items-center gap-3 text-[11px] text-slate-600 pt-0.5">
                                                                     <span className="flex items-center gap-1 font-medium">
                                                                         <Calendar size={12} className="text-teal-600" />
-                                                                        {room.checkIn} → {room.checkOut} ({nights} Night{nights !== 1 ? 's' : ''})
+                                                                        {formatDate(room.checkIn)} → {formatDate(room.checkOut)} ({nights} Night{nights !== 1 ? 's' : ''})
                                                                     </span>
                                                                     <span className="flex items-center gap-1">
                                                                         <UsersIcon size={12} className="text-teal-600" />
@@ -331,13 +362,15 @@ const RequestBookingsModal = ({ isOpen, onClose, requestBookings = [], role, cur
                                                 >
                                                     <Eye size={12} /> View Page
                                                 </Link>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setEditBooking(b)}
-                                                    className="btn btn-xs btn-ghost text-teal-700 hover:bg-teal-50 rounded-xl gap-1"
-                                                >
-                                                    <Pencil size={12} /> Edit
-                                                </button>
+                                                {canEdit && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setEditBooking(b)}
+                                                        className="btn btn-xs btn-ghost text-teal-700 hover:bg-teal-50 rounded-xl gap-1"
+                                                    >
+                                                        <Pencil size={12} /> Edit
+                                                    </button>
+                                                )}
                                                 {canDelete && (
                                                     <button
                                                         type="button"
@@ -351,31 +384,37 @@ const RequestBookingsModal = ({ isOpen, onClose, requestBookings = [], role, cur
                                             </div>
 
                                             <div className="flex flex-wrap items-center gap-2">
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setCancelBooking(b)}
-                                                    className="btn btn-xs btn-outline border-rose-200 text-rose-600 hover:bg-rose-50 rounded-xl gap-1"
-                                                >
-                                                    <XCircle size={13} /> Cancel
-                                                </button>
+                                                {!isB2B && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setCancelBooking(b)}
+                                                        className="btn btn-xs btn-outline border-rose-200 text-rose-600 hover:bg-rose-50 rounded-xl gap-1"
+                                                    >
+                                                        <XCircle size={13} /> Cancel
+                                                    </button>
+                                                )}
 
-                                                {/* Status Change Action 1: Payment Waiting */}
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setConfirmModalData({ booking: b, targetStatus: "payment_waiting" })}
-                                                    className="btn btn-xs bg-sky-500 hover:bg-sky-600 text-white font-bold rounded-xl gap-1 shadow-xs border-none"
-                                                >
-                                                    <CreditCard size={13} /> Payment Waiting
-                                                </button>
+                                                {/* Status Change Action 1: Payment Waiting (Only for request_booking) */}
+                                                {b.status === "request_booking" && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setConfirmModalData({ booking: b, targetStatus: "payment_waiting" })}
+                                                        className="btn btn-xs bg-[#eab308] hover:bg-yellow-500 text-amber-950 font-bold rounded-xl gap-1 shadow-xs border-none"
+                                                    >
+                                                        <Clock size={13} /> Payment Waiting
+                                                    </button>
+                                                )}
 
-                                                {/* Status Change Action 2: Confirm Booking */}
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setConfirmModalData({ booking: b, targetStatus: "booking_confirmed" })}
-                                                    className="btn btn-xs bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-xl gap-1 shadow-xs border-none"
-                                                >
-                                                    <CheckCircle2 size={13} /> Confirm Booking
-                                                </button>
+                                                {/* Status Change Action 2: Confirm Booking (Staff only) */}
+                                                {!isB2B && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setConfirmModalData({ booking: b, targetStatus: "booking_confirmed" })}
+                                                        className="btn btn-xs bg-[#5261d6] hover:bg-[#4351be] text-white font-bold rounded-xl gap-1 shadow-xs border-none"
+                                                    >
+                                                        <CheckCircle2 size={13} /> Confirm Booking
+                                                    </button>
+                                                )}
                                             </div>
                                         </div>
                                     </div>

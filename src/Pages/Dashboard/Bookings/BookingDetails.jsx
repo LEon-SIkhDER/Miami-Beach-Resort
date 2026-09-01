@@ -33,11 +33,25 @@ import {
     Briefcase,
     Shield
 } from 'lucide-react'
-import { getBookingGuestTotals, getBookingRooms, getBookingTotal, getNightCount, getRoomName, getRoomTotal } from '../../../utils/bookingUtils'
+import { 
+    formatDate, 
+    formatDateTime, 
+    getBookingGuestTotals, 
+    getBookingRooms, 
+    getBookingTotal, 
+    getBookingSubtotal,
+    getBookingDiscount,
+    getBookingPaidAmount,
+    getBookingDueAmount,
+    getNightCount, 
+    getRoomName, 
+    getRoomTotal 
+} from '../../../utils/bookingUtils'
 import ConfirmBookingModal from './ConfirmBookingModal'
 import EditBookingModal from './EditBookingModal'
 import CancelBookingModal from './CancelBookingModal'
 import AddPaymentModal from './AddPaymentModal'
+import ReservationVoucherModal from '../Calender/ReservationVoucherModal'
 
 const BookingDetails = () => {
     const { id } = useParams()
@@ -53,8 +67,14 @@ const BookingDetails = () => {
     const [isEditOpen, setIsEditOpen] = useState(false)
     const [isCancelOpen, setIsCancelOpen] = useState(false)
     const [isAddPaymentOpen, setIsAddPaymentOpen] = useState(false)
+    const [isVoucherOpen, setIsVoucherOpen] = useState(false)
 
-    const isAdmin = role === "admin"
+    const canEdit = ["admin", "manager", "agent"].includes(role)
+    const canDelete = ["admin", "manager"].includes(role)
+    const canRecordPayment = ["admin", "manager", "agent"].includes(role)
+    const canConfirm = ["admin", "manager", "agent"].includes(role)
+    const canSetPaymentWaiting = ["admin", "manager", "agent", "b2b"].includes(role)
+    const canCancel = ["admin", "manager", "agent"].includes(role)
 
     // Fetch booking details by ID
     const { data: booking, isLoading, isError } = useQuery({
@@ -221,41 +241,45 @@ const BookingDetails = () => {
                 </Link>
 
                 <div className="flex flex-wrap items-center gap-2">
-                    {/* <button 
-                        onClick={handlePrint}
-                        className="btn btn-sm btn-outline border-slate-300 gap-1.5 rounded-xl text-slate-700 hover:bg-slate-100"
-                    >
-                        <Printer size={15} /> Print
-                    </button>
-
-                    {isAdmin && (
+                    {canEdit && (
                         <button 
                             onClick={() => setIsEditOpen(true)}
                             className="btn btn-sm btn-outline border-teal-300 text-teal-700 hover:bg-teal-50 gap-1.5 rounded-xl"
                         >
                             <Pencil size={15} /> Edit Reservation
                         </button>
-                    )} */}
+                    )}
 
-                    {isAdmin && booking.status === "request_booking" && (
+                    {canSetPaymentWaiting && booking.status === "request_booking" && (
                         <button 
                             onClick={() => setConfirmModalTarget("payment_waiting")}
-                            className="btn btn-sm btn-info text-white gap-1.5 rounded-xl shadow-xs"
+                            className="btn btn-sm bg-[#eab308] hover:bg-yellow-500 text-amber-950 font-bold gap-1.5 rounded-xl shadow-xs border-none"
                         >
                             <CreditCard size={15} /> Set to Payment Waiting
                         </button>
                     )}
 
-                    {isAdmin && ["request_booking", "payment_waiting", "pending"].includes(booking.status) && (
+                    {/* Reservation Confirmation Voucher / Letter */}
+                    {["booking_confirmed", "confirmed", "checked_id", "checked_in", "checked_out"].includes(booking.status) && (
                         <button 
-                            onClick={() => setConfirmModalTarget("booking_confirmed")}
-                            className="btn btn-sm btn-primary text-white gap-1.5 rounded-xl shadow-xs"
+                            onClick={() => setIsVoucherOpen(true)}
+                            className="btn btn-sm bg-[#5261d6] hover:bg-[#4351be] text-white gap-1.5 rounded-xl shadow-xs border-none"
+                            title="Print / Download A4 Reservation Letter PDF"
                         >
-                            <CheckCircle2 size={15} /> Booking Confirmed
+                            <Printer size={15} /> Reservation Letter (PDF)
                         </button>
                     )}
 
-                    {!isCancelled && (
+                    {canConfirm && ["request_booking", "payment_waiting", "pending"].includes(booking.status) && (
+                        <button 
+                            onClick={() => setConfirmModalTarget("booking_confirmed")}
+                            className="btn btn-sm bg-[#5261d6] hover:bg-[#4351be] text-white font-bold gap-1.5 rounded-xl shadow-xs border-none"
+                        >
+                            <CheckCircle2 size={15} /> Confirm Booking
+                        </button>
+                    )}
+
+                    {!isCancelled && canRecordPayment && (
                         <button 
                             onClick={() => setIsAddPaymentOpen(true)}
                             className="btn btn-sm bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5 rounded-xl shadow-xs border-none"
@@ -264,7 +288,7 @@ const BookingDetails = () => {
                         </button>
                     )}
 
-                    {!isCancelled && booking.status !== "checked_out" && (
+                    {!isCancelled && canCancel && booking.status !== "checked_out" && (
                         <button 
                             onClick={() => setIsCancelOpen(true)}
                             className="btn btn-sm btn-outline border-rose-300 text-rose-600 hover:bg-rose-50 gap-1.5 rounded-xl"
@@ -273,7 +297,7 @@ const BookingDetails = () => {
                         </button>
                     )}
 
-                    {isAdmin && (
+                    {canDelete && (
                         <button 
                             onClick={handleDelete}
                             className="btn btn-sm btn-ghost text-slate-400 hover:text-rose-600 rounded-xl"
@@ -361,13 +385,13 @@ const BookingDetails = () => {
                             <div className="flex justify-between">
                                 <span className="text-slate-400">Guests:</span>
                                 <span className="font-semibold text-slate-800">
-                                    {guestTotals.adults} Adults {guestTotals.babies > 0 ? `• ${guestTotals.babies} Babies` : ""}
+                                    {guestTotals.adults} Adults {(guestTotals.children || guestTotals.babies) > 0 ? `• ${guestTotals.children || guestTotals.babies} ${(guestTotals.children || guestTotals.babies) === 1 ? 'Child' : 'Children'}` : ""}
                                 </span>
                             </div>
                             {booking.createdAt && (
                                 <div className="flex justify-between">
                                     <span className="text-slate-400">Booked On:</span>
-                                    <span className="text-slate-700">{new Date(booking.createdAt).toLocaleString()}</span>
+                                    <span className="text-slate-700">{formatDateTime(booking.createdAt)}</span>
                                 </div>
                             )}
                         </div>
@@ -381,11 +405,11 @@ const BookingDetails = () => {
                         <div className="space-y-2 text-slate-600 pt-1">
                             <div className="flex justify-between">
                                 <span className="text-slate-400">Check-In Date:</span>
-                                <span className="font-bold text-slate-900">{firstCheckIn} (from 1:00 PM)</span>
+                                <span className="font-bold text-slate-900">{formatDate(firstCheckIn)} (from 1:00 PM)</span>
                             </div>
                             <div className="flex justify-between">
                                 <span className="text-slate-400">Final Check-Out:</span>
-                                <span className="font-bold text-slate-900">{lastCheckOut} (until 11:00 AM)</span>
+                                <span className="font-bold text-slate-900">{formatDate(lastCheckOut)} (until 11:00 AM)</span>
                             </div>
                             <div className="flex justify-between">
                                 <span className="text-slate-400">Total Booked:</span>
@@ -395,8 +419,19 @@ const BookingDetails = () => {
                             </div>
                             {booking.reference && (
                                 <div className="flex justify-between pt-1 border-t border-slate-200">
-                                    <span className="text-slate-400 flex items-center gap-1"><UserCheck size={13} /> Reference:</span>
+                                    <span className="text-slate-400 flex items-center gap-1"><UserCheck size={13} /> Reference / Agent:</span>
                                     <span className="font-bold text-teal-900">{booking.reference}</span>
+                                </div>
+                            )}
+                            {(booking.bookedBy?.name || booking.createdBy?.name) && (
+                                <div className="flex justify-between items-center text-xs">
+                                    <span className="text-slate-400 flex items-center gap-1"><User size={13} /> Booked By:</span>
+                                    <div className="flex items-center gap-1.5">
+                                        <span className="font-semibold text-slate-800">
+                                            {booking.bookedBy?.name || booking.createdBy?.name}
+                                        </span>
+                                        {getActorRoleBadge(booking.bookedBy?.role || booking.createdBy?.role || booking.requestedByRole || "user")}
+                                    </div>
                                 </div>
                             )}
                             {booking.transactionId && (
@@ -410,7 +445,7 @@ const BookingDetails = () => {
                 </div>
 
                 {/* Reserved Room Item Table */}
-                <div className="border border-slate-200 rounded-2xl overflow-hidden">
+                <div className="border border-slate-200">
                     <table className="table w-full text-xs sm:text-sm">
                         <thead>
                             <tr className="bg-slate-50 text-slate-600 font-bold uppercase text-[11px] tracking-wider">
@@ -450,7 +485,7 @@ const BookingDetails = () => {
                                             )}
                                         </td>
                                         <td>
-                                            <p className="font-semibold text-slate-800">{roomItem.checkIn} → {roomItem.checkOut}</p>
+                                            <p className="font-semibold text-slate-800">{formatDate(roomItem.checkIn)} → {formatDate(roomItem.checkOut)}</p>
                                             <p className="text-xs text-slate-400">{nights} night(s) x ৳{Number(roomItem.pricePerNight || 0).toLocaleString()}</p>
                                         </td>
                                         <td className="text-right font-extrabold text-slate-900 text-sm sm:text-base">
@@ -482,54 +517,53 @@ const BookingDetails = () => {
                         <p>• For queries or transport help, call / WhatsApp: +8801616472282.</p>
                     </div>
 
-                    <div className="bg-slate-50 p-5 rounded-2xl border border-slate-100 space-y-3 text-xs sm:text-sm">
-                        <div className="flex justify-between items-center text-slate-600">
-                            <span>Total Bill:</span>
-                            <span className="font-bold text-slate-900">৳{Number(booking.totalAmount !== undefined ? booking.totalAmount : totalAmount).toLocaleString()}</span>
-                        </div>
-                        {Number(booking.discountAmount || 0) > 0 && (
-                            <div className="flex justify-between items-center text-emerald-700 font-semibold">
-                                <span>Special Discount:</span>
-                                <span>-৳{Number(booking.discountAmount).toLocaleString()}</span>
-                            </div>
-                        )}
-                        {booking.paidAmount !== undefined && (
-                            <div className="flex justify-between items-center text-slate-600">
-                                <span>Paid / Done:</span>
-                                <span className="text-emerald-700 font-semibold">৳{Number(booking.paidAmount || 0).toLocaleString()}</span>
-                            </div>
-                        )}
-                        {booking.advanceAmount > 0 && booking.paidAmount === undefined && (
-                            <div className="flex justify-between items-center text-slate-600">
-                                <span>Advance Paid:</span>
-                                <span className="text-emerald-700 font-semibold">৳{Number(booking.advanceAmount || 0).toLocaleString()}</span>
-                            </div>
-                        )}
-                        {(() => {
-                            const finalTotal = Number(booking.totalAmount !== undefined ? booking.totalAmount : totalAmount);
-                            const finalPaid = Number(booking.paidAmount || booking.advanceAmount || 0);
-                            const finalDue = Math.max(0, finalTotal - finalPaid);
-                            return (
-                                <>
-                                    <div className="flex justify-between items-center border-t border-slate-200 pt-2">
-                                        <span className="font-bold text-slate-700">Due Balance:</span>
-                                        <span className={`font-extrabold ${finalDue > 0 ? 'text-orange-600' : 'text-emerald-600'}`}>
-                                            ৳{finalDue.toLocaleString()}
-                                        </span>
+                    {(() => {
+                        const subtotal = getBookingSubtotal(booking)
+                        const discountAmount = getBookingDiscount(booking)
+                        const payableTotal = getBookingTotal(booking)
+                        const paidAmount = getBookingPaidAmount(booking)
+                        const dueAmount = getBookingDueAmount(booking)
+
+                        return (
+                            <div className="bg-slate-50 p-5 rounded-2xl border border-slate-100 space-y-3 text-xs sm:text-sm">
+                                <div className="flex justify-between items-center text-slate-600">
+                                    <span>Total Bill:</span>
+                                    <span className="font-bold text-slate-900">৳{subtotal.toLocaleString()}</span>
+                                </div>
+                                {discountAmount > 0 && (
+                                    <div className="flex justify-between items-center text-emerald-700 font-semibold">
+                                        <span>Special Discount:</span>
+                                        <span>-৳{discountAmount.toLocaleString()}</span>
                                     </div>
-                                    {finalDue > 0 && !isCancelled && (
-                                        <button
-                                            onClick={() => setIsAddPaymentOpen(true)}
-                                            className="btn btn-xs bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl gap-1 border-none shadow-xs w-full"
-                                        >
-                                            <CreditCard size={12} />
-                                            <span>Collect Due Payment (৳{finalDue.toLocaleString()})</span>
-                                        </button>
-                                    )}
-                                </>
-                            );
-                        })()}
-                    </div>
+                                )}
+                                {discountAmount > 0 && (
+                                    <div className="flex justify-between items-center text-slate-700 font-bold border-t border-slate-200/60 pt-1.5">
+                                        <span>Net Payable Bill:</span>
+                                        <span className="font-extrabold text-teal-900">৳{payableTotal.toLocaleString()}</span>
+                                    </div>
+                                )}
+                                <div className="flex justify-between items-center text-slate-600">
+                                    <span>Paid / Done:</span>
+                                    <span className="text-emerald-700 font-semibold">৳{paidAmount.toLocaleString()}</span>
+                                </div>
+                                <div className="flex justify-between items-center border-t border-slate-200 pt-2">
+                                    <span className="font-bold text-slate-700">Due Balance:</span>
+                                    <span className={`font-extrabold text-sm sm:text-base ${dueAmount > 0 ? 'text-orange-600' : 'text-emerald-600'}`}>
+                                        ৳{dueAmount.toLocaleString()}
+                                    </span>
+                                </div>
+                                {dueAmount > 0 && !isCancelled && (
+                                    <button
+                                        onClick={() => setIsAddPaymentOpen(true)}
+                                        className="btn btn-xs bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl gap-1 border-none shadow-xs w-full"
+                                    >
+                                        <CreditCard size={12} />
+                                        <span>Collect Due Payment (৳{dueAmount.toLocaleString()})</span>
+                                    </button>
+                                )}
+                            </div>
+                        )
+                    })()}
                 </div>
             </div>
 
@@ -561,7 +595,7 @@ const BookingDetails = () => {
                                                 {statusBadge(hist.status)}
                                             </div>
                                             <span className="text-[11px] text-slate-400">
-                                                {hist.time ? new Date(hist.time).toLocaleString() : "—"}
+                                                {hist.time ? formatDateTime(hist.time) : "—"}
                                             </span>
                                         </div>
 
@@ -644,6 +678,16 @@ const BookingDetails = () => {
                     }}
                     currentUser={currentUser}
                     role={role}
+                />
+            )}
+
+            {/* Reservation Voucher / Letter Modal */}
+            {isVoucherOpen && (
+                <ReservationVoucherModal
+                    isOpen={isVoucherOpen}
+                    onClose={() => setIsVoucherOpen(false)}
+                    bookingId={booking?._id || id}
+                    initialBooking={booking}
                 />
             )}
         </div>

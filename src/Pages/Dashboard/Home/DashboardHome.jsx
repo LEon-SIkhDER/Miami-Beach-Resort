@@ -1,4 +1,4 @@
-import React, { useContext } from 'react'
+import React, { useContext, useState } from 'react'
 import { Link } from 'react-router'
 import { AuthContext } from '../../../Context/AuthContext'
 import useRole from '../../../hooks/useRole'
@@ -14,35 +14,59 @@ import {
     TrendingUp, 
     BedDouble,
     ArrowUpRight,
-    Calendar
+    Calendar,
+    UserCheck,
+    Building2,
+    Users,
+    Search,
+    Activity,
+    ExternalLink
 } from 'lucide-react'
+import { formatDate } from '../../../utils/bookingUtils'
+import UserWorkflowModal from '../Users/UserWorkflowModal'
 
 const DashboardHome = () => {
     const { user } = useContext(AuthContext)
     const { role } = useRole()
     const axiosSecure = useAxiosSecure()
+    const isAdminOrManager = role === "admin" || role === "manager"
 
-    // user bookings summary
+    // Partner search & filter tab on admin/manager dashboard
+    const [partnerTab, setPartnerTab] = useState("all") // "all" | "agent" | "b2b"
+    const [partnerSearch, setPartnerSearch] = useState("")
+    const [selectedWorkflowUser, setSelectedWorkflowUser] = useState(null)
+
+    // user bookings summary for regular guests
     const { data: userBookings = [] } = useQuery({
         queryKey: ["user-bookings-summary", user?.email],
-        enabled: !!user?.email && role !== undefined && role !== "admin",
+        enabled: !!user?.email && !isAdminOrManager && role === "user",
         queryFn: async () => {
             const res = await axiosSecure.get(`/bookings?email=${user.email}`)
             return res.data
         }
     })
 
-    // admin overview
+    // admin / manager overview
     const { data: overview = {}, isLoading: overviewLoading } = useQuery({
         queryKey: ["admin-overview"],
-        enabled: role === "admin",
+        enabled: isAdminOrManager,
         queryFn: async () => {
             const res = await axiosSecure.get("/admin/overview")
             return res.data
         }
     })
 
-    if (role === "admin") {
+    // all users for agent & b2b partner workflow
+    const { data: allUsers = [], isLoading: usersLoading } = useQuery({
+        queryKey: ["admin-manager-partner-users"],
+        enabled: isAdminOrManager,
+        queryFn: async () => {
+            const res = await axiosSecure.get("/users")
+            return Array.isArray(res.data) ? res.data : []
+        }
+    })
+
+    if (isAdminOrManager) {
         if (overviewLoading) {
             return (
                 <div className="space-y-8 animate-pulse">
@@ -142,60 +166,95 @@ const DashboardHome = () => {
             { _id: 'Balcony Room', count: 0 }
         ]
 
+        // Agent & B2B partners workflow data
+        const partnerUsers = allUsers.filter(u => u.role === "agent" || u.role === "b2b")
+        const agentCount = partnerUsers.filter(u => u.role === "agent").length
+        const b2bCount = partnerUsers.filter(u => u.role === "b2b").length
+        const totalPartnerBookings = partnerUsers.reduce((sum, p) => sum + (p.stats?.totalBookings || 0), 0)
+        const totalPartnerSales = partnerUsers.reduce((sum, p) => sum + (p.stats?.totalSales || 0), 0)
+        const totalPartnerPaid = partnerUsers.reduce((sum, p) => sum + (p.stats?.totalPaid || 0), 0)
+        const totalPartnerDue = partnerUsers.reduce((sum, p) => sum + (p.stats?.totalDue || 0), 0)
+
+        const filteredPartners = partnerUsers.filter(p => {
+            if (partnerTab === "agent" && p.role !== "agent") return false
+            if (partnerTab === "b2b" && p.role !== "b2b") return false
+            if (partnerSearch) {
+                const s = partnerSearch.toLowerCase()
+                const nameMatch = (p.name || "").toLowerCase().includes(s)
+                const emailMatch = (p.email || "").toLowerCase().includes(s)
+                const phoneMatch = (p.phone || "").toLowerCase().includes(s)
+                return nameMatch || emailMatch || phoneMatch
+            }
+            return true
+        })
+
         return (
             <div className="space-y-8">
                 {/* Header */}
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                     <div>
-                        <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 font-serif tracking-tight">
-                            Admin Overview
-                        </h1>
+                        <div className="flex items-center gap-2">
+                            <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 font-serif tracking-tight">
+                                {role === "admin" ? "Resort Admin Overview" : "Management Dashboard"}
+                            </h1>
+                            <span className={`badge badge-sm font-bold uppercase text-[10px] border-none ${
+                                role === "admin" ? "bg-amber-400 text-slate-900" : "bg-purple-600 text-white"
+                            }`}>
+                                {role}
+                            </span>
+                        </div>
                         <p className="text-xs sm:text-sm text-slate-500 mt-1">
-                            Live reservation metrics, monthly revenue, and occupancy statistics for Miami Beach Resort.
+                            Live operational performance, room revenues, and Agent & B2B partner workflows.
                         </p>
                     </div>
+
                     <div className="flex items-center gap-2">
-                        <Link
-                            to="/dashboard/income"
-                            className="btn btn-sm btn-outline border-indigo-200 text-indigo-700 hover:bg-indigo-50 rounded-xl gap-1"
-                        >
-                            <DollarSign size={15} /> Room Income Breakdown <ArrowUpRight size={14} />
+                        <Link to="/dashboard/users" className="btn btn-sm btn-outline border-slate-300 text-slate-700 hover:bg-slate-50 rounded-xl font-bold">
+                            <Users size={14} /> Users & Roles
+                        </Link>
+                        <Link to="/dashboard/calender" className="btn btn-sm bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-xl shadow-xs border-none">
+                            <CalendarCheck size={14} /> Booking Calendar
                         </Link>
                     </div>
                 </div>
 
-                {/* Stats Grid */}
+                {/* 6 Key Stats Cards */}
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
-                    {stats.map((stat, i) => (
-                        <Link 
-                            key={i} 
-                            to={stat.link}
-                            className={`p-5 rounded-2xl bg-white border ${stat.border} shadow-xs hover:shadow-md hover:-translate-y-0.5 transition-all flex flex-col justify-between space-y-3 group ${
-                                stat.highlight ? 'ring-1 ring-indigo-500/10' : ''
-                            }`}
+                    {stats.map((s, idx) => (
+                        <Link
+                            key={idx}
+                            to={s.link}
+                            className={`group relative p-4 sm:p-5 rounded-2xl bg-white border ${s.border} shadow-xs hover:shadow-md transition-all duration-200 hover:-translate-y-0.5 flex flex-col justify-between`}
                         >
-                            <div className="flex items-center justify-between">
-                                <div className={`w-10 h-10 rounded-xl ${stat.bg} flex items-center justify-center group-hover:scale-105 transition-transform`}>
-                                    {stat.icon}
+                            <div className="flex items-center justify-between mb-3">
+                                <div className={`w-10 h-10 rounded-xl ${s.bg} flex items-center justify-center`}>
+                                    {s.icon}
                                 </div>
-                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider group-hover:text-teal-700 transition-colors flex items-center gap-0.5">
-                                    {stat.badge}
-                                    <ArrowUpRight size={10} className="opacity-0 group-hover:opacity-100 transition-opacity" />
+                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                                    s.highlight ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'
+                                }`}>
+                                    {s.badge}
                                 </span>
                             </div>
                             <div>
-                                <p className="text-xs font-medium text-slate-500">{stat.title}</p>
-                                <p className="text-lg sm:text-xl font-extrabold text-slate-900 mt-0.5 tracking-tight group-hover:text-teal-800 transition-colors">
-                                    {stat.value}
-                                </p>
+                                <p className="text-xs font-semibold text-slate-500">{s.title}</p>
+                                <h3 className={`text-xl sm:text-2xl font-black mt-0.5 tracking-tight ${
+                                    s.highlight ? 'text-teal-900' : 'text-slate-900'
+                                }`}>
+                                    {s.value}
+                                </h3>
+                            </div>
+                            <div className="mt-3 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] font-semibold text-teal-700 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <span>Details</span>
+                                <ArrowUpRight size={13} />
                             </div>
                         </Link>
                     ))}
                 </div>
 
-                {/* Visual Charts */}
+                {/* Analytics Charts */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    {/* Bookings per day */}
+                    {/* Daily bookings bar chart */}
                     <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs">
                         <div className="flex items-center justify-between mb-6">
                             <div>
@@ -246,15 +305,276 @@ const DashboardHome = () => {
                         </div>
                     </div>
                 </div>
+
+                {/* Agent & B2B Partner Workflow Section */}
+                <div className="space-y-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                        <div>
+                            <div className="flex items-center gap-2">
+                                <h2 className="text-xl sm:text-2xl font-bold text-slate-900 font-serif">
+                                    Agent & B2B Partner Workflow
+                                </h2>
+                                <span className="badge badge-sm bg-teal-100 text-teal-900 font-bold">
+                                    {partnerUsers.length} Partners
+                                </span>
+                            </div>
+                            <p className="text-xs text-slate-500 mt-0.5">
+                                Live sales performance, booking counts, and detailed audit activities of all verified Agents and B2B Corporate Partners.
+                            </p>
+                        </div>
+
+                        <Link to="/dashboard/users" className="text-xs font-bold text-teal-700 hover:underline flex items-center gap-1">
+                            Manage All Users & Roles <ExternalLink size={12} />
+                        </Link>
+                    </div>
+
+                    {/* Partner Performance Summary Metrics */}
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs space-y-1">
+                            <div className="flex items-center justify-between">
+                                <span className="text-xs font-bold text-slate-500">Active Partners</span>
+                                <Users size={16} className="text-teal-600" />
+                            </div>
+                            <p className="text-xl font-black text-slate-900">
+                                {partnerUsers.length} <span className="text-xs font-semibold text-slate-400">({agentCount} Agents · {b2bCount} B2B)</span>
+                            </p>
+                        </div>
+
+                        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs space-y-1">
+                            <div className="flex items-center justify-between">
+                                <span className="text-xs font-bold text-slate-500">Partner Bookings</span>
+                                <CalendarCheck size={16} className="text-blue-600" />
+                            </div>
+                            <p className="text-xl font-black text-slate-900">
+                                {totalPartnerBookings} <span className="text-xs font-semibold text-slate-400">Bookings</span>
+                            </p>
+                        </div>
+
+                        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs space-y-1">
+                            <div className="flex items-center justify-between">
+                                <span className="text-xs font-bold text-slate-500">Total Sales Volume</span>
+                                <TrendingUp size={16} className="text-emerald-600" />
+                            </div>
+                            <p className="text-xl font-black text-emerald-800">
+                                ৳{totalPartnerSales.toLocaleString()}
+                            </p>
+                        </div>
+
+                        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs space-y-1">
+                            <div className="flex items-center justify-between">
+                                <span className="text-xs font-bold text-slate-500">Collected / Due</span>
+                                <DollarSign size={16} className="text-indigo-600" />
+                            </div>
+                            <p className="text-sm font-bold text-slate-900">
+                                <span className="text-emerald-700">৳{totalPartnerPaid.toLocaleString()}</span>
+                                {totalPartnerDue > 0 && (
+                                    <span className="text-orange-600 ml-1 font-semibold text-xs">/ Due ৳{totalPartnerDue.toLocaleString()}</span>
+                                )}
+                            </p>
+                        </div>
+                    </div>
+
+                    {/* Partner Workflow Table Container */}
+                    <div className="bg-white border border-slate-200 shadow-xs space-y-3 p-4 sm:p-6">
+                        {/* Filter Tabs & Search */}
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                            {/* Role Filter Tabs */}
+                            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
+                                <button
+                                    type="button"
+                                    onClick={() => setPartnerTab("all")}
+                                    className={`btn btn-xs rounded-xl font-bold gap-1.5 ${
+                                        partnerTab === "all"
+                                            ? "bg-teal-600 text-white shadow-xs border-teal-600"
+                                            : "btn-ghost bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200/60"
+                                    }`}
+                                >
+                                    <Users size={12} />
+                                    <span>All Partners</span>
+                                    <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-slate-200/60 text-slate-700 font-mono">
+                                        {partnerUsers.length}
+                                    </span>
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setPartnerTab("agent")}
+                                    className={`btn btn-xs rounded-xl font-bold gap-1.5 ${
+                                        partnerTab === "agent"
+                                            ? "bg-teal-700 text-white shadow-xs border-teal-700"
+                                            : "btn-ghost bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200/60"
+                                    }`}
+                                >
+                                    <UserCheck size={12} />
+                                    <span>Agents</span>
+                                    <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-slate-200/60 text-slate-700 font-mono">
+                                        {agentCount}
+                                    </span>
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setPartnerTab("b2b")}
+                                    className={`btn btn-xs rounded-xl font-bold gap-1.5 ${
+                                        partnerTab === "b2b"
+                                            ? "bg-blue-600 text-white shadow-xs border-blue-600"
+                                            : "btn-ghost bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200/60"
+                                    }`}
+                                >
+                                    <Building2 size={12} />
+                                    <span>B2B Partners</span>
+                                    <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-slate-200/60 text-slate-700 font-mono">
+                                        {b2bCount}
+                                    </span>
+                                </button>
+                            </div>
+
+                            {/* Search Box */}
+                            <div className="relative shrink-0 sm:w-64">
+                                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                                <input
+                                    type="text"
+                                    placeholder="Search partner name, email..."
+                                    className="input input-sm input-bordered pl-8.5 pr-7 rounded-xl w-full bg-slate-50 focus:bg-white text-xs"
+                                    value={partnerSearch}
+                                    onChange={e => setPartnerSearch(e.target.value)}
+                                />
+                                {partnerSearch && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setPartnerSearch("")}
+                                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs"
+                                    >
+                                        ✕
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Partner Table View */}
+                        <div className="overflow-x-auto rounded-xl border border-slate-200">
+                            <table className="table table-zebra w-full whitespace-nowrap text-xs">
+                            <thead className="bg-slate-50 text-slate-600 uppercase font-bold border-b border-slate-200">
+                                <tr>
+                                    <th>#</th>
+                                    <th>Partner Name & Contact</th>
+                                    <th>Role</th>
+                                    <th>Total Bookings</th>
+                                    <th>Sales Volume</th>
+                                    <th>Paid / Due</th>
+                                    <th>Joined Date</th>
+                                    <th className="text-center">Workflow & Activity</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100">
+                                {usersLoading ? (
+                                    [1, 2, 3].map(n => (
+                                        <tr key={n} className="animate-pulse">
+                                            <td><div className="h-4 bg-slate-200 rounded w-4"></div></td>
+                                            <td><div className="h-4 bg-slate-200 rounded w-36"></div></td>
+                                            <td><div className="h-5 bg-slate-200 rounded-full w-16"></div></td>
+                                            <td><div className="h-4 bg-slate-200 rounded w-16"></div></td>
+                                            <td><div className="h-4 bg-slate-200 rounded w-20"></div></td>
+                                            <td><div className="h-4 bg-slate-200 rounded w-24"></div></td>
+                                            <td><div className="h-4 bg-slate-200 rounded w-20"></div></td>
+                                            <td className="text-center"><div className="h-6 bg-slate-200 rounded w-24 mx-auto"></div></td>
+                                        </tr>
+                                    ))
+                                ) : filteredPartners.length === 0 ? (
+                                    <tr>
+                                        <td colSpan={8} className="text-center py-10 text-slate-400">
+                                            <Users size={32} className="mx-auto mb-2 opacity-50" />
+                                            {partnerUsers.length === 0
+                                                ? "No Agents or B2B Partners registered yet. Change user roles in the Users & Roles tab."
+                                                : "No partners found matching your search filter."}
+                                        </td>
+                                    </tr>
+                                ) : (
+                                    filteredPartners.map((p, idx) => {
+                                        const bookingsCount = p.stats?.totalBookings || 0
+                                        const salesAmount = p.stats?.totalSales || 0
+                                        const paidAmount = p.stats?.totalPaid || 0
+                                        const dueAmount = p.stats?.totalDue || 0
+
+                                        return (
+                                            <tr key={p._id} className="hover:bg-slate-50/80 transition-colors">
+                                                <td className="font-mono text-slate-400">{idx + 1}</td>
+                                                <td>
+                                                    <div className="flex items-center gap-2.5">
+                                                        <div className="w-8 h-8 rounded-full bg-teal-100 text-teal-800 font-bold text-xs flex items-center justify-center shrink-0">
+                                                            {p.name ? p.name.charAt(0).toUpperCase() : p.email?.charAt(0).toUpperCase() || 'P'}
+                                                        </div>
+                                                        <div>
+                                                            <div className="font-bold text-slate-900 text-sm">{p.name || "Unnamed Partner"}</div>
+                                                            <div className="text-[11px] text-slate-400">{p.email}</div>
+                                                            {p.phone && <div className="text-[10px] text-teal-700 font-semibold">{p.phone}</div>}
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                                <td>
+                                                    {p.role === "agent" ? (
+                                                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-teal-50 text-teal-800 border border-teal-200">
+                                                            <UserCheck size={12} className="text-teal-600" /> Agent
+                                                        </span>
+                                                    ) : (
+                                                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-50 text-blue-800 border border-blue-200">
+                                                            <Building2 size={12} className="text-blue-600" /> B2B Partner
+                                                        </span>
+                                                    )}
+                                                </td>
+                                                <td>
+                                                    <span className="font-bold text-teal-900">
+                                                        {bookingsCount} Booking{bookingsCount !== 1 ? 's' : ''}
+                                                    </span>
+                                                </td>
+                                                <td className="font-bold text-emerald-800 text-sm">
+                                                    ৳{salesAmount.toLocaleString()}
+                                                </td>
+                                                <td>
+                                                    <div className="text-slate-700 font-semibold">
+                                                        <span className="text-emerald-700">৳{paidAmount.toLocaleString()}</span>
+                                                        {dueAmount > 0 && (
+                                                            <span className="text-orange-600 block text-[10px] font-bold">Due: ৳{dueAmount.toLocaleString()}</span>
+                                                        )}
+                                                    </div>
+                                                </td>
+                                                <td className="text-slate-500 text-[11px]">
+                                                    {p.created_At ? formatDate(p.created_At) : "N/A"}
+                                                </td>
+                                                <td className="text-center">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setSelectedWorkflowUser(p)}
+                                                        className="btn btn-xs btn-primary text-white gap-1 rounded-lg shadow-2xs font-bold"
+                                                        title="Inspect full workflow, reservation history, and timeline activities"
+                                                    >
+                                                        <Activity size={12} /> View Workflow
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        )
+                                    })
+                                )}
+                            </tbody>
+                        </table>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Workflow Modal Pop-up */}
+                {selectedWorkflowUser && (
+                    <UserWorkflowModal
+                        user={selectedWorkflowUser}
+                        onClose={() => setSelectedWorkflowUser(null)}
+                    />
+                )}
             </div>
         )
     }
 
-    // Sales overview for staff / manager / agent / b2b roles
-    const isStaffRole = role && role !== "admin" && role !== "user"
+    // Personal Sales overview for Agent / B2B Staff Roles
+    const isPartnerStaff = role === "agent" || role === "b2b"
     const { data: salesOverview = {}, isLoading: salesLoading } = useQuery({
         queryKey: ["my-sales-overview", user?.email, user?.displayName],
-        enabled: isStaffRole && !!user?.email,
+        enabled: isPartnerStaff && !!user?.email,
         queryFn: async () => {
             const res = await axiosSecure.get(`/sales/my-overview?email=${encodeURIComponent(user.email)}&name=${encodeURIComponent(user.displayName || '')}`)
             return res.data
@@ -435,7 +755,7 @@ const DashboardHome = () => {
                 </div>
 
                 {/* Detailed Sells History Table */}
-                <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden space-y-3 p-6">
+                <div className="bg-white border border-slate-200 shadow-xs space-y-3 p-6">
                     <div className="flex items-center justify-between">
                         <div>
                             <h3 className="font-bold text-slate-900 text-base font-serif">Detailed Sells History</h3>
@@ -446,83 +766,81 @@ const DashboardHome = () => {
                         </span>
                     </div>
 
-                    <div className="overflow-x-auto">
-                        <table className="table table-sm w-full text-xs">
-                            <thead className="bg-slate-50 text-slate-600 uppercase font-bold border-b border-slate-200">
-                                <tr>
-                                    <th>Booking ID</th>
-                                    <th>Guest</th>
-                                    <th>Category & Room</th>
-                                    <th>Stay Dates & Nights</th>
-                                    <th>Total Sells</th>
-                                    <th>Paid / Method</th>
-                                    <th>Due</th>
-                                    <th>Status</th>
-                                    <th>Booking Time</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-100">
-                                {detailedSells.map((sell, idx) => (
-                                    <tr key={sell.bookingId || idx} className="hover:bg-slate-50/80 transition">
-                                        <td className="font-mono font-bold text-teal-800">
-                                            #{String(sell.bookingId).slice(-6)}
-                                        </td>
-                                        <td>
-                                            <div className="font-bold text-slate-900">{sell.guestName}</div>
-                                            <div className="text-[10px] text-slate-400">{sell.mobile}</div>
-                                        </td>
-                                        <td>
-                                            <div className="font-semibold text-slate-800">{sell.category}</div>
-                                            <div className="text-[10px] text-teal-700 font-bold">Room {sell.roomNo}</div>
-                                        </td>
-                                        <td>
-                                            <div className="text-slate-700 font-medium">
-                                                {sell.checkIn} → {sell.checkOut}
-                                            </div>
-                                            <span className="text-[10px] text-slate-400 font-semibold">{sell.nights} night{sell.nights > 1 ? 's' : ''}</span>
-                                        </td>
-                                        <td className="font-bold text-slate-900">
-                                            ৳{Number(sell.totalAmount || 0).toLocaleString()}
-                                        </td>
-                                        <td>
-                                            <span className="font-bold text-emerald-700">৳{Number(sell.paidAmount || 0).toLocaleString()}</span>
-                                            <span className="block text-[10px] text-slate-400 font-semibold">{sell.paymentMethod || "Direct"}</span>
-                                        </td>
-                                        <td>
-                                            {Number(sell.dueAmount || 0) > 0 ? (
-                                                <span className="badge badge-xs bg-orange-100 text-orange-800 font-bold border-none">
-                                                    Due ৳{Number(sell.dueAmount).toLocaleString()}
-                                                </span>
-                                            ) : (
-                                                <span className="text-emerald-600 font-semibold text-[11px]">Paid ✅</span>
-                                            )}
-                                        </td>
-                                        <td>
-                                            <span className={`badge badge-xs font-bold border-none ${
-                                                sell.status === "booking_confirmed" || sell.status === "confirmed" ? "bg-[#5261d6] text-white" :
-                                                sell.status === "checked_id" || sell.status === "checked_in" ? "bg-[#01966e] text-white" :
-                                                sell.status === "payment_waiting" ? "bg-[#eab308] text-amber-950" :
-                                                sell.status === "request_booking" ? "bg-[#f59e0b] text-white" :
-                                                "bg-slate-200 text-slate-700"
-                                            }`}>
-                                                {sell.status}
+                    <table className="table table-sm w-full text-xs">
+                        <thead className="bg-slate-50 text-slate-600 uppercase font-bold border-b border-slate-200">
+                            <tr>
+                                <th>Booking ID</th>
+                                <th>Guest</th>
+                                <th>Category & Room</th>
+                                <th>Stay Dates & Nights</th>
+                                <th>Total Sells</th>
+                                <th>Paid / Method</th>
+                                <th>Due</th>
+                                <th>Status</th>
+                                <th>Booking Time</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                            {detailedSells.map((sell, idx) => (
+                                <tr key={sell.bookingId || idx} className="hover:bg-slate-50/80 transition">
+                                    <td className="font-mono font-bold text-teal-800">
+                                        #{String(sell.bookingId).slice(-6)}
+                                    </td>
+                                    <td>
+                                        <div className="font-bold text-slate-900">{sell.guestName}</div>
+                                        <div className="text-[10px] text-slate-400">{sell.mobile}</div>
+                                    </td>
+                                    <td>
+                                        <div className="font-semibold text-slate-800">{sell.category}</div>
+                                        <div className="text-[10px] text-teal-700 font-bold">Room {sell.roomNo}</div>
+                                    </td>
+                                    <td>
+                                        <div className="text-slate-700 font-medium">
+                                            {formatDate(sell.checkIn)} → {formatDate(sell.checkOut)}
+                                        </div>
+                                        <span className="text-[10px] text-slate-400 font-semibold">{sell.nights} night{sell.nights > 1 ? 's' : ''}</span>
+                                    </td>
+                                    <td className="font-bold text-slate-900">
+                                        ৳{Number(sell.totalAmount || 0).toLocaleString()}
+                                    </td>
+                                    <td>
+                                        <span className="font-bold text-emerald-700">৳{Number(sell.paidAmount || 0).toLocaleString()}</span>
+                                        <span className="block text-[10px] text-slate-400 font-semibold">{sell.paymentMethod || "Direct"}</span>
+                                    </td>
+                                    <td>
+                                        {Number(sell.dueAmount || 0) > 0 ? (
+                                            <span className="badge badge-xs bg-orange-100 text-orange-800 font-bold border-none">
+                                                Due ৳{Number(sell.dueAmount).toLocaleString()}
                                             </span>
-                                        </td>
-                                        <td className="text-slate-400 text-[11px] whitespace-nowrap">
-                                            {sell.bookingDate ? new Date(sell.bookingDate).toLocaleDateString() : "N/A"}
-                                        </td>
-                                    </tr>
-                                ))}
-                                {detailedSells.length === 0 && (
-                                    <tr>
-                                        <td colSpan={9} className="text-center py-12 text-slate-400">
-                                            No sales records credited to your account or reference yet.
-                                        </td>
-                                    </tr>
-                                )}
-                            </tbody>
-                        </table>
-                    </div>
+                                        ) : (
+                                            <span className="text-emerald-600 font-semibold text-[11px]">Paid ✅</span>
+                                        )}
+                                    </td>
+                                    <td>
+                                        <span className={`badge badge-xs font-bold border-none ${
+                                            sell.status === "booking_confirmed" || sell.status === "confirmed" ? "bg-[#5261d6] text-white" :
+                                            sell.status === "checked_id" || sell.status === "checked_in" ? "bg-[#01966e] text-white" :
+                                            sell.status === "payment_waiting" ? "bg-[#eab308] text-amber-950" :
+                                            sell.status === "request_booking" ? "bg-[#f59e0b] text-white" :
+                                            "bg-slate-200 text-slate-700"
+                                        }`}>
+                                            {sell.status}
+                                        </span>
+                                    </td>
+                                    <td className="text-slate-400 text-[11px] whitespace-nowrap">
+                                        {sell.bookingDate ? formatDate(sell.bookingDate) : "N/A"}
+                                    </td>
+                                </tr>
+                            ))}
+                            {detailedSells.length === 0 && (
+                                <tr>
+                                    <td colSpan={9} className="text-center py-12 text-slate-400">
+                                        No sales records credited to your account or reference yet.
+                                    </td>
+                                </tr>
+                            )}
+                        </tbody>
+                    </table>
                 </div>
             </div>
         )

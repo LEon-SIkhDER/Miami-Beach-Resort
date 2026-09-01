@@ -14,7 +14,13 @@ import {
     AlertCircle,
     Wallet
 } from 'lucide-react'
-import { getBookingTotal } from '../../../utils/bookingUtils'
+import { 
+    getBookingTotal, 
+    getBookingSubtotal, 
+    getBookingDiscount, 
+    getBookingPaidAmount, 
+    getBookingDueAmount 
+} from '../../../utils/bookingUtils'
 
 const PAYMENT_METHODS = [
     "Cash",
@@ -38,9 +44,11 @@ const AddPaymentModal = ({
     const queryClient = useQueryClient()
     const [isSubmitting, setIsSubmitting] = useState(false)
 
-    const totalBill = booking ? getBookingTotal(booking) : 0
-    const alreadyPaid = Number(booking?.paidAmount || booking?.advanceAmount || 0)
-    const dueBalance = Math.max(0, totalBill - alreadyPaid)
+    const subtotal = booking ? getBookingSubtotal(booking) : 0
+    const discountAmount = booking ? getBookingDiscount(booking) : 0
+    const payableTotal = booking ? getBookingTotal(booking) : 0
+    const alreadyPaid = booking ? getBookingPaidAmount(booking) : 0
+    const dueBalance = booking ? getBookingDueAmount(booking) : 0
 
     const [amount, setAmount] = useState('')
     const [paymentMethod, setPaymentMethod] = useState('Cash')
@@ -77,6 +85,11 @@ const AddPaymentModal = ({
         const payAmount = Number(amount)
         if (isNaN(payAmount) || payAmount <= 0) {
             toast.error("Please enter a valid payment amount.")
+            return
+        }
+
+        if (!transactionId.trim()) {
+            toast.error("Transaction ID / Receipt No is required.")
             return
         }
 
@@ -150,9 +163,21 @@ const AddPaymentModal = ({
                     {/* Financial Overview Card */}
                     <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-2xl space-y-1.5 text-xs">
                         <div className="flex justify-between text-slate-600">
-                            <span>Total Bill:</span>
-                            <strong className="text-slate-900 font-bold">৳{totalBill.toLocaleString()}</strong>
+                            <span>Room Total:</span>
+                            <strong className="text-slate-900 font-bold">৳{subtotal.toLocaleString()}</strong>
                         </div>
+                        {discountAmount > 0 && (
+                            <div className="flex justify-between text-emerald-700 font-medium">
+                                <span>Special Discount:</span>
+                                <strong>-৳{discountAmount.toLocaleString()}</strong>
+                            </div>
+                        )}
+                        {discountAmount > 0 && (
+                            <div className="flex justify-between text-slate-700 font-bold border-t border-slate-200/60 pt-1">
+                                <span>Net Payable Total:</span>
+                                <strong className="text-teal-900 font-extrabold">৳{payableTotal.toLocaleString()}</strong>
+                            </div>
+                        )}
                         <div className="flex justify-between text-slate-600">
                             <span>Already Paid:</span>
                             <strong className="text-emerald-700 font-bold">৳{alreadyPaid.toLocaleString()}</strong>
@@ -176,7 +201,7 @@ const AddPaymentModal = ({
                             type="number"
                             required
                             min="1"
-                            max={totalBill > 0 ? totalBill * 2 : 1000000}
+                            max={payableTotal > 0 ? payableTotal * 2 : 1000000}
                             value={amount}
                             onChange={e => setAmount(e.target.value)}
                             placeholder="Enter amount in BDT"
@@ -248,16 +273,17 @@ const AddPaymentModal = ({
                         {/* Transaction ID */}
                         <div className="form-control">
                             <label className="label py-0.5">
-                                <span className="label-text font-semibold text-slate-700 text-xs flex items-center gap-1">
-                                    <Receipt size={13} className="text-teal-600" /> Trx / Receipt No
+                                <span className="label-text font-bold text-slate-800 text-xs flex items-center gap-1">
+                                    <Receipt size={13} className="text-teal-600" /> Trx / Receipt No *
                                 </span>
                             </label>
                             <input
                                 type="text"
+                                required
                                 value={transactionId}
                                 onChange={e => setTransactionId(e.target.value)}
-                                placeholder="e.g. TRX-938201 / Cash"
-                                className="input input-sm input-bordered rounded-xl bg-white text-xs"
+                                placeholder="e.g. TRX-938201 / Cash / POS"
+                                className="input input-sm input-bordered rounded-xl bg-white text-xs font-semibold"
                             />
                         </div>
                     </div>

@@ -8,10 +8,13 @@ import Swal from 'sweetalert2'
 import AddCategory from './AddCategory';
 import EditCategory from './EditCategory';
 import { parseFacilityList, parseRoomNumbers } from './categoryRoomUtils';
+import useRole from '../../../hooks/useRole';
 
 const SERVER_URL = import.meta.env.VITE_SERVER_URL || "https://miami-beach-resort.vercel.app"
 
 const CategoryAndPricing = () => {
+    const { role } = useRole()
+    const isAdmin = role === "admin"
     const { data: categories = [], refetch } = useQuery({
         queryKey: ["categories"],
         queryFn: async () => {
@@ -197,15 +200,17 @@ const CategoryAndPricing = () => {
                                             <Pencil size={16} />
                                         </EditCategory>
 
-                                        {/* Delete */}
-                                        <button
-                                            type="button"
-                                            onClick={() => handleDelete(category)}
-                                            className="w-9 h-9 flex items-center justify-center rounded-lg border border-red-200 text-red-500 hover:bg-red-500 hover:text-white transition"
-                                            title="Delete"
-                                        >
-                                            <Trash2 size={16} />
-                                        </button>
+                                        {/* Delete (Admin only) */}
+                                        {isAdmin && (
+                                            <button
+                                                type="button"
+                                                onClick={() => handleDelete(category)}
+                                                className="w-9 h-9 flex items-center justify-center rounded-lg border border-red-200 text-red-500 hover:bg-red-500 hover:text-white transition"
+                                                title="Delete Category (Admin Only)"
+                                            >
+                                                <Trash2 size={16} />
+                                            </button>
+                                        )}
                                     </div>
                                 </div>
                             </div>

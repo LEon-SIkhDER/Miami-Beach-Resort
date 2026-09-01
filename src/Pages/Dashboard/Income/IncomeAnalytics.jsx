@@ -15,6 +15,7 @@ import {
     Sparkles,
     BarChart3
 } from 'lucide-react'
+import { formatDate } from '../../../utils/bookingUtils'
 
 const IncomeAnalytics = () => {
     const axiosSecure = useAxiosSecure()
@@ -219,94 +220,92 @@ const IncomeAnalytics = () => {
                     </div>
                 </div>
 
-                <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
-                    <div className="overflow-x-auto">
-                        <table className="table table-zebra w-full whitespace-nowrap">
-                            <thead>
-                                <tr className="bg-slate-50 text-slate-600 font-bold text-xs uppercase tracking-wider whitespace-nowrap">
-                                    <th className="whitespace-nowrap min-w-[130px]">Booking ID</th>
-                                    <th className="whitespace-nowrap">Guest</th>
-                                    <th className="whitespace-nowrap">Suite / Assigned Room</th>
-                                    <th className="whitespace-nowrap">Stay Dates</th>
-                                    <th className="whitespace-nowrap">Duration</th>
-                                    <th className="whitespace-nowrap">Bill Amount</th>
-                                    <th className="whitespace-nowrap">Trx ID / Ref</th>
-                                    <th className="text-center whitespace-nowrap">Action</th>
+                <div className="bg-white border border-slate-200 rounded-2xl overflow-x-auto shadow-xs">
+                    <table className="table table-zebra w-full whitespace-nowrap">
+                        <thead>
+                            <tr className="bg-slate-50 text-slate-600 font-bold text-xs uppercase tracking-wider whitespace-nowrap">
+                                <th className="whitespace-nowrap min-w-[130px]">Booking ID</th>
+                                <th className="whitespace-nowrap">Guest</th>
+                                <th className="whitespace-nowrap">Suite / Assigned Room</th>
+                                <th className="whitespace-nowrap">Stay Dates</th>
+                                <th className="whitespace-nowrap">Duration</th>
+                                <th className="whitespace-nowrap">Bill Amount</th>
+                                <th className="whitespace-nowrap">Trx ID / Ref</th>
+                                <th className="text-center whitespace-nowrap">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 text-sm">
+                            {isLoading ? (
+                                [1, 2, 3, 4].map(n => (
+                                    <tr key={n} className="animate-pulse">
+                                        <td><div className="h-5 bg-slate-200 w-24"></div></td>
+                                        <td><div className="h-4 bg-slate-200 w-28"></div></td>
+                                        <td><div className="h-4 bg-slate-200 w-36"></div></td>
+                                        <td><div className="h-4 bg-slate-200 w-32"></div></td>
+                                        <td><div className="h-4 bg-slate-200 w-16"></div></td>
+                                        <td><div className="h-4 bg-slate-200 w-20"></div></td>
+                                        <td><div className="h-4 bg-slate-200 w-24"></div></td>
+                                        <td><div className="h-7 bg-slate-200 w-14 mx-auto"></div></td>
+                                    </tr>
+                                ))
+                            ) : filteredItems.length === 0 ? (
+                                <tr>
+                                    <td colSpan={8} className="text-center py-12 text-slate-400">
+                                        <Receipt size={36} className="mx-auto mb-2 opacity-50" />
+                                        No income records matching your search.
+                                    </td>
                                 </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-100 text-sm">
-                                {isLoading ? (
-                                    [1, 2, 3, 4].map(n => (
-                                        <tr key={n} className="animate-pulse">
-                                            <td><div className="h-5 bg-slate-200 w-24"></div></td>
-                                            <td><div className="h-4 bg-slate-200 w-28"></div></td>
-                                            <td><div className="h-4 bg-slate-200 w-36"></div></td>
-                                            <td><div className="h-4 bg-slate-200 w-32"></div></td>
-                                            <td><div className="h-4 bg-slate-200 w-16"></div></td>
-                                            <td><div className="h-4 bg-slate-200 w-20"></div></td>
-                                            <td><div className="h-4 bg-slate-200 w-24"></div></td>
-                                            <td><div className="h-7 bg-slate-200 w-14 mx-auto"></div></td>
-                                        </tr>
-                                    ))
-                                ) : filteredItems.length === 0 ? (
-                                    <tr>
-                                        <td colSpan={8} className="text-center py-12 text-slate-400">
-                                            <Receipt size={36} className="mx-auto mb-2 opacity-50" />
-                                            No income records matching your search.
+                            ) : (
+                                filteredItems.map((item, idx) => (
+                                    <tr key={`${item.bookingId}-${idx}`} className="hover:bg-slate-50/80 transition-colors">
+                                        <td className="whitespace-nowrap">
+                                            <Link
+                                                to={`/dashboard/bookings/${item._id}`}
+                                                className="font-mono text-xs font-bold text-teal-700 bg-teal-50 hover:bg-teal-100 px-2.5 py-1 rounded-lg border border-teal-200/60 inline-flex items-center gap-1"
+                                            >
+                                                {item.bookingId}
+                                            </Link>
+                                        </td>
+                                        <td className="whitespace-nowrap">
+                                            <p className="font-bold text-slate-900">{item.guestName}</p>
+                                            <p className="text-xs text-slate-500 font-medium">{item.guestPhone}</p>
+                                        </td>
+                                        <td className="whitespace-nowrap">
+                                            <p className="font-semibold text-slate-800 text-xs">{item.categoryName}</p>
+                                            {item.roomNo && (
+                                                <span className="badge badge-xs bg-teal-100 text-teal-900 border-none font-mono font-bold mt-0.5">
+                                                    Room {item.roomNo}
+                                                </span>
+                                            )}
+                                        </td>
+                                        <td className="text-xs text-slate-700 whitespace-nowrap">
+                                            {formatDate(item.checkIn)} → {formatDate(item.checkOut)}
+                                        </td>
+                                        <td className="text-xs text-slate-600 whitespace-nowrap font-medium">
+                                            {item.nights} night(s)
+                                        </td>
+                                        <td className="font-bold text-teal-900 whitespace-nowrap">
+                                            ৳{Number(item.amount || 0).toLocaleString()}
+                                        </td>
+                                        <td className="text-xs text-slate-600 whitespace-nowrap">
+                                            {item.transactionId ? (
+                                                <p className="font-mono font-bold text-slate-800">{item.transactionId}</p>
+                                            ) : <span className="text-slate-400">—</span>}
+                                            {item.reference && <p className="text-[11px] text-teal-700">Ref: {item.reference}</p>}
+                                        </td>
+                                        <td className="text-center whitespace-nowrap">
+                                            <Link
+                                                to={`/dashboard/bookings/${item._id}`}
+                                                className="btn btn-xs btn-outline border-slate-300 text-slate-700 hover:bg-slate-50 rounded-lg gap-1"
+                                            >
+                                                <Eye size={12} /> Details
+                                            </Link>
                                         </td>
                                     </tr>
-                                ) : (
-                                    filteredItems.map((item, idx) => (
-                                        <tr key={`${item.bookingId}-${idx}`} className="hover:bg-slate-50/80 transition-colors">
-                                            <td className="whitespace-nowrap">
-                                                <Link
-                                                    to={`/dashboard/bookings/${item._id}`}
-                                                    className="font-mono text-xs font-bold text-teal-700 bg-teal-50 hover:bg-teal-100 px-2.5 py-1 rounded-lg border border-teal-200/60 inline-flex items-center gap-1"
-                                                >
-                                                    {item.bookingId}
-                                                </Link>
-                                            </td>
-                                            <td className="whitespace-nowrap">
-                                                <p className="font-bold text-slate-900">{item.guestName}</p>
-                                                <p className="text-xs text-slate-500 font-medium">{item.guestPhone}</p>
-                                            </td>
-                                            <td className="whitespace-nowrap">
-                                                <p className="font-semibold text-slate-800 text-xs">{item.categoryName}</p>
-                                                {item.roomNo && (
-                                                    <span className="badge badge-xs bg-teal-100 text-teal-900 border-none font-mono font-bold mt-0.5">
-                                                        Room {item.roomNo}
-                                                    </span>
-                                                )}
-                                            </td>
-                                            <td className="text-xs text-slate-700 whitespace-nowrap">
-                                                {item.checkIn} → {item.checkOut}
-                                            </td>
-                                            <td className="text-xs text-slate-600 whitespace-nowrap font-medium">
-                                                {item.nights} night(s)
-                                            </td>
-                                            <td className="font-bold text-teal-900 whitespace-nowrap">
-                                                ৳{Number(item.amount || 0).toLocaleString()}
-                                            </td>
-                                            <td className="text-xs text-slate-600 whitespace-nowrap">
-                                                {item.transactionId ? (
-                                                    <p className="font-mono font-bold text-slate-800">{item.transactionId}</p>
-                                                ) : <span className="text-slate-400">—</span>}
-                                                {item.reference && <p className="text-[11px] text-teal-700">Ref: {item.reference}</p>}
-                                            </td>
-                                            <td className="text-center whitespace-nowrap">
-                                                <Link
-                                                    to={`/dashboard/bookings/${item._id}`}
-                                                    className="btn btn-xs btn-outline border-slate-300 text-slate-700 hover:bg-slate-50 rounded-lg gap-1"
-                                                >
-                                                    <Eye size={12} /> Details
-                                                </Link>
-                                            </td>
-                                        </tr>
-                                    ))
-                                )}
-                            </tbody>
-                        </table>
-                    </div>
+                                ))
+                            )}
+                        </tbody>
+                    </table>
                 </div>
             </div>
         </div>

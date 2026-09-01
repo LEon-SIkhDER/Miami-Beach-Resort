@@ -60,8 +60,8 @@ const EditBookingModal = ({ booking, isOpen, onClose, onSuccess }) => {
     const [status, setStatus] = useState('request_booking')
     const [reference, setReference] = useState('')
     const [transactionId, setTransactionId] = useState('')
-    const [totalAmount, setTotalAmount] = useState(0)
-    const [paidAmount, setPaidAmount] = useState(0)
+    const [discountAmount, setDiscountAmount] = useState('')
+    const [paidAmount, setPaidAmount] = useState('')
     const [advanceAmount, setAdvanceAmount] = useState(0)
     const [notes, setNotes] = useState('')
     const [rooms, setRooms] = useState([])
@@ -88,6 +88,64 @@ const EditBookingModal = ({ booking, isOpen, onClose, onSuccess }) => {
 
     const eligibleReferences = allUsers.filter(u => u.role && u.role !== "user")
 
+    // Fetch active bookings to verify room occupancy
+    const { data: activeBookings = [] } = useQuery({
+        queryKey: ["active-bookings-for-edit-modal"],
+        queryFn: async () => {
+            const res = await axiosSecure.get("/bookings")
+            return res.data
+        },
+        enabled: isOpen && !!booking
+    })
+
+    // Fetch Out of Order records
+    const { data: outOfOrderList = [] } = useQuery({
+        queryKey: ["out-of-order-for-edit-modal"],
+        queryFn: async () => {
+            const res = await axiosSecure.get("/out-of-order")
+            return res.data
+        },
+        enabled: isOpen && !!booking
+    })
+
+    const isRoomOutOfOrder = (roomNo, checkInDate, checkOutDate) => {
+        if (!roomNo || !checkInDate || !checkOutDate) return false
+        const checkIn = formatLocalDate(checkInDate)
+        const checkOut = formatLocalDate(checkOutDate)
+        return outOfOrderList.some(ooo => {
+            if (!ooo || ooo.status !== "active") return false
+            return String(ooo.roomNo).trim() === String(roomNo).trim() && ooo.startDate < checkOut && ooo.endDate > checkIn
+        })
+    }
+
+    const isRoomNoOccupied = (roomNo, checkInDate, checkOutDate, currentBookingId, currentRoomIndex) => {
+        if (!roomNo || !checkInDate || !checkOutDate) return false
+        const checkIn = formatLocalDate(checkInDate)
+        const checkOut = formatLocalDate(checkOutDate)
+
+        // 1. Check if another room inside the SAME edit form has assigned this room number for overlapping dates
+        const assignedInSameForm = rooms.some((r, idx) => {
+            if (idx === currentRoomIndex) return false
+            if (!r.roomNo || !r.checkInDate || !r.checkOutDate) return false
+            const rIn = formatLocalDate(r.checkInDate)
+            const rOut = formatLocalDate(r.checkOutDate)
+            return String(r.roomNo).trim() === String(roomNo).trim() && rIn < checkOut && rOut > checkIn
+        })
+        if (assignedInSameForm) return true
+
+        // 2. Check against other confirmed/active reservations in database
+        return activeBookings.some(b => {
+            if (String(b._id) === String(currentBookingId) || String(b.bookingId) === String(currentBookingId)) return false
+            if (["cancel", "cancelled", "checked_out"].includes(b.status)) return false
+
+            const otherRooms = getBookingRooms(b)
+            return otherRooms.some(r => {
+                if (!r.roomNo || !r.checkIn || !r.checkOut) return false
+                return String(r.roomNo).trim() === String(roomNo).trim() && r.checkIn < checkOut && r.checkOut > checkIn
+            })
+        })
+    }
+
     useEffect(() => {
         if (booking && isOpen) {
             setName(booking.name || '')
@@ -105,14 +163,16 @@ const EditBookingModal = ({ booking, isOpen, onClose, onSuccess }) => {
                 checkInDate: parseLocalDate(r.checkIn),
                 checkOutDate: parseLocalDate(r.checkOut),
                 adults: Number(r.adults || 2),
-                babies: Number(r.babies || 0),
+                babies: Number(r.children !== undefined ? r.children : (r.babies || 0)),
+                children: Number(r.children !== undefined ? r.children : (r.babies || 0)),
                 pricePerNight: Number(r.pricePerNight || 0),
                 roomNo: r.roomNo || ''
             })))
 
-            const initialTotal = booking.totalAmount !== undefined ? booking.totalAmount : getBookingTotal(booking)
-            setTotalAmount(initialTotal || 0)
-            setPaidAmount(booking.paidAmount || 0)
+            const initialDiscount = Number(booking.discountAmount || booking.discount || booking.specialDiscount || 0)
+            setDiscountAmount(initialDiscount > 0 ? String(initialDiscount) : '')
+            const initialPaid = booking.paidAmount !== undefined ? booking.paidAmount : (booking.advanceAmount || 0)
+            setPaidAmount(initialPaid !== undefined && initialPaid !== null ? String(initialPaid) : '0')
             setAdvanceAmount(booking.advanceAmount || 0)
         }
     }, [booking, isOpen])
@@ -124,42 +184,54 @@ const EditBookingModal = ({ booking, isOpen, onClose, onSuccess }) => {
         const nights = Math.ceil((r.checkOutDate - r.checkInDate) / (1000 * 60 * 60 * 24))
         return sum + (nights > 0 ? nights * Number(r.pricePerNight || 0) : 0)
     }, 0)
-    const finalTotal = Number(totalAmount || 0)
-    const discountAmount = Math.max(0, standardTotal - finalTotal)
-    const effectivePaid = Number(paidAmount || 0)
-    const dueAmount = Math.max(0, finalTotal - effectivePaid)
+
+    const discount = discountAmount !== '' ? Number(discountAmount) : 0
+    const netPayable = Math.max(0, standardTotal - discount)
+    const effectivePaid = paidAmount !== '' ? Number(paidAmount) : 0
+    const dueAmount = Math.max(0, netPayable - effectivePaid)
 
     const handleRoomChange = (index, changes) => {
         setRooms(prev => prev.map((r, idx) => {
             if (idx !== index) return r
             const updated = { ...r, ...changes }
             if (changes.categoryId) {
-                const cat = categories.find(c => c._id === changes.categoryId)
+                const cat = categories.find(c => String(c._id) === String(changes.categoryId))
                 if (cat) {
                     updated.categoryName = cat.name
                     updated.pricePerNight = Number(cat.price || updated.pricePerNight)
                 }
+                // Reset room number — it belongs to the old category and is invalid for the new one
+                updated.roomNo = ""
             }
             if (changes.checkInDate && updated.checkOutDate && changes.checkInDate >= updated.checkOutDate) {
-                updated.checkOutDate = null
+                updated.checkOutDate = addDays(changes.checkInDate, 1)
             }
             return updated
         }))
     }
 
     const handleAddRoom = () => {
-        const defaultCat = categories[0]
+        const firstRoomCat = categories.find(c => String(c._id) === String(rooms[0]?.categoryId)) || categories[0]
+        const defaultCat = firstRoomCat || categories[0]
+        const checkIn = rooms[0]?.checkInDate || new Date()
+        const checkOut = rooms[0]?.checkOutDate || addDays(new Date(), 1)
+        const nights = Math.max(1, Math.ceil((new Date(checkOut) - new Date(checkIn)) / (1000 * 60 * 60 * 24)))
+        const pricePerNight = Number(defaultCat?.price || 0)
+        const newRoomPrice = pricePerNight * nights
+
         setRooms(prev => [...prev, {
             roomId: defaultCat?._id || "",
             categoryId: defaultCat?._id || "",
             categoryName: defaultCat?.name || "Suite",
             roomNo: "",
-            checkInDate: rooms[0]?.checkInDate || new Date(),
-            checkOutDate: rooms[0]?.checkOutDate || addDays(new Date(), 1),
+            checkInDate: checkIn,
+            checkOutDate: checkOut,
             adults: 2,
             babies: 0,
-            pricePerNight: Number(defaultCat?.price || 0)
+            children: 0,
+            pricePerNight: pricePerNight
         }])
+        toast.success(`Added ${defaultCat?.name || 'Room'} (+৳${newRoomPrice.toLocaleString()})`)
     }
 
     const handleRemoveRoom = (index) => {
@@ -167,18 +239,41 @@ const EditBookingModal = ({ booking, isOpen, onClose, onSuccess }) => {
         setRooms(prev => prev.filter((_, idx) => idx !== index))
     }
 
-    const calculateAutoTotal = () => {
-        const total = rooms.reduce((sum, r) => {
-            if (!r.checkInDate || !r.checkOutDate) return sum
-            const nights = Math.ceil((r.checkOutDate - r.checkInDate) / (1000 * 60 * 60 * 24))
-            return sum + (nights > 0 ? nights * Number(r.pricePerNight || 0) : 0)
-        }, 0)
-        setTotalAmount(total)
-        toast.success(`Calculated Total: ৳${total.toLocaleString()}`)
-    }
-
     const handleSubmit = async (e) => {
         e.preventDefault()
+
+        // Validate room occupancy conflicts
+        for (let i = 0; i < rooms.length; i++) {
+            const r = rooms[i]
+            if (r.roomNo) {
+                const isOccupied = isRoomNoOccupied(r.roomNo, r.checkInDate, r.checkOutDate, booking._id, i)
+                const isOOO = isRoomOutOfOrder(r.roomNo, r.checkInDate, r.checkOutDate)
+                if (isOccupied) {
+                    toast.error(`Room ${r.roomNo} (Room ${i + 1}) is already occupied for the selected stay dates!`)
+                    return
+                }
+                if (isOOO) {
+                    toast.error(`Room ${r.roomNo} (Room ${i + 1}) is Out of Order for the selected stay dates!`)
+                    return
+                }
+            }
+        }
+
+        // Require physical room number if advancing beyond request_booking
+        if (status !== "request_booking" && status !== "cancel") {
+            const missingRoom = rooms.find(r => !r.roomNo || !String(r.roomNo).trim())
+            if (missingRoom) {
+                toast.error("Please assign a physical room number for all rooms.")
+                return
+            }
+        }
+
+        const isConfirmedStatus = ["booking_confirmed", "checked_id", "checked_in", "checked_out", "confirmed"].includes(status)
+        if (isConfirmedStatus && effectivePaid > 0 && !transactionId.trim()) {
+            toast.error("Transaction ID / Receipt No is required when confirming with payment.")
+            return
+        }
+
         setIsSubmitting(true)
         const toastId = toast.loading("Updating reservation...")
 
@@ -191,19 +286,10 @@ const EditBookingModal = ({ booking, isOpen, onClose, onSuccess }) => {
                 checkIn: formatLocalDate(r.checkInDate),
                 checkOut: formatLocalDate(r.checkOutDate),
                 adults: Number(r.adults || 1),
-                babies: Number(r.babies || 0),
+                babies: Number(r.children !== undefined ? r.children : (r.babies || 0)),
+                children: Number(r.children !== undefined ? r.children : (r.babies || 0)),
                 pricePerNight: Number(r.pricePerNight || 0)
             }))
-
-            const standardTotal = rooms.reduce((sum, r) => {
-                if (!r.checkInDate || !r.checkOutDate) return sum
-                const nights = Math.ceil((r.checkOutDate - r.checkInDate) / (1000 * 60 * 60 * 24))
-                return sum + (nights > 0 ? nights * Number(r.pricePerNight || 0) : 0)
-            }, 0)
-            const finalTotal = Number(totalAmount || 0)
-            const discountAmount = Math.max(0, standardTotal - finalTotal)
-            const effectivePaid = Number(paidAmount || 0)
-            const dueAmount = Math.max(0, finalTotal - effectivePaid)
 
             const payload = {
                 name: name.trim(),
@@ -212,8 +298,8 @@ const EditBookingModal = ({ booking, isOpen, onClose, onSuccess }) => {
                 userEmail: userEmail.trim(),
                 status,
                 rooms: normalizedRooms,
-                totalAmount: finalTotal,
-                discountAmount: discountAmount,
+                totalAmount: standardTotal,
+                discountAmount: discount,
                 paidAmount: effectivePaid,
                 dueAmount: dueAmount,
                 advanceAmount: effectivePaid,
@@ -269,7 +355,7 @@ const EditBookingModal = ({ booking, isOpen, onClose, onSuccess }) => {
                 </div>
 
                 {/* Body Form */}
-                <form onSubmit={handleSubmit} className="p-6 overflow-y-auto space-y-5 text-xs sm:text-sm flex-1">
+                <form onSubmit={handleSubmit} noValidate className="p-6 overflow-y-auto space-y-5 text-xs sm:text-sm flex-1">
                     {/* Guest Information */}
                     <div className="bg-slate-50/80 border border-slate-200 rounded-2xl p-4 space-y-3.5">
                         <h4 className="font-bold text-slate-900 text-xs uppercase tracking-wider flex items-center gap-1.5">
@@ -383,18 +469,43 @@ const EditBookingModal = ({ booking, isOpen, onClose, onSuccess }) => {
                                             </div>
 
                                             <div className="form-control md:col-span-2">
-                                                <label className="label py-0.5"><span className="label-text font-semibold text-slate-700 text-xs">Assigned Room No</span></label>
+                                                <label className="label py-0.5">
+                                                    <span className="label-text font-semibold text-slate-700 text-xs flex items-center justify-between w-full">
+                                                        <span>Assigned Room No</span>
+                                                        {room.roomNo && isRoomNoOccupied(room.roomNo, room.checkInDate, room.checkOutDate, booking._id, index) && (
+                                                            <span className="text-rose-600 font-bold text-[10px]">Occupied on these dates!</span>
+                                                        )}
+                                                    </span>
+                                                </label>
                                                 <select
                                                     value={room.roomNo || ""}
                                                     onChange={e => handleRoomChange(index, { roomNo: e.target.value })}
-                                                    className="select select-sm select-bordered w-full rounded-xl bg-white text-xs font-medium"
+                                                    className={`select select-sm select-bordered w-full rounded-xl bg-white text-xs font-medium ${
+                                                        room.roomNo && isRoomNoOccupied(room.roomNo, room.checkInDate, room.checkOutDate, booking._id, index)
+                                                            ? 'border-rose-400 bg-rose-50/50 text-rose-900'
+                                                            : ''
+                                                    }`}
                                                 >
-                                                    <option value="">-- Select Room No --</option>
-                                                    {availableRoomNumbers.map(num => (
-                                                        <option key={num} value={num}>Room {num}</option>
-                                                    ))}
+                                                    <option value="">-- Select Room No (Optional) --</option>
+                                                    {availableRoomNumbers.map(num => {
+                                                        const isOccupied = isRoomNoOccupied(num, room.checkInDate, room.checkOutDate, booking._id, index)
+                                                        const isOOO = isRoomOutOfOrder(num, room.checkInDate, room.checkOutDate)
+                                                        const isCurrentlyAssigned = String(room.roomNo) === String(num)
+                                                        const isDisabled = (isOccupied || isOOO) && !isCurrentlyAssigned
+
+                                                        return (
+                                                            <option 
+                                                                key={num} 
+                                                                value={num}
+                                                                disabled={isDisabled}
+                                                                className={isDisabled ? "text-rose-400 bg-slate-100 font-normal" : "font-semibold text-slate-800"}
+                                                            >
+                                                                Room {num} {isOOO ? "— (Out of Order)" : isOccupied ? (isCurrentlyAssigned ? "— (Current Room)" : "— (Occupied / Booked)") : "— (Available)"}
+                                                            </option>
+                                                        )
+                                                    })}
                                                     {room.roomNo && !availableRoomNumbers.includes(room.roomNo) && (
-                                                        <option value={room.roomNo}>{room.roomNo}</option>
+                                                        <option value={room.roomNo}>Room {room.roomNo} (Assigned)</option>
                                                     )}
                                                 </select>
                                             </div>
@@ -433,6 +544,17 @@ const EditBookingModal = ({ booking, isOpen, onClose, onSuccess }) => {
                                             </div>
 
                                             <div className="form-control">
+                                                <label className="label py-0.5"><span className="label-text font-semibold text-slate-700 text-xs">Children</span></label>
+                                                <input
+                                                    type="number"
+                                                    min="0"
+                                                    value={room.children !== undefined ? room.children : (room.babies || 0)}
+                                                    onChange={e => handleRoomChange(index, { babies: e.target.value, children: e.target.value })}
+                                                    className="input input-sm input-bordered w-full rounded-xl bg-white text-xs"
+                                                />
+                                            </div>
+
+                                            <div className="form-control">
                                                 <label className="label py-0.5"><span className="label-text font-semibold text-slate-700 text-xs">Rate / Night (৳)</span></label>
                                                 <input
                                                     type="number"
@@ -453,45 +575,45 @@ const EditBookingModal = ({ booking, isOpen, onClose, onSuccess }) => {
                     <div className="bg-slate-50/80 border border-slate-200 rounded-2xl p-4 space-y-3.5">
                         <div className="flex items-center justify-between">
                             <h4 className="font-bold text-slate-900 text-xs uppercase tracking-wider flex items-center gap-1.5">
-                                <CreditCard size={14} className="text-teal-600" /> Billing & Status
+                                <CreditCard size={14} className="text-teal-600" /> Billing, Discount & Payment
                             </h4>
-                            <button
-                                type="button"
-                                onClick={calculateAutoTotal}
-                                className="text-[11px] font-semibold text-teal-700 hover:underline"
-                            >
-                                Auto-Calculate Total
-                            </button>
+                            <span className="text-xs font-semibold text-slate-500">
+                                {rooms.length} Room{rooms.length > 1 ? 's' : ''} Booked
+                            </span>
                         </div>
 
                         {/* Financial Calculation Card */}
-                        <div className="p-3.5 bg-white border border-slate-200 rounded-2xl space-y-3">
-                            <div className="flex items-center justify-between text-xs border-b border-slate-100 pb-2">
-                                <span className="text-slate-600 font-semibold">Standard Room Subtotal:</span>
-                                <strong className="text-slate-900 font-bold">৳{standardTotal.toLocaleString()}</strong>
+                        <div className="p-4 bg-white border border-slate-200 rounded-2xl space-y-3">
+                            {/* Gross Room Total Header */}
+                            <div className="flex items-center justify-between text-xs border-b border-slate-100 pb-2.5">
+                                <span className="text-slate-600 font-semibold">Total Room Bill (Gross Subtotal):</span>
+                                <strong className="text-slate-900 font-extrabold text-sm sm:text-base font-mono">৳{standardTotal.toLocaleString()}</strong>
                             </div>
 
-                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                                {/* Total Bill */}
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+                                {/* Dedicated Special Discount Input Field */}
                                 <div className="form-control">
                                     <label className="label py-0.5">
-                                        <span className="label-text font-bold text-slate-800 text-xs">Total Bill (৳) *</span>
+                                        <span className="label-text font-bold text-slate-800 text-xs flex items-center gap-1">
+                                            <Receipt size={13} className="text-emerald-600" /> Special Discount (৳)
+                                        </span>
                                     </label>
                                     <input
                                         type="number"
-                                        required
                                         min="0"
-                                        value={totalAmount}
-                                        onChange={e => setTotalAmount(e.target.value)}
-                                        className="input input-sm input-bordered w-full rounded-xl bg-white text-xs font-bold text-teal-900"
+                                        max={standardTotal}
+                                        value={discountAmount}
+                                        onChange={e => setDiscountAmount(e.target.value)}
+                                        placeholder="0"
+                                        className="input input-sm input-bordered w-full rounded-xl bg-white text-xs font-bold text-emerald-800"
                                     />
-                                    {discountAmount > 0 ? (
+                                    {discount > 0 ? (
                                         <span className="text-[10px] text-emerald-700 font-bold mt-0.5">
-                                            🎉 Discount: -৳{discountAmount.toLocaleString()}
+                                            🎉 -৳{discount.toLocaleString()} ({Math.round((discount / (standardTotal || 1)) * 100)}% off)
                                         </span>
                                     ) : (
                                         <span className="text-[10px] text-slate-400 mt-0.5">
-                                            Standard is ৳{standardTotal.toLocaleString()}
+                                            Enter discount in ৳
                                         </span>
                                     )}
                                 </div>
@@ -499,30 +621,35 @@ const EditBookingModal = ({ booking, isOpen, onClose, onSuccess }) => {
                                 {/* Paid Amount */}
                                 <div className="form-control">
                                     <label className="label py-0.5">
-                                        <span className="label-text font-bold text-slate-800 text-xs">Paid / Done (৳)</span>
+                                        <span className="label-text font-bold text-slate-800 text-xs flex items-center gap-1">
+                                            <CreditCard size={13} className="text-teal-600" /> Paid / Received (৳)
+                                        </span>
                                     </label>
                                     <input
                                         type="number"
                                         min="0"
                                         value={paidAmount}
                                         onChange={e => setPaidAmount(e.target.value)}
+                                        placeholder="0"
                                         className="input input-sm input-bordered w-full rounded-xl bg-white text-xs font-bold text-emerald-800"
                                     />
-                                    <div className="flex gap-1 mt-1">
+                                    <div className="flex gap-1.5 mt-1">
                                         <button
                                             type="button"
-                                            onClick={() => setPaidAmount(String(finalTotal))}
-                                            className="btn btn-2xs btn-outline border-emerald-300 text-emerald-700 hover:bg-emerald-50 rounded-lg text-[9px]"
+                                            onClick={() => setPaidAmount(String(netPayable))}
+                                            className="btn btn-2xs btn-outline border-emerald-300 text-emerald-700 hover:bg-emerald-50 rounded-lg text-[9px] font-bold"
                                         >
-                                            Full
+                                            Full (৳{netPayable.toLocaleString()})
                                         </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => setPaidAmount('0')}
-                                            className="btn btn-2xs btn-outline border-orange-300 text-orange-700 hover:bg-orange-50 rounded-lg text-[9px]"
-                                        >
-                                            ৳0 Due
-                                        </button>
+                                        {netPayable > 1000 && (
+                                            <button
+                                                type="button"
+                                                onClick={() => setPaidAmount(String(Math.round(netPayable / 2)))}
+                                                className="btn btn-2xs btn-outline border-slate-300 text-slate-600 hover:bg-slate-50 rounded-lg text-[9px]"
+                                            >
+                                                50%
+                                            </button>
+                                        )}
                                     </div>
                                 </div>
 
@@ -534,7 +661,7 @@ const EditBookingModal = ({ booking, isOpen, onClose, onSuccess }) => {
                                     <select
                                         value={status}
                                         onChange={e => setStatus(e.target.value)}
-                                        className="select select-sm select-bordered w-full rounded-xl bg-white text-xs font-medium"
+                                        className="select select-sm select-bordered w-full rounded-xl bg-white text-xs font-bold capitalize text-slate-800"
                                     >
                                         {STATUS_OPTIONS.map(opt => (
                                             <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -543,16 +670,24 @@ const EditBookingModal = ({ booking, isOpen, onClose, onSuccess }) => {
                                 </div>
                             </div>
 
-                            {/* Live Payment Due Display */}
-                            <div className="flex items-center justify-between pt-2 border-t border-slate-100 text-xs">
-                                <span className="font-bold text-slate-700">Remaining Payment Due:</span>
-                                <span className={`px-2.5 py-1 rounded-xl text-xs font-extrabold ${
-                                    dueAmount > 0 
-                                        ? 'bg-orange-100 text-orange-800 border border-orange-300' 
-                                        : 'bg-emerald-100 text-emerald-800 border border-emerald-300'
-                                }`}>
-                                    {dueAmount > 0 ? `⚠️ Due: ৳${dueAmount.toLocaleString()}` : '✅ Fully Paid (৳0 Due)'}
-                                </span>
+                            {/* Live Calculation Summary Banner */}
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs">
+                                <div className="space-y-0.5">
+                                    <div className="flex items-center gap-3">
+                                        <span className="text-slate-500">Gross: <strong>৳{standardTotal.toLocaleString()}</strong></span>
+                                        {discount > 0 && <span className="text-emerald-700 font-semibold">Discount: -৳{discount.toLocaleString()}</span>}
+                                        <span className="text-teal-900 font-extrabold text-xs sm:text-sm">Net Payable: ৳{netPayable.toLocaleString()}</span>
+                                    </div>
+                                    <div className="text-[11px] text-slate-500">
+                                        Paid: <strong className="text-emerald-700">৳{effectivePaid.toLocaleString()}</strong>
+                                    </div>
+                                </div>
+                                <div className="sm:text-right">
+                                    <span className="font-bold text-slate-700 block text-[11px]">Due Balance:</span>
+                                    <span className={`font-black text-sm sm:text-base ${dueAmount > 0 ? 'text-orange-600' : 'text-emerald-600'}`}>
+                                        ৳{dueAmount.toLocaleString()}
+                                    </span>
+                                </div>
                             </div>
                         </div>
 
@@ -576,13 +711,24 @@ const EditBookingModal = ({ booking, isOpen, onClose, onSuccess }) => {
                                 </select>
                             </div>
                             <div className="form-control">
-                                <label className="label py-0.5"><span className="label-text font-semibold text-slate-700 text-xs flex items-center gap-1"><Receipt size={13} /> Transaction ID</span></label>
+                                <label className="label py-0.5">
+                                    <span className="label-text font-semibold text-slate-700 text-xs flex items-center justify-between w-full">
+                                        <span className="flex items-center gap-1">
+                                            <Receipt size={13} /> Transaction ID
+                                        </span>
+                                        {["booking_confirmed", "checked_id", "checked_in", "checked_out", "confirmed"].includes(status) && effectivePaid > 0 ? (
+                                            <span className="text-rose-600 font-bold text-[10px]">* Required</span>
+                                        ) : (
+                                            <span className="text-slate-400 text-[10px]">(Optional for Request/Waiting)</span>
+                                        )}
+                                    </span>
+                                </label>
                                 <input
                                     type="text"
                                     value={transactionId}
                                     onChange={e => setTransactionId(e.target.value)}
                                     placeholder="TrxID / Receipt No"
-                                    className="input input-sm input-bordered w-full rounded-xl bg-white text-xs"
+                                    className={`input input-sm input-bordered w-full rounded-xl bg-white text-xs ${["booking_confirmed", "checked_id", "checked_in", "checked_out", "confirmed"].includes(status) && effectivePaid > 0 && !transactionId.trim() ? 'border-amber-400' : ''}`}
                                 />
                             </div>
                         </div>

@@ -8,6 +8,7 @@ import toast from 'react-hot-toast'
 import { showConfirmAlert } from '../../../utils/customSwal'
 import {
     Calendar,
+    CalendarCheck,
     Users as UsersIcon,
     Phone,
     Trash2,
@@ -22,9 +23,16 @@ import {
     LogIn,
     LogOut,
     XCircle,
-    Pencil
+    Pencil,
+    Shield,
+    Briefcase,
+    Building2,
+    UserCheck,
+    Globe,
+    User,
+    Filter
 } from 'lucide-react'
-import { getBookingDateSummary, getBookingGuestTotals, getBookingRooms, getBookingTotal, getRoomName } from '../../../utils/bookingUtils'
+import { formatDate, getBookingDateSummary, getBookingGuestTotals, getBookingRooms, getBookingTotal, getRoomName } from '../../../utils/bookingUtils'
 import ConfirmBookingModal from './ConfirmBookingModal'
 import EditBookingModal from './EditBookingModal'
 import CancelBookingModal from './CancelBookingModal'
@@ -51,12 +59,28 @@ const statusText = (status) => {
     return STATUS_OPTIONS.find(option => option.value === status)?.label || status || "Unknown"
 }
 
+const getActorRoleBadge = (actorRole) => {
+    switch (actorRole) {
+        case "admin":
+            return <span className="badge badge-xs bg-amber-100 text-amber-900 border-amber-300 font-bold">Admin</span>
+        case "manager":
+            return <span className="badge badge-xs bg-purple-100 text-purple-900 border-purple-300 font-bold">Manager</span>
+        case "agent":
+            return <span className="badge badge-xs bg-teal-100 text-teal-900 border-teal-300 font-bold">Agent</span>
+        case "b2b":
+            return <span className="badge badge-xs bg-blue-100 text-blue-900 border-blue-300 font-bold">B2B</span>
+        default:
+            return <span className="badge badge-xs bg-slate-100 text-slate-700 border-slate-300 font-semibold">User</span>
+    }
+}
+
 const Bookings = () => {
     const { user: currentUser } = useContext(AuthContext)
     const { role } = useRole()
     const axiosSecure = useAxiosSecure()
     const queryClient = useQueryClient()
     const [statusFilter, setStatusFilter] = useState("")
+    const [refFilter, setRefFilter] = useState("")
     const [search, setSearch] = useState("")
 
     // Modals state
@@ -64,16 +88,26 @@ const Bookings = () => {
     const [editModalBooking, setEditModalBooking] = useState(null)
     const [cancelModalBooking, setCancelModalBooking] = useState(null)
 
-    const isAdmin = role === "admin"
+    const isStaff = ["admin", "manager", "agent"].includes(role)
+    const canEdit = ["admin", "manager", "agent"].includes(role)
+    const canDelete = ["admin", "manager"].includes(role)
 
     const { data: bookings = [], isLoading } = useQuery({
         queryKey: ["bookings", currentUser?.email, role, statusFilter],
         enabled: !!currentUser && role !== undefined,
         queryFn: async () => {
             const params = new URLSearchParams()
-            if (!isAdmin) params.set("email", currentUser.email)
+            if (!isStaff) params.set("email", currentUser.email)
             if (statusFilter) params.set("status", statusFilter)
             const res = await axiosSecure.get(`/bookings?${params.toString()}`)
+            return res.data
+        }
+    })
+
+    const { data: outOfOrderList = [] } = useQuery({
+        queryKey: ["out-of-order-for-bookings-page"],
+        queryFn: async () => {
+            const res = await axiosSecure.get("/out-of-order")
             return res.data
         }
     })
@@ -102,9 +136,9 @@ const Bookings = () => {
             toast.dismiss(context?.toastId)
             toast.success(`Status changed to ${statusText(variables.status)}.`)
         },
-        onError: (_, __, context) => {
+        onError: (err, __, context) => {
             toast.dismiss(context?.toastId)
-            toast.error("Failed to update reservation status.")
+            toast.error(err.response?.data?.message || "Failed to update reservation status.")
         }
     })
 
@@ -138,6 +172,32 @@ const Bookings = () => {
         if (status === BOOKING_STATUS.CANCEL) {
             setCancelModalBooking(booking)
             return
+        }
+
+        if (status !== BOOKING_STATUS.REQUEST_BOOKING && status !== BOOKING_STATUS.CANCEL) {
+            const bookingRooms = getBookingRooms(booking)
+            const missingRoom = bookingRooms.find(r => !r.roomNo || !String(r.roomNo).trim())
+            if (missingRoom) {
+                toast.error(`Please assign a physical room number before setting to ${statusText(status)}.`)
+                return
+            }
+
+            // Check if any assigned room is Out of Order
+            const oooRoom = bookingRooms.find(r => {
+                if (!r.roomNo) return false
+                const checkIn = r.checkIn
+                const checkOut = r.checkOut
+                return outOfOrderList.some(ooo => 
+                    ooo && ooo.status === "active" && 
+                    String(ooo.roomNo).trim() === String(r.roomNo).trim() && 
+                    ooo.startDate < checkOut && ooo.endDate > checkIn
+                )
+            })
+
+            if (oooRoom) {
+                toast.error(`Room ${oooRoom.roomNo} is Out of Order for maintenance. Cannot mark as ${statusText(status)}.`)
+                return
+            }
         }
 
         showConfirmAlert(
@@ -182,6 +242,13 @@ const Bookings = () => {
     }
 
     const getStatusActions = (booking) => {
+        if (role === "b2b") {
+            if (booking.status === BOOKING_STATUS.REQUEST_BOOKING) {
+                return [BOOKING_STATUS.PAYMENT_WAITING]
+            }
+            return []
+        }
+
         switch (booking.status) {
             case BOOKING_STATUS.REQUEST_BOOKING:
                 return [BOOKING_STATUS.PAYMENT_WAITING, BOOKING_STATUS.CANCEL]
@@ -196,7 +263,55 @@ const Bookings = () => {
         }
     }
 
+    const renderReferenceBadge = (booking) => {
+        const ref = booking.reference || booking.bookedBy?.name || "Website Direct"
+        const actorRole = booking.bookedBy?.role || booking.requestedByRole || (ref === "Website Direct" ? "user" : "agent")
+        
+        let rolePillClass = "bg-slate-100 text-slate-700 border-slate-200"
+        let IconComponent = UserCheck
+        let displayRole = "Direct Guest"
+        
+        if (actorRole === "admin") {
+            rolePillClass = "bg-amber-50 text-amber-800 border-amber-200"
+            IconComponent = Shield
+            displayRole = "Admin"
+        } else if (actorRole === "manager") {
+            rolePillClass = "bg-purple-50 text-purple-800 border-purple-200"
+            IconComponent = Briefcase
+            displayRole = "Manager"
+        } else if (actorRole === "agent") {
+            rolePillClass = "bg-teal-50 text-teal-800 border-teal-200"
+            IconComponent = UserCheck
+            displayRole = "Agent"
+        } else if (actorRole === "b2b") {
+            rolePillClass = "bg-blue-50 text-blue-800 border-blue-200"
+            IconComponent = Building2
+            displayRole = "B2B Partner"
+        } else if (ref === "Website Direct" || actorRole === "user") {
+            rolePillClass = "bg-emerald-50 text-emerald-800 border-emerald-200"
+            IconComponent = Globe
+            displayRole = "Online Guest"
+        }
+
+        return (
+            <div className="flex flex-col gap-0.5">
+                <div className="font-bold text-slate-900 text-xs truncate max-w-[140px] flex items-center gap-1.5" title={ref}>
+                    <IconComponent size={13} className="text-teal-600 shrink-0" />
+                    <span className="truncate">{ref}</span>
+                </div>
+                <span className={`inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-bold border w-fit ${rolePillClass}`}>
+                    {displayRole}
+                </span>
+            </div>
+        )
+    }
+
+    const uniqueReferences = Array.from(new Set(bookings.map(b => b.reference || b.bookedBy?.name || "Website Direct").filter(Boolean))).sort()
+
     const filteredBookings = bookings.filter(b => {
+        const refName = b.reference || b.bookedBy?.name || "Website Direct"
+        if (refFilter && refName !== refFilter) return false
+
         if (!search) return true
         const s = search.toLowerCase()
         const roomText = getBookingRooms(b).map(room => getRoomName(room)).join(" ").toLowerCase()
@@ -204,6 +319,10 @@ const Bookings = () => {
             b.mobile?.toLowerCase().includes(s) ||
             b.address?.toLowerCase().includes(s) ||
             b.bookingId?.toLowerCase().includes(s) ||
+            b.reference?.toLowerCase().includes(s) ||
+            b.bookedBy?.name?.toLowerCase().includes(s) ||
+            b.bookedBy?.email?.toLowerCase().includes(s) ||
+            b.userEmail?.toLowerCase().includes(s) ||
             b.roomName?.toLowerCase().includes(s) ||
             b.roomCategory?.toLowerCase().includes(s) ||
             roomText.includes(s)
@@ -214,10 +333,10 @@ const Bookings = () => {
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
                     <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 font-serif tracking-tight">
-                        {isAdmin ? "All Guest Bookings" : "My Reservations"}
+                        {isStaff ? "All Guest Bookings" : role === "b2b" ? "B2B Reservations" : "My Reservations"}
                     </h1>
                     <p className="text-xs sm:text-sm text-slate-500 mt-1">
-                        {isAdmin ? "Manage, confirm, edit, and review customer reservations." : "View stay history and booking confirmations."}
+                        {isStaff ? "Manage, confirm, edit, and track workflow references for customer reservations." : "View stay history and booking confirmations."}
                     </p>
                 </div>
 
@@ -226,12 +345,25 @@ const Bookings = () => {
                         <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                         <input
                             type="text"
-                            placeholder="Search by name, ID..."
+                            placeholder="Search by name, ID, ref..."
                             value={search}
                             onChange={e => setSearch(e.target.value)}
-                            className="input input-sm input-bordered pl-9 rounded-xl w-48 sm:w-56 bg-white"
+                            className="input input-sm input-bordered pl-9 rounded-xl w-44 sm:w-52 bg-white"
                         />
                     </div>
+
+                    {isStaff && uniqueReferences.length > 0 && (
+                        <select
+                            className="select select-sm select-bordered rounded-xl bg-white text-xs font-semibold"
+                            value={refFilter}
+                            onChange={e => setRefFilter(e.target.value)}
+                        >
+                            <option value="">All References / Agents</option>
+                            {uniqueReferences.map(r => (
+                                <option key={r} value={r}>Ref: {r}</option>
+                            ))}
+                        </select>
+                    )}
 
                     <select
                         className="select select-sm select-bordered rounded-xl bg-white text-xs font-semibold"
@@ -247,136 +379,167 @@ const Bookings = () => {
             </div>
 
             {/* Desktop Table View */}
-            <div className="hidden lg:block bg-white border border-slate-200 shadow-xs rounded-2xl overflow-hidden">
-                <div className="overflow-x-auto">
-                    <table className="table table-zebra w-full whitespace-nowrap">
-                        <thead>
-                            <tr className="bg-slate-50 text-slate-600 font-bold text-xs uppercase tracking-wider whitespace-nowrap">
-                                <th className="whitespace-nowrap min-w-[140px]">Booking ID</th>
-                                <th className="whitespace-nowrap">Guest Details</th>
-                                <th className="whitespace-nowrap">Room / Suite</th>
-                                <th className="whitespace-nowrap">Stay Dates</th>
-                                <th className="whitespace-nowrap">Guests</th>
-                                <th className="whitespace-nowrap">Total Bill</th>
-                                <th className="whitespace-nowrap">Status</th>
-                                <th className="text-center whitespace-nowrap min-w-[120px]">Actions</th>
+            <div className="hidden lg:block bg-white border border-slate-200 rounded-2xl overflow-x-auto shadow-xs">
+                <table className="table table-zebra w-full whitespace-nowrap">
+                    <thead>
+                        <tr className="bg-slate-50 text-slate-600 font-bold text-xs uppercase tracking-wider whitespace-nowrap">
+                            <th className="whitespace-nowrap min-w-[150px]">Reservation & Room</th>
+                            <th className="whitespace-nowrap">Guest Details</th>
+                            <th className="whitespace-nowrap">Booked By / Ref</th>
+                            <th className="whitespace-nowrap">Stay Dates</th>
+                            <th className="whitespace-nowrap">Total Bill</th>
+                            <th className="whitespace-nowrap">Status</th>
+                            <th className="text-center whitespace-nowrap min-w-[90px]">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 text-sm">
+                        {isLoading ? (
+                            [1, 2, 3, 4].map(n => (
+                                <tr key={n} className="animate-pulse">
+                                    <td><div className="h-8 bg-slate-200 w-36 rounded"></div></td>
+                                    <td><div className="h-4 bg-slate-200 w-28"></div></td>
+                                    <td><div className="h-4 bg-slate-200 w-28"></div></td>
+                                    <td><div className="h-4 bg-slate-200 w-28"></div></td>
+                                    <td><div className="h-4 bg-slate-200 w-20"></div></td>
+                                    <td><div className="h-6 bg-slate-200 w-24"></div></td>
+                                    <td><div className="h-8 bg-slate-200 w-8 mx-auto"></div></td>
+                                </tr>
+                            ))
+                        ) : filteredBookings.length === 0 ? (
+                            <tr>
+                                <td colSpan={7} className="text-center py-12 text-slate-400">
+                                    <CalendarCheck size={36} className="mx-auto mb-2 opacity-50" />
+                                    No bookings found.
+                                </td>
                             </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100 text-sm">
-                            {isLoading ? (
-                                [1, 2, 3, 4].map(n => (
-                                    <tr key={n} className="animate-pulse">
-                                        <td><div className="h-5 bg-slate-200 w-24"></div></td>
-                                        <td><div className="h-4 bg-slate-200 w-28"></div></td>
-                                        <td><div className="h-4 bg-slate-200 w-36"></div></td>
-                                        <td><div className="h-4 bg-slate-200 w-32"></div></td>
-                                        <td><div className="h-4 bg-slate-200 w-20"></div></td>
-                                        <td><div className="h-4 bg-slate-200 w-16"></div></td>
-                                        <td><div className="h-5 bg-slate-200 w-24"></div></td>
-                                        <td className="text-center"><div className="h-7 bg-slate-200 w-10 mx-auto"></div></td>
-                                    </tr>
-                                ))
-                            ) : filteredBookings.length === 0 ? (
-                                <tr>
-                                    <td colSpan={8} className="text-center py-12 text-slate-400">
-                                        <Calendar size={36} className="mx-auto mb-2 opacity-50" />
-                                        No reservations found matching your criteria.
+                        ) : (
+                            filteredBookings.map(b => {
+                                const bookingRooms = getBookingRooms(b)
+                                const totalAmount = getBookingTotal(b)
+                                const roomSummary = bookingRooms.map(room => getRoomName(room)).join(", ") || b.roomName || b.roomCategory
+
+                                return (
+                                <tr key={b._id} className="hover:bg-slate-50/80 transition-colors">
+                                    {/* Reservation & Room Suite */}
+                                    <td className="whitespace-nowrap">
+                                        <div className="space-y-1">
+                                            <div className="flex items-center gap-1.5">
+                                                <Link 
+                                                    to={`/dashboard/bookings/${b._id}`}
+                                                    className="font-mono text-xs font-bold text-teal-700 bg-teal-50 hover:bg-teal-100 px-2 py-0.5 rounded-lg border border-teal-200/60 inline-flex items-center gap-1 whitespace-nowrap"
+                                                >
+                                                    <span>{b.bookingId}</span>
+                                                </Link>
+                                                <span className="text-[10px] font-semibold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">
+                                                    {bookingRooms.length} Rm{bookingRooms.length > 1 ? 's' : ''}
+                                                </span>
+                                            </div>
+                                            <p className="font-semibold text-slate-800 text-xs max-w-[200px] truncate" title={roomSummary}>
+                                                {roomSummary}
+                                            </p>
+                                        </div>
+                                    </td>
+
+                                    {/* Guest Info */}
+                                    <td className="whitespace-nowrap">
+                                        <p className="font-bold text-slate-900">{b.name}</p>
+                                        <p className="text-xs text-slate-500 font-medium">{b.mobile}</p>
+                                    </td>
+
+                                    {/* Booked By / Ref Staff Tracking */}
+                                    <td className="whitespace-nowrap">
+                                        <div className="flex flex-col gap-0.5">
+                                            {b.reference ? (
+                                                <span className="font-bold text-teal-900 text-xs flex items-center gap-1">
+                                                    <UserCheck size={13} className="text-teal-600" />
+                                                    {b.reference}
+                                                </span>
+                                            ) : (
+                                                <span className="text-xs text-slate-400 italic">Direct Guest</span>
+                                            )}
+                                            {(b.bookedBy?.name || b.createdBy?.name) && (
+                                                <div className="flex items-center gap-1 text-[11px] text-slate-500">
+                                                    <span>by {b.bookedBy?.name || b.createdBy?.name}</span>
+                                                    {getActorRoleBadge(b.bookedBy?.role || b.createdBy?.role || b.requestedByRole || "user")}
+                                                </div>
+                                            )}
+                                        </div>
+                                    </td>
+
+                                    {/* Stay Dates (2 Lines) */}
+                                    <td className="text-xs whitespace-nowrap">
+                                        <div className="space-y-0.5">
+                                            <p className="font-semibold text-slate-800 flex items-center gap-1.5">
+                                                <span className="text-[9px] font-bold text-teal-800 bg-teal-50 border border-teal-200 px-1 py-0.2 rounded">In</span>
+                                                <span>{formatDate(b.checkIn || bookingRooms[0]?.checkIn)}</span>
+                                            </p>
+                                            <p className="text-slate-500 text-[11px] flex items-center gap-1.5">
+                                                <span className="text-[9px] font-bold text-slate-600 bg-slate-100 border border-slate-200 px-1 py-0.2 rounded">Out</span>
+                                                <span>{formatDate(b.checkOut || bookingRooms[0]?.checkOut)}</span>
+                                            </p>
+                                        </div>
+                                    </td>
+
+                                    {/* Total Bill */}
+                                    <td className="font-bold text-slate-900 whitespace-nowrap">
+                                        ৳{Number(b.totalAmount !== undefined ? b.totalAmount : totalAmount).toLocaleString()}
+                                    </td>
+
+                                    {/* Status Badge */}
+                                    <td className="whitespace-nowrap">
+                                        {statusBadge(b.status)}
+                                    </td>
+
+                                    {/* Actions */}
+                                    <td className="text-center whitespace-nowrap">
+                                        <div className="dropdown dropdown-end">
+                                            <div tabIndex={-1} role="button" className="btn btn-ghost btn-xs btn-circle text-slate-500 hover:text-slate-900">
+                                                <EllipsisVertical size={18} />
+                                            </div>
+                                            <ul tabIndex={-1} className="dropdown-content menu bg-base-100 rounded-box z-10 w-56 p-2 shadow-lg border border-slate-100">
+                                                <li>
+                                                    <Link to={`/dashboard/bookings/${b._id}`} className="text-slate-600 hover:text-teal-700 hover:bg-teal-50">
+                                                        <Eye size={15} /> View Details
+                                                    </Link>
+                                                </li>
+                                                {canEdit && (
+                                                    <li>
+                                                        <button 
+                                                            type="button" 
+                                                            onClick={() => setEditModalBooking(b)} 
+                                                            className="text-slate-600 hover:text-teal-700 hover:bg-teal-50"
+                                                        >
+                                                            <Pencil size={15} /> Edit Reservation
+                                                        </button>
+                                                    </li>
+                                                )}
+                                                {getStatusActions(b).map(status => (
+                                                    <li key={status}>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleStatusChange(b, status)}
+                                                            className={status === BOOKING_STATUS.CANCEL ? "text-rose-600 hover:bg-rose-50" : status === BOOKING_STATUS.BOOKING_CONFIRMED ? "text-emerald-700 hover:bg-emerald-50 font-semibold" : status === BOOKING_STATUS.PAYMENT_WAITING ? "text-sky-700 hover:bg-sky-50 font-semibold" : "text-slate-600 hover:text-teal-700 hover:bg-teal-50"}
+                                                        >
+                                                            {status === BOOKING_STATUS.CANCEL ? <XCircle size={15} /> : <CheckCircle2 size={15} />}
+                                                            {statusText(status)}
+                                                        </button>
+                                                    </li>
+                                                ))}
+                                                {canDelete && (
+                                                    <li>
+                                                        <button type="button" onClick={() => handleDelete(b)} className="text-rose-600 hover:bg-rose-50">
+                                                            <Trash2 size={15} /> Delete
+                                                        </button>
+                                                    </li>
+                                                )}
+                                            </ul>
+                                        </div>
                                     </td>
                                 </tr>
-                            ) : (
-                                filteredBookings.map(b => {
-                                    const bookingRooms = getBookingRooms(b)
-                                    const guestTotals = getBookingGuestTotals(b)
-                                    const roomTitle = bookingRooms.map(room => {
-                                        const rName = getRoomName(room)
-                                        return room.roomNo ? `${rName} (Room ${room.roomNo})` : rName
-                                    }).join(", ") || b.roomName || b.roomCategory
-                                    const dateSummary = getBookingDateSummary(b) || `${b.checkIn || ""} to ${b.checkOut || ""}`
-                                    const totalAmount = getBookingTotal(b)
-
-                                    return (
-                                    <tr key={b._id} className="hover:bg-slate-50/80 transition-colors">
-                                        <td className="whitespace-nowrap">
-                                            <Link
-                                                to={`/dashboard/bookings/${b._id}`}
-                                                className="font-mono text-xs font-bold text-teal-700 bg-teal-50 hover:bg-teal-100 hover:text-teal-900 px-2.5 py-1 rounded-lg border border-teal-200/60 inline-flex items-center gap-1.5 transition-colors whitespace-nowrap"
-                                                title="View Booking Details"
-                                            >
-                                                <span>{b.bookingId}</span>
-                                            </Link>
-                                        </td>
-                                        <td className="whitespace-nowrap">
-                                            <p className="font-bold text-slate-900">{b.name}</p>
-                                            <p className="text-xs text-slate-500 font-medium">{b.mobile}</p>
-                                            {b.address && <p className="text-[11px] text-slate-400 max-w-[220px] truncate">{b.address}</p>}
-                                        </td>
-                                        <td>
-                                            <span className="text-xs font-semibold text-slate-700 line-clamp-1 max-w-[220px]" title={roomTitle}>
-                                                {bookingRooms.length > 1 ? `${bookingRooms.length} Rooms` : roomTitle}
-                                            </span>
-                                        </td>
-                                        <td className="whitespace-nowrap">
-                                            <p className="font-medium text-xs text-slate-800">{dateSummary}</p>
-                                        </td>
-                                        <td className="text-xs text-slate-600 whitespace-nowrap">
-                                            {guestTotals.adults} Adults {guestTotals.babies > 0 ? `- ${guestTotals.babies} Baby` : ""}
-                                        </td>
-                                        <td className="font-bold text-slate-900 whitespace-nowrap">
-                                            ৳{Number(totalAmount || 0).toLocaleString()}
-                                        </td>
-                                        <td className="whitespace-nowrap">
-                                            {statusBadge(b.status)}
-                                        </td>
-                                        <td className="text-center whitespace-nowrap">
-                                            <div className="dropdown dropdown-left">
-                                                <div tabIndex={0} role="button" className="cursor-pointer rounded-full hover:bg-gray-100 p-2 border border-transparent hover:border-gray-200 inline-flex">
-                                                    <EllipsisVertical size={18} />
-                                                </div>
-                                                <ul tabIndex={-1} className="dropdown-content menu bg-base-100 rounded-box z-10 w-56 p-2 shadow-lg border border-slate-100">
-                                                    <li>
-                                                        <Link to={`/dashboard/bookings/${b._id}`} className="text-slate-600 hover:text-teal-700 hover:bg-teal-50">
-                                                            <Eye size={15} /> View Details
-                                                        </Link>
-                                                    </li>
-                                                    {isAdmin && (
-                                                        <li>
-                                                            <button 
-                                                                type="button" 
-                                                                onClick={() => setEditModalBooking(b)} 
-                                                                className="text-slate-600 hover:text-teal-700 hover:bg-teal-50"
-                                                            >
-                                                                <Pencil size={15} /> Edit Reservation
-                                                            </button>
-                                                        </li>
-                                                    )}
-                                                    {getStatusActions(b).map(status => (
-                                                        <li key={status}>
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => handleStatusChange(b, status)}
-                                                                className={status === BOOKING_STATUS.CANCEL ? "text-rose-600 hover:bg-rose-50" : status === BOOKING_STATUS.BOOKING_CONFIRMED ? "text-emerald-700 hover:bg-emerald-50 font-semibold" : status === BOOKING_STATUS.PAYMENT_WAITING ? "text-sky-700 hover:bg-sky-50 font-semibold" : "text-slate-600 hover:text-teal-700 hover:bg-teal-50"}
-                                                            >
-                                                                {status === BOOKING_STATUS.CANCEL ? <XCircle size={15} /> : <CheckCircle2 size={15} />}
-                                                                {statusText(status)}
-                                                            </button>
-                                                        </li>
-                                                    ))}
-                                                    {isAdmin && (
-                                                        <li>
-                                                            <button type="button" onClick={() => handleDelete(b)} className="text-rose-600 hover:bg-rose-50">
-                                                                <Trash2 size={15} /> Delete
-                                                            </button>
-                                                        </li>
-                                                    )}
-                                                </ul>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                )})
-                            )}
-                        </tbody>
-                    </table>
-                </div>
+                            )})
+                        )}
+                    </tbody>
+                </table>
             </div>
 
             {/* Mobile Card View */}
@@ -420,6 +583,11 @@ const Bookings = () => {
                                 </div>
                             </div>
 
+                            {/* Reference Badge on Mobile */}
+                            <div className="pt-0.5">
+                                {renderReferenceBadge(b)}
+                            </div>
+
                             <div className="text-xs text-slate-600 space-y-1.5 bg-slate-50 p-3 sm:p-3.5 rounded-xl">
                                 <p className="flex items-center gap-2"><Phone size={13} className="text-teal-600 shrink-0" /> {b.mobile}</p>
                                 {b.address && <p className="flex items-start gap-2"><MapPin size={13} className="text-teal-600 shrink-0 mt-0.5" /> <span>{b.address}</span></p>}
@@ -437,7 +605,7 @@ const Bookings = () => {
                                     >
                                         <Eye size={15} /> Details
                                     </Link>
-                                    {isAdmin && (
+                                    {canEdit && (
                                         <button
                                             type="button"
                                             onClick={() => setEditModalBooking(b)}
@@ -464,7 +632,7 @@ const Bookings = () => {
                                                 </button>
                                             </li>
                                         ))}
-                                        {isAdmin && (
+                                        {canDelete && (
                                             <li>
                                                 <button type="button" onClick={() => handleDelete(b)} className="text-rose-600 hover:bg-rose-50">
                                                     <Trash2 size={15} /> Delete

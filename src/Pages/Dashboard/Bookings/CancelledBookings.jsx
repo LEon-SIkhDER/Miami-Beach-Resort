@@ -15,12 +15,18 @@ import {
     FileText,
     Shield,
     Clock,
-    DollarSign,
     UserCheck,
     Briefcase,
     Building2
 } from 'lucide-react'
-import { getBookingDateSummary, getBookingRooms, getBookingTotal, getRoomName } from '../../../utils/bookingUtils'
+import { 
+    formatDate, 
+    formatDateTime, 
+    getBookingDateSummary, 
+    getBookingRooms, 
+    getBookingTotal, 
+    getRoomName 
+} from '../../../utils/bookingUtils'
 
 const CancelledBookings = () => {
     const { user } = useContext(AuthContext)
@@ -82,7 +88,7 @@ const CancelledBookings = () => {
                         Cancelled Bookings
                     </h1>
                     <p className="text-xs sm:text-sm text-slate-500 mt-1">
-                        Review all cancelled reservations, cancellation reasons, and who cancelled them.
+                        Review all cancelled reservations, stay schedules, totals, and who cancelled them.
                     </p>
                 </div>
 
@@ -90,7 +96,7 @@ const CancelledBookings = () => {
                     <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                     <input
                         type="text"
-                        placeholder="Search by ID, name, reason..."
+                        placeholder="Search by ID, name, phone..."
                         value={search}
                         onChange={e => setSearch(e.target.value)}
                         className="input input-sm input-bordered pl-9 rounded-xl w-full sm:w-64 bg-white"
@@ -99,9 +105,8 @@ const CancelledBookings = () => {
             </div>
 
             {/* Desktop Table View */}
-            <div className="hidden lg:block bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
-                <div className="overflow-x-auto">
-                    <table className="table table-zebra w-full whitespace-nowrap">
+            <div className="hidden lg:block bg-white border border-slate-200 rounded-2xl overflow-x-auto shadow-xs">
+                <table className="table table-zebra w-full whitespace-nowrap">
                         <thead>
                             <tr className="bg-slate-50 text-slate-600 font-bold text-xs uppercase tracking-wider whitespace-nowrap">
                                 <th className="whitespace-nowrap min-w-[130px]">Booking ID</th>
@@ -110,7 +115,6 @@ const CancelledBookings = () => {
                                 <th className="whitespace-nowrap">Total Bill</th>
                                 <th className="whitespace-nowrap">Cancelled Date</th>
                                 <th className="whitespace-nowrap">Cancelled By</th>
-                                <th className="whitespace-nowrap">Cancellation Reason</th>
                                 <th className="text-center whitespace-nowrap">Action</th>
                             </tr>
                         </thead>
@@ -124,13 +128,12 @@ const CancelledBookings = () => {
                                         <td><div className="h-4 bg-slate-200 w-16"></div></td>
                                         <td><div className="h-4 bg-slate-200 w-24"></div></td>
                                         <td><div className="h-4 bg-slate-200 w-28"></div></td>
-                                        <td><div className="h-4 bg-slate-200 w-36"></div></td>
                                         <td><div className="h-7 bg-slate-200 w-16 mx-auto"></div></td>
                                     </tr>
                                 ))
                             ) : filteredBookings.length === 0 ? (
                                 <tr>
-                                    <td colSpan={8} className="text-center py-12 text-slate-400">
+                                    <td colSpan={7} className="text-center py-12 text-slate-400">
                                         <XCircle size={36} className="mx-auto mb-2 opacity-50 text-slate-300" />
                                         No cancelled bookings found.
                                     </td>
@@ -165,7 +168,7 @@ const CancelledBookings = () => {
                                                 ৳{Number(totalAmount || 0).toLocaleString()}
                                             </td>
                                             <td className="text-xs text-slate-600 whitespace-nowrap">
-                                                {b.cancelledAt ? new Date(b.cancelledAt).toLocaleString() : (b.updatedAt ? new Date(b.updatedAt).toLocaleDateString() : "—")}
+                                                {b.cancelledAt ? formatDateTime(b.cancelledAt) : (b.updatedAt ? formatDate(b.updatedAt) : "—")}
                                             </td>
                                             <td className="whitespace-nowrap">
                                                 <div className="flex items-center gap-1.5">
@@ -177,11 +180,6 @@ const CancelledBookings = () => {
                                                 {canceller.email && canceller.email !== canceller.name && (
                                                     <p className="text-[11px] text-slate-400">{canceller.email}</p>
                                                 )}
-                                            </td>
-                                            <td>
-                                                <p className="text-xs text-slate-700 max-w-[240px] truncate" title={b.cancelReason || "No reason provided"}>
-                                                    {b.cancelReason || <span className="text-slate-400 italic">No reason provided</span>}
-                                                </p>
                                             </td>
                                             <td className="text-center whitespace-nowrap">
                                                 <Link
@@ -197,7 +195,6 @@ const CancelledBookings = () => {
                             )}
                         </tbody>
                     </table>
-                </div>
             </div>
 
             {/* Mobile Cards View */}
@@ -255,12 +252,7 @@ const CancelledBookings = () => {
                                         {b.cancelledAt && (
                                             <div className="flex items-center justify-between text-[11px] text-slate-400">
                                                 <span>Cancelled On:</span>
-                                                <span>{new Date(b.cancelledAt).toLocaleString()}</span>
-                                            </div>
-                                        )}
-                                        {b.cancelReason && (
-                                            <div className="pt-1 text-[11px] text-rose-800 bg-rose-50/80 p-2 rounded-lg border border-rose-100">
-                                                <strong>Reason:</strong> {b.cancelReason}
+                                                <span>{formatDateTime(b.cancelledAt)}</span>
                                             </div>
                                         )}
                                     </div>

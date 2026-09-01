@@ -29,7 +29,15 @@ import {
     Plus,
     Trash2,
     CheckSquare,
-    Square
+    Square,
+    Utensils,
+    Car,
+    Wifi,
+    Award,
+    HeartHandshake,
+    Compass,
+    CheckCircle2,
+    Quote
 } from 'lucide-react'
 import { parseFacilityList, parseRoomNumbers } from '../Dashboard/Category&Pricing/categoryRoomUtils'
 
@@ -483,6 +491,236 @@ const Home = () => {
                         })}
                     </div>
                 )}
+            </section>
+
+            {/* ── ABOUT US SHOWCASE SECTION ── */}
+            <section id="about" className="bg-white py-16 sm:py-24 border-y border-slate-200">
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-14 items-center">
+                        <div className="lg:col-span-7 space-y-6">
+                            <div className="inline-flex items-center gap-2 text-teal-700 text-xs font-bold uppercase tracking-widest bg-teal-50 px-3 py-1 rounded-full border border-teal-200/60">
+                                <Compass size={14} className="text-teal-600" /> Discover Miami Beach Resort
+                            </div>
+                            <h2 className="text-2xl sm:text-4xl font-extrabold text-slate-900 font-serif leading-tight">
+                                Your Premier Beachfront Gateway in Cox's Bazar
+                            </h2>
+                            <p className="text-slate-600 text-sm sm:text-base leading-relaxed">
+                                Located right at <strong>Dolphin Mor, Kolatoli Beach</strong>, Miami Beach Resort combines serene ocean views, modern guest suites, authentic hospitality, and instant access to the Bay of Bengal coastline.
+                            </p>
+                            <p className="text-slate-600 text-xs sm:text-sm leading-relaxed">
+                                Whether you're planning a romantic beach getaway, a joyful family vacation, or a productive business retreat, our 24/7 dedicated concierge and premium amenities ensure total comfort and unforgettable memories.
+                            </p>
+
+                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-2">
+                                <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-100 flex items-center gap-2.5">
+                                    <CheckCircle2 size={18} className="text-teal-600 shrink-0" />
+                                    <div>
+                                        <p className="text-xs font-bold text-slate-900">Prime Spot</p>
+                                        <p className="text-[11px] text-slate-500">Dolphin Mor</p>
+                                    </div>
+                                </div>
+                                <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-100 flex items-center gap-2.5">
+                                    <CheckCircle2 size={18} className="text-teal-600 shrink-0" />
+                                    <div>
+                                        <p className="text-xs font-bold text-slate-900">100m to Beach</p>
+                                        <p className="text-[11px] text-slate-500">Kolatoli Sand</p>
+                                    </div>
+                                </div>
+                                <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-100 flex items-center gap-2.5">
+                                    <CheckCircle2 size={18} className="text-teal-600 shrink-0" />
+                                    <div>
+                                        <p className="text-xs font-bold text-slate-900">24/7 Service</p>
+                                        <p className="text-[11px] text-slate-500">Concierge Desk</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="pt-2">
+                                <Link 
+                                    to="/about" 
+                                    className="btn btn-outline border-teal-600 text-teal-700 hover:bg-teal-50 rounded-2xl text-xs sm:text-sm px-6 font-bold gap-2"
+                                >
+                                    <span>Learn More About Us</span>
+                                    <ArrowRight size={15} />
+                                </Link>
+                            </div>
+                        </div>
+
+                        {/* Stats Banner Right */}
+                        <div className="lg:col-span-5 bg-gradient-to-br from-slate-950 via-teal-950 to-slate-900 rounded-3xl p-8 sm:p-10 text-white shadow-xl border border-teal-900/40 space-y-6">
+                            <div className="flex items-center gap-3 pb-4 border-b border-white/10">
+                                <img src={logo} alt="Miami Beach Resort" className="h-12 w-auto bg-white/10 p-1.5 rounded-2xl border border-white/10" />
+                                <div>
+                                    <h4 className="font-serif font-bold text-lg text-white">Miami Beach Resort</h4>
+                                    <p className="text-xs text-teal-400 font-semibold">Cox's Bazar Sanctuary</p>
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-5 text-center sm:text-left">
+                                <div className="p-3 bg-white/5 rounded-2xl border border-white/5">
+                                    <p className="text-2xl sm:text-3xl font-black text-teal-300 font-serif">50+</p>
+                                    <p className="text-[11px] text-slate-400 uppercase font-semibold mt-0.5">Rooms & Suites</p>
+                                </div>
+                                <div className="p-3 bg-white/5 rounded-2xl border border-white/5">
+                                    <p className="text-2xl sm:text-3xl font-black text-teal-300 font-serif">10k+</p>
+                                    <p className="text-[11px] text-slate-400 uppercase font-semibold mt-0.5">Happy Guests</p>
+                                </div>
+                                <div className="p-3 bg-white/5 rounded-2xl border border-white/5">
+                                    <p className="text-2xl sm:text-3xl font-black text-teal-300 font-serif">4.9 ★</p>
+                                    <p className="text-[11px] text-slate-400 uppercase font-semibold mt-0.5">Guest Satisfaction</p>
+                                </div>
+                                <div className="p-3 bg-white/5 rounded-2xl border border-white/5">
+                                    <p className="text-2xl sm:text-3xl font-black text-teal-300 font-serif">100%</p>
+                                    <p className="text-[11px] text-slate-400 uppercase font-semibold mt-0.5">Power Backup</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            {/* ── SERVICES & AMENITIES SHOWCASE SECTION ── */}
+            <section id="services" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 sm:py-24">
+                <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-12">
+                    <div>
+                        <div className="inline-flex items-center gap-2 text-teal-700 text-xs font-bold uppercase tracking-widest bg-teal-50 px-3 py-1 rounded-full border border-teal-200/60 mb-2">
+                            <Sparkles size={14} className="text-teal-600" /> Premium Facilities
+                        </div>
+                        <h2 className="text-2xl sm:text-4xl font-extrabold text-slate-900 font-serif leading-tight">
+                            Our Resort Services & Amenities
+                        </h2>
+                    </div>
+                    <Link 
+                        to="/services" 
+                        className="btn btn-sm btn-ghost text-teal-700 font-bold hover:bg-teal-50 rounded-xl gap-1"
+                    >
+                        <span>View All Services</span>
+                        <ArrowRight size={15} />
+                    </Link>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
+                    <div className="p-6 bg-white rounded-3xl border border-slate-200 shadow-xs hover:shadow-lg transition-all space-y-3">
+                        <div className="w-12 h-12 rounded-2xl bg-teal-50 text-teal-700 flex items-center justify-center">
+                            <Utensils size={24} />
+                        </div>
+                        <h3 className="font-bold text-slate-900 text-base">Seafood & Multi-Cuisine</h3>
+                        <p className="text-xs text-slate-500 leading-relaxed">
+                            Fresh Bay of Bengal seafood, coastal BBQ, and authentic Bengali cuisine with in-room dining options.
+                        </p>
+                    </div>
+
+                    <div className="p-6 bg-white rounded-3xl border border-slate-200 shadow-xs hover:shadow-lg transition-all space-y-3">
+                        <div className="w-12 h-12 rounded-2xl bg-teal-50 text-teal-700 flex items-center justify-center">
+                            <Compass size={24} />
+                        </div>
+                        <h3 className="font-bold text-slate-900 text-base">Coastal Tour Assistance</h3>
+                        <p className="text-xs text-slate-500 leading-relaxed">
+                            Guided sightseeing to Marine Drive, Inani Beach, Himchori, and Saint Martin ship ticket bookings.
+                        </p>
+                    </div>
+
+                    <div className="p-6 bg-white rounded-3xl border border-slate-200 shadow-xs hover:shadow-lg transition-all space-y-3">
+                        <div className="w-12 h-12 rounded-2xl bg-teal-50 text-teal-700 flex items-center justify-center">
+                            <ShieldCheck size={24} />
+                        </div>
+                        <h3 className="font-bold text-slate-900 text-base">24/7 Power & Security</h3>
+                        <p className="text-xs text-slate-500 leading-relaxed">
+                            Continuous generator power backup, 24/7 CCTV surveillance, and dedicated on-site reception security.
+                        </p>
+                    </div>
+
+                    <div className="p-6 bg-white rounded-3xl border border-slate-200 shadow-xs hover:shadow-lg transition-all space-y-3">
+                        <div className="w-12 h-12 rounded-2xl bg-teal-50 text-teal-700 flex items-center justify-center">
+                            <Car size={24} />
+                        </div>
+                        <h3 className="font-bold text-slate-900 text-base">Airport & Bus Pickup</h3>
+                        <p className="text-xs text-slate-500 leading-relaxed">
+                            Convenient chauffeur vehicle transfers to and from Cox's Bazar Airport and Kolatoli bus counters.
+                        </p>
+                    </div>
+
+                    <div className="p-6 bg-white rounded-3xl border border-slate-200 shadow-xs hover:shadow-lg transition-all space-y-3">
+                        <div className="w-12 h-12 rounded-2xl bg-teal-50 text-teal-700 flex items-center justify-center">
+                            <Wifi size={24} />
+                        </div>
+                        <h3 className="font-bold text-slate-900 text-base">High-Speed Free Wi-Fi</h3>
+                        <p className="text-xs text-slate-500 leading-relaxed">
+                            Optical fiber internet coverage throughout all guest rooms, lobby, and dining areas.
+                        </p>
+                    </div>
+
+                    <div className="p-6 bg-white rounded-3xl border border-slate-200 shadow-xs hover:shadow-lg transition-all space-y-3">
+                        <div className="w-12 h-12 rounded-2xl bg-teal-50 text-teal-700 flex items-center justify-center">
+                            <BedDouble size={24} />
+                        </div>
+                        <h3 className="font-bold text-slate-900 text-base">Daily Housekeeping</h3>
+                        <p className="text-xs text-slate-500 leading-relaxed">
+                            Immaculate room hygiene, fresh crisp bed linens, daily replenishment, and laundry care.
+                        </p>
+                    </div>
+                </div>
+            </section>
+
+            {/* ── TESTIMONIALS SECTION ── */}
+            <section className="bg-slate-900 text-white py-16 sm:py-24">
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                    <div className="text-center max-w-2xl mx-auto space-y-3 mb-12">
+                        <span className="text-teal-400 font-bold text-xs uppercase tracking-widest">Guest Experiences</span>
+                        <h2 className="text-2xl sm:text-4xl font-extrabold font-serif">
+                            What Our Guests Say
+                        </h2>
+                        <p className="text-slate-400 text-xs sm:text-sm">
+                            Hear from travelers who experienced beachside serenity with Miami Beach Resort.
+                        </p>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 sm:gap-8">
+                        <div className="p-6 sm:p-8 bg-slate-800/80 border border-slate-700 rounded-3xl space-y-4 flex flex-col justify-between">
+                            <div className="space-y-3">
+                                <div className="flex items-center gap-1 text-amber-400">
+                                    {[...Array(5)].map((_, i) => <Star key={i} size={15} fill="currentColor" />)}
+                                </div>
+                                <p className="text-xs sm:text-sm text-slate-300 leading-relaxed italic">
+                                    "The location is unbeatable! Just a minute walk from Kolatoli beach. The rooms were spotless, AC was great, and staff was very polite and helpful."
+                                </p>
+                            </div>
+                            <div className="pt-3 border-t border-slate-700/60">
+                                <p className="font-bold text-white text-xs sm:text-sm">Tanvir Ahmed</p>
+                                <p className="text-[11px] text-teal-400">Family Vacation • Dhaka</p>
+                            </div>
+                        </div>
+
+                        <div className="p-6 sm:p-8 bg-slate-800/80 border border-slate-700 rounded-3xl space-y-4 flex flex-col justify-between">
+                            <div className="space-y-3">
+                                <div className="flex items-center gap-1 text-amber-400">
+                                    {[...Array(5)].map((_, i) => <Star key={i} size={15} fill="currentColor" />)}
+                                </div>
+                                <p className="text-xs sm:text-sm text-slate-300 leading-relaxed italic">
+                                    "Superb hospitality and the seafood at the restaurant was mouthwatering. Loved watching the sunset and coming back to a peaceful, cool room."
+                                </p>
+                            </div>
+                            <div className="pt-3 border-t border-slate-700/60">
+                                <p className="font-bold text-white text-xs sm:text-sm">Nusrat Jahan</p>
+                                <p className="text-[11px] text-teal-400">Couple Stay • Chittagong</p>
+                            </div>
+                        </div>
+
+                        <div className="p-6 sm:p-8 bg-slate-800/80 border border-slate-700 rounded-3xl space-y-4 flex flex-col justify-between">
+                            <div className="space-y-3">
+                                <div className="flex items-center gap-1 text-amber-400">
+                                    {[...Array(5)].map((_, i) => <Star key={i} size={15} fill="currentColor" />)}
+                                </div>
+                                <p className="text-xs sm:text-sm text-slate-300 leading-relaxed italic">
+                                    "We booked 4 rooms for our annual company retreat. Seamless check-in, continuous power, and great support for arranging Marine Drive jeeps!"
+                                </p>
+                            </div>
+                            <div className="pt-3 border-t border-slate-700/60">
+                                <p className="font-bold text-white text-xs sm:text-sm">Mahmud Hasan</p>
+                                <p className="text-[11px] text-teal-400">Corporate Group • Sylhet</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </section>
 
             {/* Quick Policies */}

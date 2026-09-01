@@ -19,6 +19,7 @@ import {
     FileText,
     ShieldAlert
 } from 'lucide-react'
+import { formatDate } from '../../../utils/bookingUtils'
 
 const OOO_REASONS = [
     "AC Repair & Maintenance",
@@ -467,7 +468,7 @@ const OutOfOrderModal = ({
                                             </p>
                                             <p className="flex items-center gap-1.5 text-[11px] text-slate-400">
                                                 <Calendar size={12} className="text-teal-400" />
-                                                {record.startDate} → {record.endDate}
+                                                {formatDate(record.startDate)} → {formatDate(record.endDate)}
                                             </p>
                                             {record.notes && (
                                                 <p className="italic text-[11px] text-slate-400">

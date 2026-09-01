@@ -14,7 +14,15 @@ import {
     Receipt, 
     Clock
 } from 'lucide-react'
-import { getBookingRooms, getBookingTotal, getBookingDateSummary } from '../../../utils/bookingUtils'
+import { 
+    getBookingRooms, 
+    getBookingTotal, 
+    getBookingSubtotal, 
+    getBookingDiscount, 
+    getBookingPaidAmount, 
+    getBookingDateSummary, 
+    getRoomTotal 
+} from '../../../utils/bookingUtils'
 
 const ConfirmBookingModal = ({ booking, isOpen, onClose, onSuccess, targetStatus = "booking_confirmed" }) => {
     const { user: currentUser } = useContext(AuthContext)
@@ -25,7 +33,7 @@ const ConfirmBookingModal = ({ booking, isOpen, onClose, onSuccess, targetStatus
     const [assignedRooms, setAssignedRooms] = useState([])
     const [paymentMethod, setPaymentMethod] = useState('bKash')
     const [reference, setReference] = useState('')
-    const [customTotalAmount, setCustomTotalAmount] = useState('')
+    const [discountAmount, setDiscountAmount] = useState('')
     const [paidAmount, setPaidAmount] = useState('')
     const [transactionId, setTransactionId] = useState('')
 
@@ -71,10 +79,10 @@ const ConfirmBookingModal = ({ booking, isOpen, onClose, onSuccess, targetStatus
                 ...r,
                 roomNo: r.roomNo || ""
             })))
-            const defaultTotal = getBookingTotal(booking) || 0
-            const initialTotal = booking.totalAmount !== undefined ? booking.totalAmount : defaultTotal
-            setCustomTotalAmount(initialTotal || '')
-            setPaidAmount(booking.paidAmount !== undefined ? String(booking.paidAmount) : (targetStatus === 'payment_waiting' ? '0' : String(initialTotal)))
+            const initialDiscount = getBookingDiscount(booking)
+            setDiscountAmount(initialDiscount > 0 ? String(initialDiscount) : '')
+            const netPayable = getBookingTotal(booking)
+            setPaidAmount(booking.paidAmount !== undefined ? String(booking.paidAmount) : (targetStatus === 'payment_waiting' ? '0' : String(netPayable)))
             setPaymentMethod(booking.paymentMethod || 'bKash')
             setReference(booking.reference || "")
             setTransactionId(booking.transactionId || "")
@@ -116,14 +124,14 @@ const ConfirmBookingModal = ({ booking, isOpen, onClose, onSuccess, targetStatus
         )
         if (assignedInSameForm) return true
 
-        // Check against other confirmed/active bookings in database
+        // Check against other confirmed/active bookings in database (exclude cancel and checked_out)
         return activeBookings.some(b => {
-            if (b._id === currentBookingId || b.bookingId === currentBookingId) return false
-            if (["cancel", "cancelled"].includes(b.status)) return false
+            if (String(b._id) === String(currentBookingId || booking?._id) || String(b.bookingId) === String(currentBookingId || booking?.bookingId)) return false
+            if (["cancel", "cancelled", "checked_out"].includes(b.status)) return false
 
             const otherRooms = getBookingRooms(b)
             return otherRooms.some(r => 
-                r.roomNo === roomNo && 
+                String(r.roomNo).trim() === String(roomNo).trim() && 
                 r.checkIn < checkOut && 
                 r.checkOut > checkIn
             )
@@ -131,15 +139,41 @@ const ConfirmBookingModal = ({ booking, isOpen, onClose, onSuccess, targetStatus
     }
 
     const totalRooms = assignedRooms.length
-    const originalTotal = getBookingTotal(booking)
-    const standardTotal = originalTotal || 0
-    const finalTotal = customTotalAmount !== '' ? Number(customTotalAmount) : standardTotal
-    const discountAmount = Math.max(0, standardTotal - finalTotal)
+    const standardTotal = assignedRooms.reduce((sum, r) => sum + getRoomTotal(r), 0) || getBookingSubtotal(booking) || 0
+    const discount = discountAmount !== '' ? Number(discountAmount) : 0
+    const finalTotal = Math.max(0, standardTotal - discount)
     const effectivePaid = paidAmount !== '' ? Number(paidAmount) : 0
     const dueAmount = Math.max(0, finalTotal - effectivePaid)
 
     const handleSubmit = async (e) => {
         e.preventDefault()
+
+        if (!isPaymentWaiting && effectivePaid > 0 && !transactionId.trim()) {
+            toast.error("Transaction ID / Receipt is required when payment is recorded.")
+            return
+        }
+
+        // Physical room number is mandatory for all steps (Payment Waiting and Booking Confirmed)
+        const missingRoom = assignedRooms.find(r => !r.roomNo || !String(r.roomNo).trim())
+        if (missingRoom) {
+            toast.error("Please assign a physical room number for all rooms.")
+            return
+        }
+
+        // Strict validation: No Out of Order room can ever be selected/assigned
+        const oooRoom = assignedRooms.find(r => isRoomOutOfOrder(r.roomNo, r.checkIn, r.checkOut))
+        if (oooRoom) {
+            toast.error(`Room ${oooRoom.roomNo} is Out of Order for maintenance during selected stay dates. Please select an available room.`)
+            return
+        }
+
+        // Strict validation: No occupied room can be double-booked
+        const occupiedRoom = assignedRooms.find((r, idx) => isRoomNoOccupied(r.roomNo, r.checkIn, r.checkOut, booking?._id, idx))
+        if (occupiedRoom) {
+            toast.error(`Room ${occupiedRoom.roomNo} is already occupied for overlapping stay dates.`)
+            return
+        }
+
         setIsSubmitting(true)
         const toastId = toast.loading(isPaymentWaiting ? "Setting to Payment Waiting..." : "Confirming booking...")
 
@@ -147,8 +181,8 @@ const ConfirmBookingModal = ({ booking, isOpen, onClose, onSuccess, targetStatus
             const payload = {
                 status: targetStatus,
                 rooms: assignedRooms,
-                totalAmount: Number(finalTotal || 0),
-                discountAmount: Number(discountAmount || 0),
+                totalAmount: Number(standardTotal || 0),
+                discountAmount: Number(discount || 0),
                 paidAmount: Number(effectivePaid || 0),
                 dueAmount: Number(dueAmount || 0),
                 advanceAmount: Number(effectivePaid || 0),
@@ -215,7 +249,7 @@ const ConfirmBookingModal = ({ booking, isOpen, onClose, onSuccess, targetStatus
                 </div>
 
                 {/* Body Form */}
-                <form onSubmit={handleSubmit} className="p-6 overflow-y-auto space-y-5 text-xs sm:text-sm flex-1">
+                <form onSubmit={handleSubmit} noValidate className="p-6 overflow-y-auto space-y-5 text-xs sm:text-sm flex-1">
                     {/* Booking Summary Card */}
                     <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-4 space-y-1.5 text-xs">
                         <div className="flex justify-between">
@@ -232,13 +266,13 @@ const ConfirmBookingModal = ({ booking, isOpen, onClose, onSuccess, targetStatus
                         </div>
                         <div className="flex justify-between pt-1 border-t border-slate-200">
                             <span className="text-slate-500 font-medium">Standard Total Bill:</span>
-                            <span className="font-bold text-slate-900">৳{Number(originalTotal || 0).toLocaleString()}</span>
+                            <span className="font-bold text-slate-900">৳{Number(standardTotal || 0).toLocaleString()}</span>
                         </div>
                     </div>
 
                     {isPaymentWaiting && (
                         <p className="text-[11px] text-sky-800 bg-sky-50 border border-sky-200 rounded-xl p-2.5">
-                            💡 <strong>Optional:</strong> You can assign room numbers, payment, and transaction details now or skip them. Any entered information will be saved and pre-filled for final confirmation.
+                            💡 <strong>Note:</strong> Room number assignment is required to hold the room on the calendar while waiting for payment. Payment and transaction details can be entered now or during final confirmation.
                         </p>
                     )}
 
@@ -246,7 +280,7 @@ const ConfirmBookingModal = ({ booking, isOpen, onClose, onSuccess, targetStatus
                     <div className="space-y-3">
                         <div className="flex items-center gap-1.5 text-slate-900 font-bold text-xs uppercase tracking-wider">
                             <BedDouble size={15} className="text-teal-600" />
-                            <span>Assign Room Number{totalRooms > 1 ? 's' : ''} {!isPaymentWaiting ? '*' : '(Optional)'}</span>
+                            <span>Assign Room Number{totalRooms > 1 ? 's' : ''} *</span>
                         </div>
 
                         <div className="space-y-2.5">
@@ -272,11 +306,10 @@ const ConfirmBookingModal = ({ booking, isOpen, onClose, onSuccess, targetStatus
                                         <div className="form-control">
                                             <label className="label py-0.5">
                                                 <span className="label-text font-semibold text-slate-700 text-xs">
-                                                    Select Room Number {!isPaymentWaiting && "*"}
+                                                    Select Room Number *
                                                 </span>
                                             </label>
                                             <select
-                                                required={!isPaymentWaiting}
                                                 value={room.roomNo || ""}
                                                 onChange={e => handleRoomNoChange(index, e.target.value)}
                                                 className="select select-sm select-bordered w-full rounded-xl bg-white text-xs font-medium"
@@ -345,34 +378,34 @@ const ConfirmBookingModal = ({ booking, isOpen, onClose, onSuccess, targetStatus
                     <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
                         <div className="flex items-center justify-between text-xs border-b border-slate-200 pb-2">
                             <span className="text-slate-600 font-semibold">Standard Room Subtotal:</span>
-                            <strong className="text-slate-900 font-bold">৳{standardTotal.toLocaleString()}</strong>
+                            <strong className="text-slate-900 font-extrabold text-sm font-mono">৳{standardTotal.toLocaleString()}</strong>
                         </div>
 
-                        {/* Final Total Bill & Payment Done Fields */}
+                        {/* Special Discount & Payment Done Fields */}
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                            {/* Final Total Bill Input */}
+                            {/* Dedicated Special Discount Input Field */}
                             <div className="form-control">
                                 <label className="label py-0.5">
                                     <span className="label-text font-bold text-slate-800 text-xs flex items-center gap-1">
-                                        <CreditCard size={13} className="text-teal-600" /> Final Total Bill (৳) *
+                                        <Receipt size={13} className="text-emerald-600" /> Special Discount (৳)
                                     </span>
                                 </label>
                                 <input
                                     type="number"
-                                    required
                                     min="0"
-                                    value={customTotalAmount !== '' ? customTotalAmount : standardTotal}
-                                    onChange={e => setCustomTotalAmount(e.target.value)}
-                                    placeholder={String(standardTotal)}
-                                    className="input input-sm input-bordered w-full rounded-xl bg-white text-xs font-bold text-teal-800"
+                                    max={standardTotal}
+                                    value={discountAmount}
+                                    onChange={e => setDiscountAmount(e.target.value)}
+                                    placeholder="0"
+                                    className="input input-sm input-bordered w-full rounded-xl bg-white text-xs font-bold text-emerald-800"
                                 />
-                                {discountAmount > 0 ? (
+                                {discount > 0 ? (
                                     <span className="text-[11px] text-emerald-700 font-bold mt-1">
-                                        🎉 Discount Given: -৳{discountAmount.toLocaleString()} ({Math.round((discountAmount / (standardTotal || 1)) * 100)}% off)
+                                        🎉 Discount Given: -৳{discount.toLocaleString()} ({Math.round((discount / (standardTotal || 1)) * 100)}% off)
                                     </span>
                                 ) : (
                                     <span className="text-[10px] text-slate-400 mt-0.5">
-                                        Standard total is ৳{standardTotal.toLocaleString()}. Modify to apply discount.
+                                        Enter discount amount in ৳ (if applicable)
                                     </span>
                                 )}
                             </div>
@@ -381,7 +414,7 @@ const ConfirmBookingModal = ({ booking, isOpen, onClose, onSuccess, targetStatus
                             <div className="form-control">
                                 <label className="label py-0.5">
                                     <span className="label-text font-bold text-slate-800 text-xs flex items-center gap-1">
-                                        <CreditCard size={13} className="text-emerald-600" /> Payment Done / Received (৳)
+                                        <CreditCard size={13} className="text-teal-600" /> Payment Done / Received (৳)
                                     </span>
                                 </label>
                                 <input
@@ -398,16 +431,9 @@ const ConfirmBookingModal = ({ booking, isOpen, onClose, onSuccess, targetStatus
                                     <button
                                         type="button"
                                         onClick={() => setPaidAmount(String(finalTotal))}
-                                        className="btn btn-xs btn-outline border-emerald-300 text-emerald-700 hover:bg-emerald-50 rounded-lg text-[10px]"
+                                        className="btn btn-xs btn-outline border-emerald-300 text-emerald-700 hover:bg-emerald-50 rounded-lg text-[10px] font-bold"
                                     >
                                         Full Paid (৳{finalTotal.toLocaleString()})
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => setPaidAmount('0')}
-                                        className="btn btn-xs btn-outline border-orange-300 text-orange-700 hover:bg-orange-50 rounded-lg text-[10px]"
-                                    >
-                                        ৳0 / Full Due
                                     </button>
                                     {finalTotal > 1000 && (
                                         <button
@@ -422,16 +448,24 @@ const ConfirmBookingModal = ({ booking, isOpen, onClose, onSuccess, targetStatus
                             </div>
                         </div>
 
-                        {/* Live Payment Due Display */}
-                        <div className="flex items-center justify-between pt-2 border-t border-slate-200 text-xs">
-                            <span className="font-bold text-slate-700">Remaining Payment Due:</span>
-                            <span className={`px-2.5 py-1 rounded-xl text-xs font-extrabold ${
-                                dueAmount > 0 
-                                    ? 'bg-orange-100 text-orange-800 border border-orange-300' 
-                                    : 'bg-emerald-100 text-emerald-800 border border-emerald-300'
-                            }`}>
-                                {dueAmount > 0 ? `⚠️ Due: ৳${dueAmount.toLocaleString()}` : '✅ Fully Paid (৳0 Due)'}
-                            </span>
+                        {/* Live Calculation Summary Banner */}
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 rounded-xl bg-white border border-slate-200 text-xs mt-1">
+                            <div className="space-y-0.5">
+                                <div className="flex items-center gap-2.5">
+                                    <span className="text-slate-500">Gross: <strong>৳{standardTotal.toLocaleString()}</strong></span>
+                                    {discount > 0 && <span className="text-emerald-700 font-semibold">Discount: -৳{discount.toLocaleString()}</span>}
+                                    <span className="text-teal-900 font-extrabold text-xs sm:text-sm">Net Payable: ৳{finalTotal.toLocaleString()}</span>
+                                </div>
+                                <div className="text-[11px] text-slate-500">
+                                    Paid: <strong className="text-emerald-700">৳{effectivePaid.toLocaleString()}</strong>
+                                </div>
+                            </div>
+                            <div className="sm:text-right">
+                                <span className="font-bold text-slate-700 block text-[11px]">Due Balance:</span>
+                                <span className={`font-black text-sm sm:text-base ${dueAmount > 0 ? 'text-orange-600' : 'text-emerald-600'}`}>
+                                    ৳{dueAmount.toLocaleString()}
+                                </span>
+                            </div>
                         </div>
                     </div>
 
@@ -464,16 +498,20 @@ const ConfirmBookingModal = ({ booking, isOpen, onClose, onSuccess, targetStatus
                         {/* Transaction ID */}
                         <div className="form-control">
                             <label className="label py-0.5">
-                                <span className="label-text font-semibold text-slate-700 text-xs flex items-center gap-1">
-                                    <Receipt size={14} className="text-teal-600" /> Transaction ID / Receipt
+                                <span className="label-text font-semibold text-slate-700 text-xs flex items-center justify-between w-full">
+                                    <span className="flex items-center gap-1">
+                                        <Receipt size={14} className="text-teal-600" /> Transaction ID / Receipt
+                                    </span>
+                                    {!isPaymentWaiting && effectivePaid > 0 && <span className="text-rose-600 font-bold text-[10px]">* Required</span>}
                                 </span>
                             </label>
                             <input
                                 type="text"
+                                required={!isPaymentWaiting && effectivePaid > 0}
                                 value={transactionId}
                                 onChange={e => setTransactionId(e.target.value)}
                                 placeholder="e.g. TRX-982314 / Cash / Cheque"
-                                className="input input-sm input-bordered w-full rounded-xl bg-white text-xs"
+                                className={`input input-sm input-bordered w-full rounded-xl bg-white text-xs ${!isPaymentWaiting && effectivePaid > 0 && !transactionId.trim() ? 'border-amber-400' : ''}`}
                             />
                         </div>
                     </div>

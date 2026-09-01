@@ -258,13 +258,15 @@ const CategoryRoomDetails = () => {
                     >
                         <Pencil size={14} /> Edit
                     </EditCategory>
-                    <button
-                        type="button"
-                        onClick={handleDelete}
-                        className="btn btn-sm btn-error btn-outline rounded-xl gap-2 text-red-600"
-                    >
-                        <Trash2 size={14} /> Delete
-                    </button>
+                    {role === "admin" && (
+                        <button
+                            type="button"
+                            onClick={handleDelete}
+                            className="btn btn-sm btn-error btn-outline rounded-xl gap-2 text-red-600"
+                        >
+                            <Trash2 size={14} /> Delete
+                        </button>
+                    )}
                 </div>
             </div>
 

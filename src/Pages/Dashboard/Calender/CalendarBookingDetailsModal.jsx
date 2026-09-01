@@ -30,19 +30,27 @@ import {
     History,
     LogIn,
     LogOut,
-    ArrowRight
+    ArrowRight,
+    Printer
 } from 'lucide-react'
 import { 
+    formatDate,
+    formatDateTime,
     getBookingRooms, 
     getBookingTotal, 
+    getBookingSubtotal,
+    getBookingDiscount,
+    getBookingPaidAmount,
+    getBookingDueAmount,
     getNightCount, 
-    getRoomName,
+    getRoomName, 
     getBookingGuestTotals 
 } from '../../../utils/bookingUtils'
 import ConfirmBookingModal from '../Bookings/ConfirmBookingModal'
 import EditBookingModal from '../Bookings/EditBookingModal'
 import CancelBookingModal from '../Bookings/CancelBookingModal'
 import AddPaymentModal from '../Bookings/AddPaymentModal'
+import ReservationVoucherModal from './ReservationVoucherModal'
 
 const getStatusBadge = (status) => {
     switch (status) {
@@ -82,10 +90,13 @@ const CalendarBookingDetailsModal = ({
     const [editBooking, setEditBooking] = useState(null)
     const [cancelBooking, setCancelBooking] = useState(null)
     const [isAddPaymentOpen, setIsAddPaymentOpen] = useState(false)
+    const [isVoucherOpen, setIsVoucherOpen] = useState(false)
     const [copiedId, setCopiedId] = useState(null)
     const [isUpdatingStatus, setIsUpdatingStatus] = useState(false)
 
-    const canDelete = role === "admin" || role === "manager"
+    const isB2B = role === "b2b"
+    const canDelete = ["admin", "manager"].includes(role)
+    const canEdit = ["admin", "manager", "agent"].includes(role)
 
     // Fetch live complete booking details
     const { 
@@ -102,6 +113,16 @@ const CalendarBookingDetailsModal = ({
         enabled: !!isOpen && !!bookingId
     })
 
+    // Fetch Out of Order records
+    const { data: outOfOrderList = [] } = useQuery({
+        queryKey: ["out-of-order-for-details-modal"],
+        queryFn: async () => {
+            const res = await axiosSecure.get("/out-of-order")
+            return res.data
+        },
+        enabled: !!isOpen
+    })
+
     const handleCopyBookingId = (bId) => {
         if (!bId) return
         navigator.clipboard.writeText(bId)
@@ -113,6 +134,32 @@ const CalendarBookingDetailsModal = ({
     // Direct Fast Status Mutation (for Checked In / Checked Out)
     const handleQuickStatusChange = async (newStatus, actionLabel) => {
         if (!booking?._id) return
+
+        if (newStatus !== "request_booking" && newStatus !== "cancel") {
+            const bookingRooms = getBookingRooms(booking)
+            const missingRoom = bookingRooms.find(r => !r.roomNo || !String(r.roomNo).trim())
+            if (missingRoom) {
+                toast.error(`Please assign a physical room number before setting to ${actionLabel}.`)
+                return
+            }
+
+            // Check if any assigned room is Out of Order
+            const oooRoom = bookingRooms.find(r => {
+                if (!r.roomNo) return false
+                const checkIn = r.checkIn
+                const checkOut = r.checkOut
+                return outOfOrderList.some(ooo => 
+                    ooo && ooo.status === "active" && 
+                    String(ooo.roomNo).trim() === String(r.roomNo).trim() && 
+                    ooo.startDate < checkOut && ooo.endDate > checkIn
+                )
+            })
+
+            if (oooRoom) {
+                toast.error(`Room ${oooRoom.roomNo} is Out of Order for maintenance. Cannot mark as ${actionLabel}.`)
+                return
+            }
+        }
 
         const confirmed = await showConfirmAlert(
             `Mark as ${actionLabel}?`,
@@ -191,9 +238,11 @@ const CalendarBookingDetailsModal = ({
 
     const bookingRooms = booking ? getBookingRooms(booking) : []
     const guestTotals = booking ? getBookingGuestTotals(booking) : { adults: 0, babies: 0 }
-    const totalAmount = booking ? getBookingTotal(booking) : 0
-    const paidAmount = Number(booking?.paidAmount || booking?.advanceAmount || 0)
-    const dueAmount = Math.max(0, totalAmount - paidAmount)
+    const subtotal = booking ? getBookingSubtotal(booking) : 0
+    const discountAmount = booking ? getBookingDiscount(booking) : 0
+    const payableTotal = booking ? getBookingTotal(booking) : 0
+    const paidAmount = booking ? getBookingPaidAmount(booking) : 0
+    const dueAmount = booking ? getBookingDueAmount(booking) : 0
 
     return createPortal(
         <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-slate-900/60 backdrop-blur-xs overflow-y-auto">
@@ -252,16 +301,23 @@ const CalendarBookingDetailsModal = ({
                                         </h4>
                                     </div>
                                     <p className="text-xs text-slate-500">
-                                        Created: {booking.createdAt ? new Date(booking.createdAt).toLocaleString() : "N/A"}
+                                        Created: {booking.createdAt ? formatDateTime(booking.createdAt) : "N/A"}
                                         {booking.requestedByRole && ` · By ${booking.requestedByRole.toUpperCase()}`}
                                     </p>
                                 </div>
 
                                 <div className="sm:text-right">
-                                    <span className="text-[10px] uppercase font-bold text-slate-400 block leading-tight">Total Bill</span>
-                                    <span className="font-black text-teal-900 text-lg sm:text-xl">
-                                        ৳{Number(totalAmount || 0).toLocaleString()}
+                                    <span className="text-[10px] uppercase font-bold text-slate-400 block leading-tight">
+                                        {discountAmount > 0 ? "Net Payable Bill" : "Total Bill"}
                                     </span>
+                                    <span className="font-black text-teal-900 text-lg sm:text-xl">
+                                        ৳{Number(payableTotal || 0).toLocaleString()}
+                                    </span>
+                                    {discountAmount > 0 && (
+                                        <span className="text-[10px] text-emerald-700 block font-semibold">
+                                            (৳{subtotal.toLocaleString()} - ৳{discountAmount.toLocaleString()})
+                                        </span>
+                                    )}
                                 </div>
                             </div>
 
@@ -339,12 +395,12 @@ const CalendarBookingDetailsModal = ({
                                                     <div className="flex items-center gap-3 text-[11px] text-slate-600 pt-0.5">
                                                         <span className="flex items-center gap-1 font-medium">
                                                             <Calendar size={12} className="text-teal-600" />
-                                                            {room.checkIn} → {room.checkOut} ({nights} Night{nights !== 1 ? 's' : ''})
+                                                            {formatDate(room.checkIn)} → {formatDate(room.checkOut)} ({nights} Night{nights !== 1 ? 's' : ''})
                                                         </span>
                                                         <span className="flex items-center gap-1">
                                                             <UsersIcon size={12} className="text-teal-600" />
                                                             {room.adults || 1} Adult{Number(room.adults) > 1 ? 's' : ''}
-                                                            {Number(room.babies) > 0 ? ` • ${room.babies} Baby` : ''}
+                                                            {Number(room.children || room.babies) > 0 ? ` • ${room.children || room.babies} ${Number(room.children || room.babies) === 1 ? 'Child' : 'Children'}` : ''}
                                                         </span>
                                                     </div>
                                                 </div>
@@ -363,51 +419,61 @@ const CalendarBookingDetailsModal = ({
                                 </div>
                             </div>
 
-                            {/* Payment & Staff Reference Details */}
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-slate-50/80 p-3.5 rounded-2xl border border-slate-100 text-xs">
+                            {/* Financial Summary & Payment Breakdown */}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-4 rounded-2xl bg-teal-50/40 border border-teal-100 text-xs">
                                 <div className="space-y-1.5">
-                                    <div className="flex justify-between">
+                                    <div className="flex justify-between items-center">
                                         <span className="text-slate-500">Total Bill:</span>
-                                        <strong className="text-slate-900">৳{totalAmount.toLocaleString()}</strong>
+                                        <span className="font-bold text-slate-900">৳{Number(subtotal || 0).toLocaleString()}</span>
                                     </div>
-                                    {Number(booking.discountAmount || 0) > 0 && (
-                                        <div className="flex justify-between text-emerald-700 font-medium">
+                                    {discountAmount > 0 && (
+                                        <div className="flex justify-between items-center text-emerald-700 font-semibold">
                                             <span>Special Discount:</span>
-                                            <strong>-৳{Number(booking.discountAmount).toLocaleString()}</strong>
+                                            <span>-৳{discountAmount.toLocaleString()}</span>
                                         </div>
                                     )}
-                                    <div className="flex justify-between">
-                                        <span className="text-slate-500">Paid / Done:</span>
-                                        <strong className="text-emerald-700">৳{paidAmount.toLocaleString()}</strong>
+                                    {discountAmount > 0 && (
+                                        <div className="flex justify-between items-center text-slate-700 font-bold border-t border-teal-100/60 pt-1">
+                                            <span>Net Payable:</span>
+                                            <span className="font-extrabold text-teal-900">৳{Number(payableTotal || 0).toLocaleString()}</span>
+                                        </div>
+                                    )}
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-slate-500">Paid Amount:</span>
+                                        <span className="font-bold text-emerald-700">৳{paidAmount.toLocaleString()}</span>
                                     </div>
-                                    <div className="flex justify-between border-t border-slate-200 pt-1">
-                                        <span className="text-slate-500 font-semibold">Due Balance:</span>
-                                        <strong className={`font-bold ${dueAmount > 0 ? 'text-orange-600' : 'text-emerald-700'}`}>
+                                    <div className="flex justify-between items-center pt-1 border-t border-teal-100/80">
+                                        <span className="font-bold text-slate-700">Due Balance:</span>
+                                        <span className={`font-extrabold text-sm ${dueAmount > 0 ? "text-rose-600" : "text-emerald-700"}`}>
                                             ৳{dueAmount.toLocaleString()}
-                                        </strong>
+                                        </span>
                                     </div>
-                                    <div className="pt-1">
-                                        {dueAmount > 0 ? (
-                                            <button
-                                                type="button"
-                                                onClick={() => setIsAddPaymentOpen(true)}
-                                                className="btn btn-xs bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl gap-1 border-none shadow-xs w-full"
-                                            >
-                                                <CreditCard size={12} />
-                                                <span>Collect Due Payment (৳{dueAmount.toLocaleString()})</span>
-                                            </button>
-                                        ) : (
-                                            <span className="badge badge-xs bg-emerald-100 text-emerald-800 font-bold border-none">
-                                                Fully Paid ✅
-                                            </span>
+
+                                    {/* Action inside body: Record / Collect Due Payment */}
+                                    <div className="pt-2">
+                                        {!["cancel", "cancelled", "checked_out"].includes(booking.status) && (
+                                            dueAmount > 0 ? (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setIsAddPaymentOpen(true)}
+                                                    className="btn btn-xs bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl gap-1 border-none shadow-xs w-full"
+                                                >
+                                                    <CreditCard size={12} />
+                                                    <span>Collect Due Payment (৳{dueAmount.toLocaleString()})</span>
+                                                </button>
+                                            ) : (
+                                                <span className="badge badge-xs bg-emerald-100 text-emerald-800 font-bold border-none">
+                                                    Fully Paid ✅
+                                                </span>
+                                            )
                                         )}
                                     </div>
                                 </div>
 
-                                <div className="space-y-1.5 sm:border-l sm:border-slate-200 sm:pl-3">
+                                <div className="space-y-1.5 sm:border-l sm:border-teal-100 sm:pl-3">
                                     <div>
                                         <span className="text-slate-400 block text-[10px] uppercase font-semibold">Payment Method:</span>
-                                        <span className="font-bold text-slate-800 bg-slate-100 px-2 py-0.5 rounded-md inline-block mt-0.5">
+                                        <span className="font-bold text-slate-800 bg-white px-2 py-0.5 rounded-md inline-block mt-0.5 border border-slate-100">
                                             {booking.paymentMethod || booking.paymentHistory?.[0]?.paymentMethod || "Cash / Direct"}
                                         </span>
                                     </div>
@@ -438,7 +504,7 @@ const CalendarBookingDetailsModal = ({
                                         const lastLog = booking.statusHistory[booking.statusHistory.length - 1]
                                         return (
                                             <p>
-                                                Status set to <strong className="text-slate-800">{lastLog.status}</strong> on {lastLog.time ? new Date(lastLog.time).toLocaleString() : "N/A"}
+                                                Status set to <strong className="text-slate-800">{lastLog.status}</strong> on {lastLog.time ? formatDateTime(lastLog.time) : "N/A"}
                                                 {lastLog.changedBy?.name && ` by ${lastLog.changedBy.name} (${lastLog.changedBy.role || "staff"})`}.
                                             </p>
                                         )
@@ -460,8 +526,20 @@ const CalendarBookingDetailsModal = ({
                             <ExternalLink size={13} /> Full Details Page
                         </Link>
 
+                        {/* Print / PDF Reservation Letter (Only available after booking status is confirmed) */}
+                        {booking && ["booking_confirmed", "confirmed", "checked_id", "checked_in", "checked_out"].includes(booking.status) && (
+                            <button
+                                type="button"
+                                onClick={() => setIsVoucherOpen(true)}
+                                className="btn btn-sm btn-outline border-indigo-200 text-indigo-700 hover:bg-indigo-50 rounded-xl gap-1 font-bold"
+                                title="Print / PDF Reservation Letter"
+                            >
+                                <Printer size={13} /> Letter (PDF)
+                            </button>
+                        )}
+
                         {/* Edit Booking */}
-                        {booking && (
+                        {booking && canEdit && (
                             <button
                                 type="button"
                                 onClick={() => setEditBooking(booking)}
@@ -487,7 +565,7 @@ const CalendarBookingDetailsModal = ({
                     {booking && (
                         <div className="flex flex-wrap items-center gap-2">
                             {/* Cancel Booking */}
-                            {!["cancel", "cancelled", "checked_out"].includes(booking.status) && (
+                            {!isB2B && !["cancel", "cancelled", "checked_out"].includes(booking.status) && (
                                 <button
                                     type="button"
                                     onClick={() => setCancelBooking(booking)}
@@ -508,8 +586,8 @@ const CalendarBookingDetailsModal = ({
                                 </button>
                             )}
 
-                            {/* Action: Confirm Booking */}
-                            {["request_booking", "payment_waiting"].includes(booking.status) && (
+                            {/* Action: Confirm Booking (Staff only) */}
+                            {!isB2B && ["request_booking", "payment_waiting"].includes(booking.status) && (
                                 <button
                                     type="button"
                                     onClick={() => setConfirmModalData({ booking, targetStatus: "booking_confirmed" })}
@@ -520,7 +598,7 @@ const CalendarBookingDetailsModal = ({
                             )}
 
                             {/* Action: Check In */}
-                            {["booking_confirmed", "confirmed"].includes(booking.status) && (
+                            {!isB2B && ["booking_confirmed", "confirmed"].includes(booking.status) && (
                                 <button
                                     type="button"
                                     disabled={isUpdatingStatus}
@@ -532,7 +610,7 @@ const CalendarBookingDetailsModal = ({
                             )}
 
                             {/* Action: Check Out */}
-                            {booking.status === "checked_id" && (
+                            {!isB2B && booking.status === "checked_id" && (
                                 <button
                                     type="button"
                                     disabled={isUpdatingStatus}
@@ -613,6 +691,16 @@ const CalendarBookingDetailsModal = ({
                             onSuccess?.()
                         ])
                     }}
+                />
+            )}
+
+            {/* Nested Reservation Voucher / Printable Letter Modal */}
+            {isVoucherOpen && (
+                <ReservationVoucherModal
+                    isOpen={isVoucherOpen}
+                    onClose={() => setIsVoucherOpen(false)}
+                    bookingId={booking?._id || bookingId}
+                    initialBooking={booking}
                 />
             )}
         </div>,

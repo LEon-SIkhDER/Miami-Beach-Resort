@@ -20,6 +20,7 @@ import {
     Lock,
     FileText
 } from 'lucide-react'
+import { formatDate } from '../../../utils/bookingUtils'
 
 const formatLocalDate = (date) => {
     if (!date) return ''
@@ -64,7 +65,7 @@ const CalendarBookingModal = ({
     // Payment / Confirmation fields
     const [paymentMethod, setPaymentMethod] = useState('bKash')
     const [reference, setReference] = useState('')
-    const [customTotalAmount, setCustomTotalAmount] = useState('')
+    const [discountAmount, setDiscountAmount] = useState('')
     const [paidAmount, setPaidAmount] = useState('')
     const [transactionId, setTransactionId] = useState('')
     const [notes, setNotes] = useState('')
@@ -124,7 +125,7 @@ const CalendarBookingModal = ({
 
         // Check against active bookings
         return activeBookings.some(b => {
-            if (["cancel", "cancelled"].includes(b.status)) return false
+            if (["cancel", "cancelled", "checked_out"].includes(b.status)) return false
             const bRooms = Array.isArray(b.rooms) ? b.rooms : [b]
             return bRooms.some(r => {
                 const rIn = r.checkIn
@@ -165,7 +166,7 @@ const CalendarBookingModal = ({
             setUserEmail('')
             setAddress('')
             setReference('')
-            setCustomTotalAmount('')
+            setDiscountAmount('')
             setPaidAmount('')
             setTransactionId('')
             setNotes('')
@@ -175,6 +176,8 @@ const CalendarBookingModal = ({
 
     if (!isOpen || !initialData) return null
 
+    const isB2B = role === "b2b"
+
     // Standard base calculation (sum of original category prices * nights)
     const standardTotal = bookingRooms.reduce((sum, room) => {
         const cat = categories.find(c => String(c._id) === String(room.categoryId))
@@ -183,11 +186,8 @@ const CalendarBookingModal = ({
         return sum + (price * nights)
     }, 0)
 
-    // Final total bill (standard or custom authority price)
-    const finalTotal = customTotalAmount !== '' ? Number(customTotalAmount) : standardTotal
-
-    // If authority lowered the price, difference is automatically treated as discount
-    const discountAmount = Math.max(0, standardTotal - finalTotal)
+    const discount = discountAmount !== '' ? Number(discountAmount) : 0
+    const finalTotal = Math.max(0, standardTotal - discount)
 
     // Payment done by guest
     const effectivePaid = paidAmount !== '' ? Number(paidAmount) : 0
@@ -200,6 +200,9 @@ const CalendarBookingModal = ({
         const firstCat = categories.find(c => String(c._id) === String(firstCatId)) || categories[0]
         const firstIn = bookingRooms[0]?.checkInDate || new Date()
         const firstOut = bookingRooms[0]?.checkOutDate || new Date(firstIn.getTime() + 24 * 60 * 60 * 1000)
+        const nights = Math.max(1, Math.ceil((new Date(firstOut) - new Date(firstIn)) / (1000 * 60 * 60 * 24)))
+        const pricePerNight = Number(firstCat?.price || 0)
+        const newRoomPrice = pricePerNight * nights
 
         const newRoom = {
             itemId: `room-${Date.now()}-${bookingRooms.length + 1}`,
@@ -211,10 +214,11 @@ const CalendarBookingModal = ({
             adults: 2,
             babies: 0,
             sameCategory: true,
-            pricePerNight: Number(firstCat?.price || 0)
+            pricePerNight: pricePerNight
         }
 
         setBookingRooms(prev => [...prev, newRoom])
+        toast.success(`Added ${firstCat?.name || 'Room'} (+৳${newRoomPrice.toLocaleString()})`)
     }
 
     const handleRemoveRoom = (itemId) => {
@@ -262,11 +266,30 @@ const CalendarBookingModal = ({
                 toast.error(`Invalid stay dates for Room ${i + 1}. Check-out must be after check-in.`)
                 return
             }
-            // If confirming, physical roomNo is mandatory
-            if (targetStatus === "booking_confirmed" && !r.roomNo) {
-                toast.error(`Please select a physical room number for Room ${i + 1} to confirm booking.`)
+            // For payment_waiting and booking_confirmed, physical roomNo is mandatory
+            if (targetStatus !== "request_booking" && !r.roomNo) {
+                toast.error(`Please select a physical room number for Room ${i + 1}.`)
                 return
             }
+
+            // Strict Out of Order and occupancy conflict validation
+            if (r.roomNo) {
+                const isOOO = isRoomOutOfOrder(r.roomNo, formatLocalDate(r.checkInDate), formatLocalDate(r.checkOutDate))
+                if (isOOO) {
+                    toast.error(`Room ${r.roomNo} (Room ${i + 1}) is Out of Order for maintenance during selected stay dates.`)
+                    return
+                }
+                const isOccupied = isRoomNoOccupied(r.roomNo, formatLocalDate(r.checkInDate), formatLocalDate(r.checkOutDate), i)
+                if (isOccupied) {
+                    toast.error(`Room ${r.roomNo} (Room ${i + 1}) is already occupied for the selected stay dates.`)
+                    return
+                }
+            }
+        }
+
+        if (!isB2B && targetStatus === "booking_confirmed" && effectivePaid > 0 && !transactionId.trim()) {
+            toast.error("Transaction ID / Receipt No is required when confirming with payment.")
+            return
         }
 
         setSubmittingStatus(targetStatus)
@@ -288,14 +311,15 @@ const CalendarBookingModal = ({
                     checkIn: formatLocalDate(r.checkInDate),
                     checkOut: formatLocalDate(r.checkOutDate),
                     adults: Number(r.adults || 2),
-                    babies: Number(r.babies || 0),
+                    babies: Number(r.children !== undefined ? r.children : (r.babies || 0)),
+                    children: Number(r.children !== undefined ? r.children : (r.babies || 0)),
                     pricePerNight: Number(cat?.price || r.pricePerNight || 0),
                     nights: getRoomNights(r)
                 }
             })
 
-            const submittedPaid = paidAmount !== '' ? Number(paidAmount) : (targetStatus === "booking_confirmed" ? finalTotal : 0)
-            const submittedDue = Math.max(0, finalTotal - submittedPaid)
+            const submittedPaid = isB2B ? 0 : (paidAmount !== '' ? Number(paidAmount) : (targetStatus === "booking_confirmed" ? finalTotal : 0))
+            const submittedDue = isB2B ? Number(standardTotal || 0) : Math.max(0, finalTotal - submittedPaid)
 
             const payload = {
                 name: name.trim(),
@@ -304,18 +328,18 @@ const CalendarBookingModal = ({
                 address: address.trim(),
                 rooms: normalizedRooms,
                 status: targetStatus,
-                totalAmount: Number(finalTotal || 0),
-                discountAmount: Number(discountAmount || 0),
+                totalAmount: Number(isB2B ? standardTotal : finalTotal || 0),
+                discountAmount: Number(isB2B ? 0 : discountAmount || 0),
                 paidAmount: Number(submittedPaid || 0),
                 dueAmount: Number(submittedDue || 0),
                 advanceAmount: Number(submittedPaid || 0),
-                paymentMethod: paymentMethod || "Cash",
-                reference: reference.trim(),
-                transactionId: transactionId.trim(),
+                paymentMethod: isB2B ? "Pending" : (paymentMethod || "Cash"),
+                reference: isB2B ? (currentUser?.displayName || currentUser?.email || "B2B Partner") : reference.trim(),
+                transactionId: isB2B ? "" : transactionId.trim(),
                 notes: notes.trim(),
                 requestedByRole: role || "admin",
                 changedBy: {
-                    name: currentUser?.displayName || "Admin / Staff",
+                    name: currentUser?.displayName || (isB2B ? "B2B Partner" : "Admin / Staff"),
                     email: currentUser?.email || "",
                     role: role || "admin"
                 }
@@ -323,11 +347,6 @@ const CalendarBookingModal = ({
 
             const res = await axiosSecure.post("/bookings", payload)
             if (res.data) {
-                // AWAIT the table update refetch before showing success toast and closing modal
-                if (onSuccess) {
-                    await onSuccess()
-                }
-
                 const successLabels = {
                     request_booking: "Saved as Request Booking! 📋",
                     payment_waiting: "Reservation set to Payment Waiting! ⏳",
@@ -335,6 +354,14 @@ const CalendarBookingModal = ({
                 }
                 toast.success(successLabels[targetStatus] || "Reservation saved successfully!", { id: toastId })
                 onClose()
+
+                if (onSuccess) {
+                    try {
+                        await onSuccess()
+                    } catch (refetchErr) {
+                        console.error("Refetch error after calendar booking:", refetchErr)
+                    }
+                }
             }
         } catch (err) {
             console.error("Booking submit error:", err)
@@ -359,7 +386,7 @@ const CalendarBookingModal = ({
                                 Create Calendar Reservation
                             </h3>
                             <p className="text-xs text-teal-800 font-semibold">
-                                Room {initialData.roomNo} ({initialData.categoryName}) · {initialData.checkInDate}
+                                Room {initialData.roomNo} ({initialData.categoryName}) · {formatDate(initialData.checkInDate)}
                             </p>
                         </div>
                     </div>
@@ -584,7 +611,7 @@ const CalendarBookingModal = ({
                                                         type="text"
                                                         readOnly
                                                         disabled
-                                                        value={formatLocalDate(room.checkInDate)}
+                                                        value={formatDate(room.checkInDate)}
                                                         className="input input-sm input-bordered rounded-xl bg-slate-100 text-slate-700 font-bold text-xs cursor-not-allowed"
                                                     />
                                                 ) : (
@@ -640,15 +667,15 @@ const CalendarBookingModal = ({
 
                                             <div className="form-control">
                                                 <label className="label py-0.5">
-                                                    <span className="label-text font-semibold text-slate-700 text-xs">Babies / Children</span>
+                                                    <span className="label-text font-semibold text-slate-700 text-xs">Children</span>
                                                 </label>
                                                 <select
-                                                    value={room.babies}
-                                                    onChange={e => handleRoomChange(room.itemId, { babies: Number(e.target.value) })}
+                                                    value={room.children !== undefined ? room.children : (room.babies || 0)}
+                                                    onChange={e => handleRoomChange(room.itemId, { babies: Number(e.target.value), children: Number(e.target.value) })}
                                                     className="select select-sm select-bordered rounded-xl bg-white text-xs"
                                                 >
                                                     {[0, 1, 2, 3, 4].map(n => (
-                                                        <option key={n} value={n}>{n} {n === 1 ? 'Baby' : 'Babies'}</option>
+                                                        <option key={n} value={n}>{n} {n === 1 ? 'Child' : 'Children'}</option>
                                                     ))}
                                                 </select>
                                             </div>
@@ -665,183 +692,211 @@ const CalendarBookingModal = ({
                     </div>
 
                     {/* Financials & Payment Fields */}
-                    <div className="space-y-3 pt-1">
-                        <h4 className="font-bold text-slate-900 uppercase tracking-wider text-xs flex items-center gap-1.5 border-b border-slate-100 pb-1.5">
-                            <CreditCard size={14} className="text-teal-600" /> Billing, Discount & Payment Details
-                        </h4>
-
-                        {/* Financial Calculation Card */}
-                        <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
-                            <div className="flex items-center justify-between text-xs border-b border-slate-200 pb-2">
-                                <span className="text-slate-600 font-semibold">Standard Room Subtotal:</span>
-                                <strong className="text-slate-900 font-bold">৳{standardTotal.toLocaleString()}</strong>
+                    {role === "b2b" ? (
+                        <div className="space-y-3 pt-1">
+                            <h4 className="font-bold text-slate-900 uppercase tracking-wider text-xs flex items-center gap-1.5 border-b border-slate-100 pb-1.5">
+                                <CreditCard size={14} className="text-teal-600" /> Booking Price Summary
+                            </h4>
+                            <div className="p-4 bg-blue-50/70 border border-blue-200 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                                <div>
+                                    <span className="font-bold text-blue-950 block text-sm">Estimated Total Amount</span>
+                                    <span className="text-slate-500">Standard rates for {bookingRooms.length} room(s) · {bookingRooms.reduce((acc, r) => acc + getRoomNights(r), 0)} total night(s)</span>
+                                </div>
+                                <div className="sm:text-right">
+                                    <strong className="text-xl font-extrabold text-blue-900">৳{standardTotal.toLocaleString()}</strong>
+                                    <span className="text-[10px] text-slate-400 block font-medium">Payment details processed upon staff verification</span>
+                                </div>
                             </div>
+                        </div>
+                    ) : (
+                        <div className="space-y-3 pt-1">
+                            <h4 className="font-bold text-slate-900 uppercase tracking-wider text-xs flex items-center gap-1.5 border-b border-slate-100 pb-1.5">
+                                <CreditCard size={14} className="text-teal-600" /> Billing, Discount & Payment Details
+                            </h4>
 
-                            {/* Final Total Bill & Payment Done Fields */}
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                {/* Final Total Bill Input */}
-                                <div className="form-control">
-                                    <label className="label py-0.5">
-                                        <span className="label-text font-bold text-slate-800 text-xs flex items-center gap-1">
-                                            <CreditCard size={13} className="text-teal-600" /> Final Total Bill (৳) *
-                                        </span>
-                                    </label>
-                                    <input
-                                        type="number"
-                                        min="0"
-                                        value={customTotalAmount !== '' ? customTotalAmount : standardTotal}
-                                        onChange={e => setCustomTotalAmount(e.target.value)}
-                                        placeholder={String(standardTotal)}
-                                        className="input input-sm input-bordered rounded-xl bg-white text-xs font-bold text-teal-800"
-                                    />
-                                    {discountAmount > 0 ? (
-                                        <span className="text-[11px] text-emerald-700 font-bold mt-1">
-                                            🎉 Discount Given: -৳{discountAmount.toLocaleString()} ({Math.round((discountAmount / standardTotal) * 100)}% off)
-                                        </span>
-                                    ) : (
-                                        <span className="text-[10px] text-slate-400 mt-0.5">
-                                            Standard total is ৳{standardTotal.toLocaleString()}. Modify to apply discount.
-                                        </span>
-                                    )}
+                            {/* Financial Calculation Card */}
+                            <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
+                                <div className="flex items-center justify-between text-xs border-b border-slate-200 pb-2">
+                                    <span className="text-slate-600 font-semibold">Standard Room Subtotal:</span>
+                                    <strong className="text-slate-900 font-extrabold text-sm font-mono">৳{standardTotal.toLocaleString()}</strong>
                                 </div>
 
-                                {/* Payment Done / Received Input */}
-                                <div className="form-control">
-                                    <label className="label py-0.5">
-                                        <span className="label-text font-bold text-slate-800 text-xs flex items-center gap-1">
-                                            <CreditCard size={13} className="text-emerald-600" /> Payment Done / Received (৳)
-                                        </span>
-                                    </label>
-                                    <input
-                                        type="number"
-                                        min="0"
-                                        max={finalTotal * 2}
-                                        value={paidAmount}
-                                        onChange={e => setPaidAmount(e.target.value)}
-                                        placeholder="0"
-                                        className="input input-sm input-bordered rounded-xl bg-white text-xs font-bold text-emerald-800"
-                                    />
-                                    {/* Quick payment helper buttons */}
-                                    <div className="flex justify-between mt-1.5">
-                                        <button
-                                            type="button"
-                                            onClick={() => setPaidAmount(String(finalTotal))}
-                                            className="btn btn-xs btn-outline border-emerald-300 text-emerald-700 hover:bg-emerald-50 rounded-lg text-[10px]"
-                                        >
-                                            Full Paid (৳{finalTotal.toLocaleString()})
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => setPaidAmount('0')}
-                                            className="btn btn-xs btn-outline border-orange-300 text-orange-700 hover:bg-orange-50 rounded-lg text-[10px]"
-                                        >
-                                            ৳0 / Full Due
-                                        </button>
-                                        {finalTotal > 1000 && (
+                                {/* Special Discount & Payment Done Fields */}
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                                    {/* Dedicated Special Discount Input Field */}
+                                    <div className="form-control">
+                                        <label className="label py-0.5">
+                                            <span className="label-text font-bold text-slate-800 text-xs flex items-center gap-1">
+                                                <Receipt size={13} className="text-emerald-600" /> Special Discount (৳)
+                                            </span>
+                                        </label>
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            max={standardTotal}
+                                            value={discountAmount}
+                                            onChange={e => setDiscountAmount(e.target.value)}
+                                            placeholder="0"
+                                            className="input input-sm input-bordered rounded-xl bg-white text-xs font-bold text-emerald-800"
+                                        />
+                                        {discount > 0 ? (
+                                            <span className="text-[11px] text-emerald-700 font-bold mt-1">
+                                                🎉 Discount Given: -৳{discount.toLocaleString()} ({Math.round((discount / (standardTotal || 1)) * 100)}% off)
+                                            </span>
+                                        ) : (
+                                            <span className="text-[10px] text-slate-400 mt-0.5">
+                                                Enter discount amount in ৳ (if applicable)
+                                            </span>
+                                        )}
+                                    </div>
+
+                                    {/* Payment Done / Received Input */}
+                                    <div className="form-control">
+                                        <label className="label py-0.5">
+                                            <span className="label-text font-bold text-slate-800 text-xs flex items-center gap-1">
+                                                <CreditCard size={13} className="text-teal-600" /> Payment Done / Received (৳)
+                                            </span>
+                                        </label>
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            max={finalTotal * 2}
+                                            value={paidAmount}
+                                            onChange={e => setPaidAmount(e.target.value)}
+                                            placeholder="0"
+                                            className="input input-sm input-bordered rounded-xl bg-white text-xs font-bold text-emerald-800"
+                                        />
+                                        {/* Quick payment helper buttons */}
+                                        <div className="flex items-center gap-1.5 mt-1.5">
                                             <button
                                                 type="button"
-                                                onClick={() => setPaidAmount(String(Math.round(finalTotal / 2)))}
-                                                className="btn btn-xs btn-outline border-slate-300 text-slate-600 hover:bg-slate-50 rounded-lg text-[10px]"
+                                                onClick={() => setPaidAmount(String(finalTotal))}
+                                                className="btn btn-xs btn-outline border-emerald-300 text-emerald-700 hover:bg-emerald-50 rounded-lg text-[10px] font-bold"
                                             >
-                                                50% (৳{Math.round(finalTotal / 2).toLocaleString()})
+                                                Full Paid (৳{finalTotal.toLocaleString()})
                                             </button>
-                                        )}
+                                            {finalTotal > 1000 && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setPaidAmount(String(Math.round(finalTotal / 2)))}
+                                                    className="btn btn-xs btn-outline border-slate-300 text-slate-600 hover:bg-slate-50 rounded-lg text-[10px]"
+                                                >
+                                                    50% (৳{Math.round(finalTotal / 2).toLocaleString()})
+                                                </button>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Live Breakdown & Due Display */}
+                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 rounded-xl bg-white border border-slate-200 text-xs mt-1">
+                                    <div className="space-y-0.5">
+                                        <div className="flex items-center gap-2.5">
+                                            <span className="text-slate-500">Gross: <strong>৳{standardTotal.toLocaleString()}</strong></span>
+                                            {discount > 0 && <span className="text-emerald-700 font-semibold">Discount: -৳{discount.toLocaleString()}</span>}
+                                            <span className="text-teal-900 font-extrabold text-xs sm:text-sm">Net Payable: ৳{finalTotal.toLocaleString()}</span>
+                                        </div>
+                                        <div className="text-[11px] text-slate-500">
+                                            Paid: <strong className="text-emerald-700">৳{effectivePaid.toLocaleString()}</strong>
+                                        </div>
+                                    </div>
+                                    <div className="sm:text-right">
+                                        <span className="font-bold text-slate-700 block text-[11px]">Due Balance:</span>
+                                        <span className={`font-black text-sm sm:text-base ${dueAmount > 0 ? 'text-orange-600' : 'text-emerald-600'}`}>
+                                            ৳{dueAmount.toLocaleString()}
+                                        </span>
                                     </div>
                                 </div>
                             </div>
 
-                            {/* Live Payment Due Display */}
-                            <div className="flex items-center justify-between pt-2 border-t border-slate-200 text-xs">
-                                <span className="font-bold text-slate-700">Remaining Payment Due:</span>
-                                <span className={`px-2.5 py-1 rounded-xl text-xs font-extrabold ${dueAmount > 0
-                                        ? 'bg-orange-100 text-orange-800 border border-orange-300'
-                                        : 'bg-emerald-100 text-emerald-800 border border-emerald-300'
-                                    }`}>
-                                    {dueAmount > 0 ? `⚠️ Due: ৳${dueAmount.toLocaleString()}` : '✅ Fully Paid (৳0 Due)'}
-                                </span>
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                {/* Payment Method */}
+                                <div className="form-control">
+                                    <label className="label py-0.5">
+                                        <span className="label-text font-semibold text-slate-700 text-xs flex items-center gap-1">
+                                            <CreditCard size={13} className="text-teal-600" /> Payment Method
+                                        </span>
+                                    </label>
+                                    <select
+                                        value={paymentMethod}
+                                        onChange={e => setPaymentMethod(e.target.value)}
+                                        className="select select-sm select-bordered rounded-xl bg-white text-xs font-semibold"
+                                    >
+                                        <option value="bKash">bKash (Mobile)</option>
+                                        <option value="Nagad">Nagad (Mobile)</option>
+                                        <option value="Rocket">Rocket (DBBL)</option>
+                                        <option value="Upay">Upay (UCB)</option>
+                                        <option value="Card / POS">Card / POS (Visa/Master/Amex)</option>
+                                        <option value="Cash">Cash (Front Desk)</option>
+                                        <option value="Bank Cheque">Bank Cheque / Cheque</option>
+                                        <option value="Bank Transfer">Bank Transfer / EFT / BEFTN</option>
+                                        <option value="Online Gateway">Online Payment Gateway</option>
+                                        <option value="Other">Other</option>
+                                    </select>
+                                </div>
+
+                                {/* Staff Reference */}
+                                <div className="form-control">
+                                    <label className="label py-0.5">
+                                        <span className="label-text font-semibold text-slate-700 text-xs flex items-center gap-1">
+                                            <UserCheck size={13} className="text-teal-600" /> Reference (Staff / Admin)
+                                        </span>
+                                    </label>
+                                    <select
+                                        value={reference}
+                                        onChange={e => setReference(e.target.value)}
+                                        className="select select-sm select-bordered rounded-xl bg-white text-xs font-medium"
+                                    >
+                                        <option value="">-- Select Reference (Optional) --</option>
+                                        {eligibleReferences.map(u => (
+                                            <option key={u._id} value={u.name || u.email}>
+                                                {u.name || u.email} ({u.role || "staff"})
+                                            </option>
+                                        ))}
+                                        {eligibleReferences.length === 0 && (
+                                            <>
+                                                <option value="Direct Frontdesk">Direct Frontdesk</option>
+                                                <option value="Admin Management">Admin Management</option>
+                                            </>
+                                        )}
+                                    </select>
+                                </div>
+
+                                {/* Transaction ID */}
+                                <div className="form-control">
+                                    <label className="label py-0.5">
+                                        <span className="label-text font-semibold text-slate-700 text-xs flex items-center justify-between w-full">
+                                            <span className="flex items-center gap-1">
+                                                <Receipt size={13} className="text-teal-600" /> Transaction ID / Cheque No
+                                            </span>
+                                            {effectivePaid > 0 && (
+                                                <span className="text-slate-400 text-[10px]">Required for Confirmation</span>
+                                            )}
+                                        </span>
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={transactionId}
+                                        onChange={e => setTransactionId(e.target.value)}
+                                        placeholder="e.g. TRX-129482 / Cheque #... (Optional for Request)"
+                                        className="input input-sm input-bordered rounded-xl bg-white text-xs"
+                                    />
+                                </div>
                             </div>
                         </div>
-
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                            {/* Payment Method */}
-                            <div className="form-control">
-                                <label className="label py-0.5">
-                                    <span className="label-text font-semibold text-slate-700 text-xs flex items-center gap-1">
-                                        <CreditCard size={13} className="text-teal-600" /> Payment Method
-                                    </span>
-                                </label>
-                                <select
-                                    value={paymentMethod}
-                                    onChange={e => setPaymentMethod(e.target.value)}
-                                    className="select select-sm select-bordered rounded-xl bg-white text-xs font-semibold"
-                                >
-                                    <option value="bKash">bKash (Mobile)</option>
-                                    <option value="Nagad">Nagad (Mobile)</option>
-                                    <option value="Rocket">Rocket (DBBL)</option>
-                                    <option value="Upay">Upay (UCB)</option>
-                                    <option value="Card / POS">Card / POS (Visa/Master/Amex)</option>
-                                    <option value="Cash">Cash (Front Desk)</option>
-                                    <option value="Bank Cheque">Bank Cheque / Cheque</option>
-                                    <option value="Bank Transfer">Bank Transfer / EFT / BEFTN</option>
-                                    <option value="Online Gateway">Online Payment Gateway</option>
-                                    <option value="Other">Other</option>
-                                </select>
-                            </div>
-
-                            {/* Staff Reference */}
-                            <div className="form-control">
-                                <label className="label py-0.5">
-                                    <span className="label-text font-semibold text-slate-700 text-xs flex items-center gap-1">
-                                        <UserCheck size={13} className="text-teal-600" /> Reference (Staff / Admin)
-                                    </span>
-                                </label>
-                                <select
-                                    value={reference}
-                                    onChange={e => setReference(e.target.value)}
-                                    className="select select-sm select-bordered rounded-xl bg-white text-xs font-medium"
-                                >
-                                    <option value="">-- Select Reference (Optional) --</option>
-                                    {eligibleReferences.map(u => (
-                                        <option key={u._id} value={u.name || u.email}>
-                                            {u.name || u.email} ({u.role || "staff"})
-                                        </option>
-                                    ))}
-                                    {eligibleReferences.length === 0 && (
-                                        <>
-                                            <option value="Direct Frontdesk">Direct Frontdesk</option>
-                                            <option value="Admin Management">Admin Management</option>
-                                        </>
-                                    )}
-                                </select>
-                            </div>
-
-                            {/* Transaction ID */}
-                            <div className="form-control">
-                                <label className="label py-0.5">
-                                    <span className="label-text font-semibold text-slate-700 text-xs flex items-center gap-1">
-                                        <Receipt size={13} className="text-teal-600" /> Transaction ID / Cheque No
-                                    </span>
-                                </label>
-                                <input
-                                    type="text"
-                                    value={transactionId}
-                                    onChange={e => setTransactionId(e.target.value)}
-                                    placeholder="e.g. TRX-129482 / Cheque #..."
-                                    className="input input-sm input-bordered rounded-xl bg-white text-xs"
-                                />
-                            </div>
-                        </div>
-                    </div>
+                    )}
                 </div>
 
-                {/* Footer with THREE Confirm Buttons & Targeted Loading */}
+                {/* Footer with Confirm / Request Buttons & Targeted Loading */}
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-6 py-4 border-t border-slate-100 bg-slate-50/70 shrink-0">
                     <div className='w-max'>
-                        <div className="text-xs text-slate-500 font-medium">
-                            Total: <strong className="text-teal-900 font-extrabold text-sm">৳{Number(finalTotal || 0).toLocaleString()}</strong>
-                            <br />
-                            {dueAmount > 0 && (
-                                <span className="ml-2 text-orange-600 font-bold">(Due: ৳{dueAmount.toLocaleString()})</span>
+                        <div className="text-xs text-slate-500 font-medium leading-tight">
+                            Total: <strong className="text-teal-900 font-extrabold text-sm">৳{Number(role === "b2b" ? standardTotal : (finalTotal || 0)).toLocaleString()}</strong>
+                            {role !== "b2b" && dueAmount > 0 && (
+                                <>
+                                    <br />
+                                    <span className="text-orange-600 font-bold text-[11px]">(Due: ৳{dueAmount.toLocaleString()})</span>
+                                </>
                             )}
                         </div>
                     </div>
@@ -877,20 +932,22 @@ const CalendarBookingModal = ({
                             <span>Payment Waiting</span>
                         </button>
 
-                        {/* Button 3: Booking Confirmed */}
-                        <button
-                            type="button"
-                            onClick={() => handleSubmit("booking_confirmed")}
-                            disabled={submittingStatus !== null}
-                            className="btn btn-sm bg-[#5261d6] hover:bg-[#4351be] text-white font-bold rounded-xl px-4 shadow-xs border-none"
-                        >
-                            {submittingStatus === "booking_confirmed" ? (
-                                <span className="loading loading-spinner loading-xs" />
-                            ) : (
-                                <CheckCircle2 size={14} />
-                            )}
-                            <span>Confirm Booking</span>
-                        </button>
+                        {/* Button 3: Booking Confirmed (Staff only) */}
+                        {role !== "b2b" && (
+                            <button
+                                type="button"
+                                onClick={() => handleSubmit("booking_confirmed")}
+                                disabled={submittingStatus !== null}
+                                className="btn btn-sm bg-[#5261d6] hover:bg-[#4351be] text-white font-bold rounded-xl px-4 shadow-xs border-none"
+                            >
+                                {submittingStatus === "booking_confirmed" ? (
+                                    <span className="loading loading-spinner loading-xs" />
+                                ) : (
+                                    <CheckCircle2 size={14} />
+                                )}
+                                <span>Confirm Booking</span>
+                            </button>
+                        )}
                     </div>
                 </div>
             </div>
