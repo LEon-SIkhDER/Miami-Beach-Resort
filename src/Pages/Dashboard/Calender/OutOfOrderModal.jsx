@@ -282,7 +282,7 @@ const OutOfOrderModal = ({
                                 {/* Category */}
                                 <div className="form-control">
                                     <label className="label py-0.5">
-                                        <span className="label-text font-bold text-slate-800 text-xs">Room Category *</span>
+                                        <span className="label-text font-bold text-slate-800 text-xs">Room Category <span className="text-red-500 font-bold">*</span></span>
                                     </label>
                                     <select
                                         value={categoryId}
@@ -301,7 +301,7 @@ const OutOfOrderModal = ({
                                 {/* Room No */}
                                 <div className="form-control">
                                     <label className="label py-0.5">
-                                        <span className="label-text font-bold text-slate-800 text-xs">Physical Room No *</span>
+                                        <span className="label-text font-bold text-slate-800 text-xs">Physical Room No <span className="text-red-500 font-bold">*</span></span>
                                     </label>
                                     <select
                                         required
@@ -322,7 +322,7 @@ const OutOfOrderModal = ({
                                 <div className="form-control">
                                     <label className="label py-0.5">
                                         <span className="label-text font-bold text-slate-800 text-xs flex items-center gap-1">
-                                            <Calendar size={13} className="text-teal-600" /> Start Date *
+                                            <Calendar size={13} className="text-teal-600" /> Start Date <span className="text-red-500 font-bold">*</span>
                                         </span>
                                     </label>
                                     <DatePicker
@@ -346,7 +346,7 @@ const OutOfOrderModal = ({
                                 <div className="form-control">
                                     <label className="label py-0.5">
                                         <span className="label-text font-bold text-slate-800 text-xs flex items-center gap-1">
-                                            <Calendar size={13} className="text-teal-600" /> End Date *
+                                            <Calendar size={13} className="text-teal-600" /> End Date <span className="text-red-500 font-bold">*</span>
                                         </span>
                                     </label>
                                     <DatePicker
@@ -366,7 +366,7 @@ const OutOfOrderModal = ({
                             {/* Reason */}
                             <div className="form-control">
                                 <label className="label py-0.5">
-                                    <span className="label-text font-bold text-slate-800 text-xs">Maintenance Reason *</span>
+                                    <span className="label-text font-bold text-slate-800 text-xs">Maintenance Reason <span className="text-red-500 font-bold">*</span></span>
                                 </label>
                                 <select
                                     value={reason}

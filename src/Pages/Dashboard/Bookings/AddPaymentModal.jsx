@@ -23,13 +23,16 @@ import {
 } from '../../../utils/bookingUtils'
 
 const PAYMENT_METHODS = [
-    "Cash",
-    "bKash",
-    "Nagad",
-    "Card / POS",
-    "Bank Transfer",
-    "Online Gateway",
-    "Other"
+    { value: "bKash", label: "bKash (Mobile)" },
+    { value: "Nagad", label: "Nagad (Mobile)" },
+    { value: "Rocket", label: "Rocket (DBBL)" },
+    { value: "Upay", label: "Upay (UCB)" },
+    { value: "Card / POS", label: "Card / POS (Visa/Master/Amex)" },
+    { value: "Cash", label: "Cash (Front Desk)" },
+    { value: "Bank Cheque", label: "Bank Cheque / Cheque" },
+    { value: "Bank Transfer", label: "Bank Transfer / EFT / BEFTN" },
+    { value: "Online Gateway", label: "Online Payment Gateway" },
+    { value: "Other", label: "Other" }
 ]
 
 const AddPaymentModal = ({
@@ -51,7 +54,7 @@ const AddPaymentModal = ({
     const dueBalance = booking ? getBookingDueAmount(booking) : 0
 
     const [amount, setAmount] = useState('')
-    const [paymentMethod, setPaymentMethod] = useState('Cash')
+    const [paymentMethod, setPaymentMethod] = useState('')
     const [reference, setReference] = useState('')
     const [transactionId, setTransactionId] = useState('')
     const [note, setNote] = useState('')
@@ -70,8 +73,8 @@ const AddPaymentModal = ({
 
     useEffect(() => {
         if (isOpen && booking) {
-            setAmount(dueBalance > 0 ? String(dueBalance) : '')
-            setPaymentMethod('Cash')
+            setAmount('')
+            setPaymentMethod('')
             setReference(booking.reference || '')
             setTransactionId('')
             setNote('')
@@ -88,8 +91,14 @@ const AddPaymentModal = ({
             return
         }
 
-        if (paymentMethod !== "Cash" && !transactionId.trim()) {
-            toast.error("Transaction ID / Receipt No is required for digital payments.")
+        if (!paymentMethod) {
+            toast.error("Please select a payment method.")
+            return
+        }
+
+        const isDigitalPayment = !["Cash", "Other"].includes(paymentMethod)
+        if (isDigitalPayment && !transactionId.trim()) {
+            toast.error(`Transaction ID / Receipt No is required for ${paymentMethod}.`)
             return
         }
 
@@ -101,7 +110,7 @@ const AddPaymentModal = ({
                 amount: payAmount,
                 paymentMethod,
                 reference: reference.trim(),
-                transactionId: transactionId.trim() || (paymentMethod === "Cash" ? "Cash / Direct" : ""),
+                transactionId: transactionId.trim() || (paymentMethod === "Cash" ? "Cash / Front Desk" : (paymentMethod === "Other" ? "Other / Direct" : "")),
                 note: note.trim(),
                 collectedBy: {
                     name: currentUser?.displayName || "Admin / Staff",
@@ -194,7 +203,7 @@ const AddPaymentModal = ({
                     <div className="form-control">
                         <label className="label py-0.5">
                             <span className="label-text font-bold text-slate-800 text-xs flex items-center gap-1">
-                                <DollarSign size={14} className="text-teal-600" /> Amount to Add (৳) *
+                                <DollarSign size={14} className="text-teal-600" /> Amount to Add (৳) <span className="text-red-500 font-bold">*</span>
                             </span>
                         </label>
                         <input
@@ -233,7 +242,7 @@ const AddPaymentModal = ({
                     <div className="form-control">
                         <label className="label py-0.5">
                             <span className="label-text font-bold text-slate-800 text-xs flex items-center gap-1">
-                                <CreditCard size={14} className="text-teal-600" /> Payment Method *
+                                <CreditCard size={14} className="text-teal-600" /> Payment Method <span className="text-red-500 font-bold">*</span>
                             </span>
                         </label>
                         <select
@@ -241,8 +250,9 @@ const AddPaymentModal = ({
                             onChange={e => setPaymentMethod(e.target.value)}
                             className="select select-sm select-bordered rounded-xl bg-white text-xs font-semibold"
                         >
+                            <option value="">-- Select Payment Method --</option>
                             {PAYMENT_METHODS.map(m => (
-                                <option key={m} value={m}>{m}</option>
+                                <option key={m.value} value={m.value}>{m.label}</option>
                             ))}
                         </select>
                     </div>
@@ -263,27 +273,37 @@ const AddPaymentModal = ({
                                 <option value="">-- Optional --</option>
                                 {eligibleReferences.map(u => (
                                     <option key={u._id} value={u.name || u.email}>
-                                        {u.name || u.email}
+                                        {u.name || u.email} ({u.role || "staff"})
                                     </option>
                                 ))}
-                                <option value="Direct Frontdesk">Direct Frontdesk</option>
+                                {eligibleReferences.length === 0 && (
+                                    <>
+                                        <option value="Direct Frontdesk">Direct Frontdesk (frontdesk)</option>
+                                        <option value="Admin Management">Admin Management (admin)</option>
+                                    </>
+                                )}
                             </select>
                         </div>
 
                         {/* Transaction ID */}
                         <div className="form-control">
                             <label className="label py-0.5">
-                                <span className="label-text font-bold text-slate-800 text-xs flex items-center gap-1">
-                                    <Receipt size={13} className="text-teal-600" /> Trx / Receipt No *
+                                <span className="label-text font-bold text-slate-800 text-xs flex items-center justify-between w-full">
+                                    <span className="flex items-center gap-1">
+                                        <Receipt size={13} className="text-teal-600" /> Trx / Receipt No
+                                    </span>
+                                    {paymentMethod && !["Cash", "Other"].includes(paymentMethod) && (
+                                        <span className="text-red-500 font-bold text-[10px]">* Required</span>
+                                    )}
                                 </span>
                             </label>
                             <input
                                 type="text"
-                                required
+                                required={Boolean(paymentMethod && !["Cash", "Other"].includes(paymentMethod))}
                                 value={transactionId}
                                 onChange={e => setTransactionId(e.target.value)}
-                                placeholder="e.g. TRX-938201 / Cash / POS"
-                                className="input input-sm input-bordered rounded-xl bg-white text-xs font-semibold"
+                                placeholder={paymentMethod === "Cash" || paymentMethod === "Other" ? "Optional for Cash / Other" : "e.g. TRX-938201 / Slip No"}
+                                className={`input input-sm input-bordered rounded-xl bg-white text-xs font-semibold ${paymentMethod && !["Cash", "Other"].includes(paymentMethod) && !transactionId.trim() ? 'border-amber-400' : ''}`}
                             />
                         </div>
                     </div>

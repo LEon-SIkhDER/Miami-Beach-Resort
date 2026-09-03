@@ -65,20 +65,18 @@ const Dashboard = () => {
         { to: "/dashboard/overview", label: "Overview", icon: <LayoutDashboard size={18} /> }, 
         { to: "/dashboard/category&room", label: "Category & Room", icon: <BedDouble size={18} /> },
         { to: "/dashboard/bookings", label: "All Bookings", icon: <CalendarCheck size={18} /> },
-        { to: "/dashboard/income", label: "Room Income", icon: <DollarSign size={18} /> },
+        { to: "/dashboard/income", label: "Sales Report", icon: <DollarSign size={18} /> },
         { to: "/dashboard/cancellations", label: "Cancellations", icon: <XCircle size={18} /> },
         { to: "/dashboard/users", label: "Users & Roles", icon: <Users size={18} /> },
-        { to: "/dashboard/workflow", label: "Worker Workflow", icon: <Briefcase size={18} /> },
         { to: "/dashboard/calender", label: "Booking Calendar", icon: <CalendarDays size={18} /> },
     ]
     const adminLinks = [
         { to: "/dashboard/overview", label: "Admin Overview", icon: <LayoutDashboard size={18} /> },
         { to: "/dashboard/category&room", label: "Category & Room", icon: <BedDouble size={18} /> },
         { to: "/dashboard/bookings", label: "All Bookings", icon: <CalendarCheck size={18} /> },
-        { to: "/dashboard/income", label: "Room Income", icon: <DollarSign size={18} /> },
+        { to: "/dashboard/income", label: "Sales Report", icon: <DollarSign size={18} /> },
         { to: "/dashboard/cancellations", label: "Cancellations", icon: <XCircle size={18} /> },
         { to: "/dashboard/users", label: "Users & Roles", icon: <Users size={18} /> },
-        { to: "/dashboard/workflow", label: "Worker Workflow", icon: <Briefcase size={18} /> },
         { to: "/dashboard/calender", label: "Booking Calendar", icon: <CalendarDays size={18} /> },
     ]
 

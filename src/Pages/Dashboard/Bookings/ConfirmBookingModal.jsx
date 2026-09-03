@@ -31,9 +31,10 @@ const ConfirmBookingModal = ({ booking, isOpen, onClose, onSuccess, targetStatus
     const queryClient = useQueryClient()
     const [isSubmitting, setIsSubmitting] = useState(false)
     const [assignedRooms, setAssignedRooms] = useState([])
-    const [paymentMethod, setPaymentMethod] = useState('bKash')
+    const [extraService, setExtraService] = useState('')
+    const [extraServiceCost, setExtraServiceCost] = useState('')
+    const [paymentMethod, setPaymentMethod] = useState('')
     const [reference, setReference] = useState('')
-    const [discountAmount, setDiscountAmount] = useState('')
     const [paidAmount, setPaidAmount] = useState('')
     const [transactionId, setTransactionId] = useState('')
 
@@ -77,13 +78,15 @@ const ConfirmBookingModal = ({ booking, isOpen, onClose, onSuccess, targetStatus
             const rawRooms = getBookingRooms(booking)
             setAssignedRooms(rawRooms.map((r) => ({
                 ...r,
-                roomNo: r.roomNo || ""
+                roomNo: r.roomNo || "",
+                adults: r.adults !== undefined && r.adults !== null && r.adults !== '' && Number(r.adults) > 0 ? Number(r.adults) : '',
+                children: r.children !== undefined && r.children !== null ? Number(r.children) : (r.babies !== undefined && r.babies !== null ? Number(r.babies) : 0),
+                babies: r.babies !== undefined && r.babies !== null ? Number(r.babies) : (r.children !== undefined && r.children !== null ? Number(r.children) : 0)
             })))
-            const initialDiscount = getBookingDiscount(booking)
-            setDiscountAmount(initialDiscount > 0 ? String(initialDiscount) : '')
-            const netPayable = getBookingTotal(booking)
-            setPaidAmount(booking.paidAmount !== undefined ? String(booking.paidAmount) : (targetStatus === 'payment_waiting' ? '0' : String(netPayable)))
-            setPaymentMethod(booking.paymentMethod || 'bKash')
+            setPaidAmount(booking.paidAmount !== undefined && booking.paidAmount > 0 ? String(booking.paidAmount) : '')
+            setPaymentMethod(booking.paymentMethod || '')
+            setExtraService(booking.extraService || '')
+            setExtraServiceCost(booking.extraServiceCost ? String(booking.extraServiceCost) : '')
             setReference(booking.reference || "")
             const existingTrxId = booking.transactionId || 
                 booking.paymentHistory?.[0]?.transactionId || 
@@ -114,6 +117,18 @@ const ConfirmBookingModal = ({ booking, isOpen, onClose, onSuccess, targetStatus
         setAssignedRooms(prev => prev.map((r, idx) => idx === index ? { ...r, roomNo: val } : r))
     }
 
+    const handleRoomPriceChange = (index, val) => {
+        setAssignedRooms(prev => prev.map((r, idx) => idx === index ? { ...r, pricePerNight: val !== '' ? Number(val) : 0 } : r))
+    }
+
+    const handleRoomAdultsChange = (index, val) => {
+        setAssignedRooms(prev => prev.map((r, idx) => idx === index ? { ...r, adults: val } : r))
+    }
+
+    const handleRoomChildrenChange = (index, val) => {
+        setAssignedRooms(prev => prev.map((r, idx) => idx === index ? { ...r, children: val, babies: val } : r))
+    }
+
     // Helper: is a physical roomNo occupied for dates [checkIn, checkOut] by other bookings
     const isRoomNoOccupied = (roomNo, checkIn, checkOut, currentBookingId, currentRoomIndex) => {
         if (!roomNo || !checkIn || !checkOut) return false
@@ -142,19 +157,19 @@ const ConfirmBookingModal = ({ booking, isOpen, onClose, onSuccess, targetStatus
     }
 
     const totalRooms = assignedRooms.length
-    const standardTotal = assignedRooms.reduce((sum, r) => sum + getRoomTotal(r), 0) || getBookingSubtotal(booking) || 0
-    const discount = discountAmount !== '' ? Number(discountAmount) : 0
-    const finalTotal = Math.max(0, standardTotal - discount)
+    const extraCost = extraServiceCost !== '' ? Math.max(0, Number(extraServiceCost)) : 0
+    const roomSubtotal = assignedRooms.reduce((sum, r) => {
+        const p = Number(r.pricePerNight !== undefined ? r.pricePerNight : getRoomTotal(r))
+        const n = Number(r.nights || 1)
+        return sum + (r.pricePerNight !== undefined ? p * n : getRoomTotal(r))
+    }, 0) || getBookingSubtotal(booking) || 0
+    const standardTotal = roomSubtotal + extraCost
+    const finalTotal = standardTotal
     const effectivePaid = paidAmount !== '' ? Number(paidAmount) : 0
     const dueAmount = Math.max(0, finalTotal - effectivePaid)
 
     const handleSubmit = async (e) => {
         e.preventDefault()
-
-        if (!isPaymentWaiting && effectivePaid > 0 && paymentMethod !== "Cash" && !transactionId.trim()) {
-            toast.error("Transaction ID / Receipt is required when digital payment is recorded.")
-            return
-        }
 
         // Physical room number is mandatory for all steps (Payment Waiting and Booking Confirmed)
         const missingRoom = assignedRooms.find(r => !r.roomNo || !String(r.roomNo).trim())
@@ -173,23 +188,63 @@ const ConfirmBookingModal = ({ booking, isOpen, onClose, onSuccess, targetStatus
         // Strict validation: No occupied room can be double-booked
         const occupiedRoom = assignedRooms.find((r, idx) => isRoomNoOccupied(r.roomNo, r.checkIn, r.checkOut, booking?._id, idx))
         if (occupiedRoom) {
-            toast.error(`Room ${occupiedRoom.roomNo} is already occupied for overlapping stay dates.`)
+            toast.error(`Room ${occupiedRoom.roomNo} is already occupied on the selected dates.`)
             return
         }
 
+        // Strict required fields when targetStatus is booking_confirmed
+        if (!isPaymentWaiting) {
+            const missingAdults = assignedRooms.find(r => !r.adults || Number(r.adults) <= 0)
+            if (missingAdults) {
+                toast.error("Adult guest count is required for all rooms to confirm reservation.")
+                return
+            }
+
+            if (effectivePaid <= 0) {
+                toast.error("Payment Done (৳) amount is required to confirm booking.")
+                return
+            }
+
+            if (!paymentMethod.trim()) {
+                toast.error("Please select a Payment Method.")
+                return
+            }
+
+            const isDigitalMethod = !["Cash", "Other"].includes(paymentMethod.trim())
+            if (isDigitalMethod && !transactionId.trim()) {
+                toast.error(`Transaction ID / Receipt No is required for ${paymentMethod}.`)
+                return
+            }
+
+            if (!reference.trim()) {
+                toast.error("Staff / Admin Reference is required to confirm booking.")
+                return
+            }
+        }
+
         setIsSubmitting(true)
-        const toastId = toast.loading(isPaymentWaiting ? "Setting to Payment Waiting..." : "Confirming booking...")
+        const toastId = toast.loading(isPaymentWaiting ? "Setting status to Payment Waiting..." : "Confirming booking...")
 
         try {
+            const normalizedRooms = assignedRooms.map(r => ({
+                ...r,
+                adults: r.adults !== '' && r.adults !== undefined ? Number(r.adults) : 0,
+                children: Number(r.children || 0),
+                babies: Number(r.babies || r.children || 0),
+                pricePerNight: Number(r.pricePerNight !== undefined ? r.pricePerNight : 0)
+            }))
+
             const payload = {
                 status: targetStatus,
-                rooms: assignedRooms,
-                totalAmount: Number(standardTotal || 0),
-                discountAmount: Number(discount || 0),
-                paidAmount: Number(effectivePaid || 0),
-                dueAmount: Number(dueAmount || 0),
-                advanceAmount: Number(effectivePaid || 0),
-                paymentMethod: paymentMethod || "Cash",
+                rooms: normalizedRooms,
+                totalAmount: finalTotal,
+                discountAmount: 0,
+                paidAmount: effectivePaid,
+                dueAmount: dueAmount,
+                advanceAmount: effectivePaid,
+                extraService: extraService.trim(),
+                extraServiceCost: extraCost,
+                paymentMethod: paymentMethod.trim() || (effectivePaid > 0 ? "Cash" : ""),
                 reference: reference.trim(),
                 transactionId: transactionId.trim(),
                 changedBy: {
@@ -283,7 +338,7 @@ const ConfirmBookingModal = ({ booking, isOpen, onClose, onSuccess, targetStatus
                     <div className="space-y-3">
                         <div className="flex items-center gap-1.5 text-slate-900 font-bold text-xs uppercase tracking-wider">
                             <BedDouble size={15} className="text-teal-600" />
-                            <span>Assign Room Number{totalRooms > 1 ? 's' : ''} *</span>
+                            <span>Assign Room Number{totalRooms > 1 ? 's' : ''} <span className="text-red-500 font-bold">*</span></span>
                         </div>
 
                         <div className="space-y-2.5">
@@ -306,43 +361,130 @@ const ConfirmBookingModal = ({ booking, isOpen, onClose, onSuccess, targetStatus
                                             </span>
                                         </div>
 
-                                        <div className="form-control">
+                                        <div className="space-y-1.5">
                                             <label className="label py-0.5">
-                                                <span className="label-text font-semibold text-slate-700 text-xs">
-                                                    Select Room Number *
+                                                <span className="label-text font-bold text-slate-800 text-xs">
+                                                    Select Physical Room Number <span className="text-red-500 font-bold">*</span> {room.roomNo ? `(Assigned: Room ${room.roomNo})` : ""}
                                                 </span>
                                             </label>
-                                            <select
-                                                value={room.roomNo || ""}
-                                                onChange={e => handleRoomNoChange(index, e.target.value)}
-                                                className="select select-sm select-bordered w-full rounded-xl bg-white text-xs font-medium"
-                                            >
-                                                <option value="">-- Choose Physical Room Number --</option>
-                                                {availableRoomNumbers.length > 0 ? (
-                                                    availableRoomNumbers.map(num => {
-                                                        const ooo = isRoomOutOfOrder(num, room.checkIn, room.checkOut)
+                                            {availableRoomNumbers.length > 0 ? (
+                                                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+                                                    {availableRoomNumbers.map(num => {
+                                                        const cleanNum = String(num).trim()
+                                                        const isSelected = String(room.roomNo || "").trim() === cleanNum
+                                                        const ooo = isRoomOutOfOrder(cleanNum, room.checkIn, room.checkOut)
                                                         const occupied = isRoomNoOccupied(
-                                                            num, 
+                                                            cleanNum, 
                                                             room.checkIn, 
                                                             room.checkOut, 
                                                             booking._id, 
                                                             index
                                                         )
-                                                        const disabled = (ooo || occupied) && room.roomNo !== num
+                                                        const disabled = (ooo || occupied) && !isSelected
+
                                                         return (
-                                                            <option 
-                                                                key={num} 
-                                                                value={num} 
-                                                                disabled={disabled}
+                                                            <label
+                                                                key={cleanNum}
+                                                                className={`flex items-center justify-between p-2.5 rounded-xl border cursor-pointer select-none transition-all ${
+                                                                    isSelected
+                                                                        ? "bg-[#0f766e] text-white border-[#0f766e] shadow-xs ring-2 ring-teal-500/30 font-bold"
+                                                                        : disabled
+                                                                        ? "bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed opacity-60"
+                                                                        : "bg-white text-slate-800 border-slate-200 hover:border-teal-400 hover:bg-teal-50/40"
+                                                                }`}
                                                             >
-                                                                {num} {ooo ? "(Out of Order - Maintenance)" : occupied && room.roomNo !== num ? "(Occupied on these dates)" : "(Available)"}
-                                                            </option>
+                                                                <div className="flex items-center gap-2">
+                                                                    <input
+                                                                        type="checkbox"
+                                                                        checked={isSelected}
+                                                                        disabled={disabled}
+                                                                        onChange={() => handleRoomNoChange(index, isSelected ? "" : cleanNum)}
+                                                                        className="checkbox checkbox-sm checkbox-primary rounded-md"
+                                                                    />
+                                                                    <span className="font-mono text-xs font-bold">
+                                                                        Room {cleanNum}
+                                                                    </span>
+                                                                </div>
+                                                                {disabled && (
+                                                                    <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${
+                                                                        ooo ? "bg-amber-100 text-amber-900" : "bg-rose-100 text-rose-900"
+                                                                    }`}>
+                                                                        {ooo ? "OOO" : "Busy"}
+                                                                    </span>
+                                                                )}
+                                                                {isSelected && (
+                                                                    <span className="text-[10px] font-bold text-teal-200">
+                                                                        ✓ Assigned
+                                                                    </span>
+                                                                )}
+                                                            </label>
                                                         )
-                                                    })
-                                                ) : (
-                                                    <option value="Standard">Standard Assigned</option>
-                                                )}
-                                            </select>
+                                                    })}
+                                                </div>
+                                            ) : (
+                                                <p className="text-xs text-slate-400 italic bg-white p-2.5 rounded-xl border border-slate-200">
+                                                    No physical room numbers configured for this suite category.
+                                                </p>
+                                            )}
+                                        </div>
+
+                                        {/* Room Adults, Children & Negotiate Price */}
+                                        <div className="pt-2 border-t border-teal-100/80 space-y-2.5">
+                                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                                                {/* Adults Input */}
+                                                <div className="form-control">
+                                                    <label className="label py-0.5">
+                                                        <span className="label-text font-bold text-slate-800 text-xs">
+                                                            Adults {!isPaymentWaiting && <span className="text-red-500 font-bold">*</span>}
+                                                        </span>
+                                                    </label>
+                                                    <input
+                                                        type="number"
+                                                        min="0"
+                                                        value={room.adults !== undefined && room.adults !== null ? room.adults : ''}
+                                                        placeholder="0"
+                                                        onChange={e => handleRoomAdultsChange(index, e.target.value)}
+                                                        className={`input input-xs sm:input-sm input-bordered rounded-xl bg-white text-xs font-semibold ${!isPaymentWaiting && (!room.adults || Number(room.adults) <= 0) ? 'border-amber-400' : ''}`}
+                                                    />
+                                                </div>
+
+                                                {/* Children Input */}
+                                                <div className="form-control">
+                                                    <label className="label py-0.5">
+                                                        <span className="label-text font-bold text-slate-800 text-xs">Children</span>
+                                                    </label>
+                                                    <input
+                                                        type="number"
+                                                        min="0"
+                                                        value={room.children !== undefined && room.children !== null ? room.children : ''}
+                                                        placeholder="0"
+                                                        onChange={e => handleRoomChildrenChange(index, e.target.value)}
+                                                        className="input input-xs sm:input-sm input-bordered rounded-xl bg-white text-xs font-semibold"
+                                                    />
+                                                </div>
+
+                                                {/* Negotiate Price */}
+                                                <div className="form-control">
+                                                    <label className="label py-0.5">
+                                                        <span className="label-text font-bold text-slate-800 text-xs">Nightly Rate (৳)</span>
+                                                    </label>
+                                                    <input
+                                                        type="number"
+                                                        min="0"
+                                                        value={room.pricePerNight !== undefined ? room.pricePerNight : ""}
+                                                        onChange={e => handleRoomPriceChange(index, e.target.value)}
+                                                        placeholder="0"
+                                                        className="input input-xs sm:input-sm input-bordered rounded-xl bg-white text-xs font-bold text-teal-900"
+                                                    />
+                                                </div>
+                                            </div>
+
+                                            <div className="flex justify-between items-center text-xs pt-1 border-t border-teal-100/50">
+                                                <span className="text-slate-500 text-[11px] font-medium">Room Total ({room.nights || 1} night{Number(room.nights || 1) !== 1 ? 's' : ''}):</span>
+                                                <strong className="text-teal-900 font-extrabold">
+                                                    ৳{Number((room.pricePerNight || 0) * (room.nights || 1)).toLocaleString()}
+                                                </strong>
+                                            </div>
                                         </div>
                                     </div>
                                 )
@@ -350,74 +492,63 @@ const ConfirmBookingModal = ({ booking, isOpen, onClose, onSuccess, targetStatus
                         </div>
                     </div>
 
-                    {/* Reference Dropdown (Anyone without 'user' role) */}
-                    <div className="form-control">
-                        <label className="label py-0.5">
-                            <span className="label-text font-semibold text-slate-700 text-xs flex items-center gap-1">
-                                <UserCheck size={14} className="text-teal-600" /> Reference (Staff / Admin)
-                            </span>
-                        </label>
-                        <select
-                            value={reference}
-                            onChange={e => setReference(e.target.value)}
-                            className="select select-sm select-bordered w-full rounded-xl bg-white text-xs font-medium"
-                        >
-                            <option value="">-- Select Reference (Optional) --</option>
-                            {eligibleReferences.map(u => (
-                                <option key={u._id} value={u.name || u.email}>
-                                    {u.name || u.email} ({u.role || "staff"})
-                                </option>
-                            ))}
-                            {eligibleReferences.length === 0 && (
-                                <>
-                                    <option value="Direct Frontdesk">Direct Frontdesk</option>
-                                    <option value="Admin Management">Admin Management</option>
-                                </>
-                            )}
-                        </select>
-                    </div>
-
-                    {/* Financial Calculation Card */}
-                    <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
-                        <div className="flex items-center justify-between text-xs border-b border-slate-200 pb-2">
-                            <span className="text-slate-600 font-semibold">Standard Room Subtotal:</span>
-                            <strong className="text-slate-900 font-extrabold text-sm font-mono">৳{standardTotal.toLocaleString()}</strong>
-                        </div>
-
-                        {/* Special Discount & Payment Done Fields */}
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                            {/* Dedicated Special Discount Input Field */}
+                    {/* Extra Services Section */}
+                    <div className="space-y-2 pt-1">
+                        <h4 className="font-bold text-slate-800 uppercase tracking-wider text-xs flex items-center gap-1.5 border-b border-slate-100 pb-1">
+                            <CreditCard size={13} className="text-amber-600" /> Extra Services & Amenities (Optional)
+                        </h4>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 rounded-2xl bg-amber-50/40 border border-amber-200/70">
                             <div className="form-control">
                                 <label className="label py-0.5">
-                                    <span className="label-text font-bold text-slate-800 text-xs flex items-center gap-1">
-                                        <Receipt size={13} className="text-emerald-600" /> Special Discount (৳)
-                                    </span>
+                                    <span className="label-text font-bold text-slate-800 text-xs">Extra Service Type</span>
+                                </label>
+                                <select
+                                    value={extraService}
+                                    onChange={e => setExtraService(e.target.value)}
+                                    className="select select-sm select-bordered w-full rounded-xl bg-white text-xs font-semibold"
+                                >
+                                    <option value="">-- No Extra Service --</option>
+                                    <option value="Swimming Pool Access">Swimming Pool Access</option>
+                                    <option value="Extra Bed">Extra Bed</option>
+                                    <option value="Swimming Pool Access & Extra Bed">Swimming Pool Access & Extra Bed</option>
+                                    <option value="Airport Pickup / Drop">Airport Pickup / Drop</option>
+                                    <option value="Sightseeing & Tour Guide">Sightseeing & Tour Guide</option>
+                                    <option value="Other Extra Service">Other Extra Service</option>
+                                </select>
+                            </div>
+                            <div className="form-control">
+                                <label className="label py-0.5">
+                                    <span className="label-text font-bold text-slate-800 text-xs">Extra Service Cost (৳)</span>
                                 </label>
                                 <input
                                     type="number"
                                     min="0"
-                                    max={standardTotal}
-                                    value={discountAmount}
-                                    onChange={e => setDiscountAmount(e.target.value)}
+                                    value={extraServiceCost}
+                                    onChange={e => setExtraServiceCost(e.target.value)}
                                     placeholder="0"
-                                    className="input input-sm input-bordered w-full rounded-xl bg-white text-xs font-bold text-emerald-800"
+                                    className="input input-sm input-bordered w-full rounded-xl bg-white text-xs font-bold text-amber-900"
                                 />
-                                {discount > 0 ? (
-                                    <span className="text-[11px] text-emerald-700 font-bold mt-1">
-                                        🎉 Discount Given: -৳{discount.toLocaleString()} ({Math.round((discount / (standardTotal || 1)) * 100)}% off)
-                                    </span>
-                                ) : (
-                                    <span className="text-[10px] text-slate-400 mt-0.5">
-                                        Enter discount amount in ৳ (if applicable)
-                                    </span>
-                                )}
                             </div>
+                        </div>
+                    </div>
 
+                    {/* Financial Calculation Card */}
+                    <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-xs border-b border-slate-200 pb-2">
+                            <span className="text-slate-600 font-semibold">
+                                Room Tariff: <strong className="text-slate-800">৳{roomSubtotal.toLocaleString()}</strong>
+                                {extraCost > 0 && <span className="text-amber-800 font-bold ml-1.5">(+ Extra: ৳{extraCost.toLocaleString()})</span>}
+                            </span>
+                            <strong className="text-slate-900 font-extrabold text-sm font-mono">Total Payable: ৳{standardTotal.toLocaleString()}</strong>
+                        </div>
+
+                        {/* All 3 Payment-Related Fields in 3 Columns */}
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
                             {/* Payment Done / Received Input */}
                             <div className="form-control">
-                                <label className="label py-0.5">
+                                <label className="label py-0.5 block">
                                     <span className="label-text font-bold text-slate-800 text-xs flex items-center gap-1">
-                                        <CreditCard size={13} className="text-teal-600" /> Payment Done / Received (৳)
+                                        <CreditCard size={13} className="text-teal-600" /> Payment Done (৳) {!isPaymentWaiting && <span className="text-red-500 font-bold">*</span>}
                                     </span>
                                 </label>
                                 <input
@@ -427,7 +558,7 @@ const ConfirmBookingModal = ({ booking, isOpen, onClose, onSuccess, targetStatus
                                     value={paidAmount}
                                     onChange={e => setPaidAmount(e.target.value)}
                                     placeholder="0"
-                                    className="input input-sm input-bordered w-full rounded-xl bg-white text-xs font-bold text-emerald-800"
+                                    className={`input input-sm input-bordered w-full rounded-xl bg-white text-xs font-bold text-emerald-800 ${!isPaymentWaiting && effectivePaid <= 0 ? 'border-amber-400' : ''}`}
                                 />
                                 {/* Quick payment helper buttons */}
                                 <div className="flex gap-1.5 mt-1.5">
@@ -449,15 +580,61 @@ const ConfirmBookingModal = ({ booking, isOpen, onClose, onSuccess, targetStatus
                                     )}
                                 </div>
                             </div>
+
+                            {/* Payment Method */}
+                            <div className="form-control">
+                                <label className="label py-0.5">
+                                    <span className="label-text font-bold text-slate-800 text-xs flex items-center gap-1">
+                                        <CreditCard size={13} className="text-teal-600" /> Payment Method {!isPaymentWaiting && <span className="text-red-500 font-bold">*</span>}
+                                    </span>
+                                </label>
+                                <select
+                                    value={paymentMethod}
+                                    onChange={e => setPaymentMethod(e.target.value)}
+                                    className={`select select-sm select-bordered w-full rounded-xl bg-white text-xs font-semibold ${!isPaymentWaiting && !paymentMethod ? 'border-amber-400' : ''}`}
+                                >
+                                    <option value="">-- Select Payment Method --</option>
+                                    <option value="bKash">bKash (Mobile)</option>
+                                    <option value="Nagad">Nagad (Mobile)</option>
+                                    <option value="Rocket">Rocket (DBBL)</option>
+                                    <option value="Upay">Upay (UCB)</option>
+                                    <option value="Card / POS">Card / POS (Visa/Master/Amex)</option>
+                                    <option value="Cash">Cash (Front Desk)</option>
+                                    <option value="Bank Cheque">Bank Cheque / Cheque</option>
+                                    <option value="Bank Transfer">Bank Transfer / EFT / BEFTN</option>
+                                    <option value="Online Gateway">Online Payment Gateway</option>
+                                    <option value="Other">Other</option>
+                                </select>
+                            </div>
+
+                            {/* Transaction ID */}
+                            <div className="form-control">
+                                <label className="label py-0.5">
+                                    <span className="label-text font-bold text-slate-800 text-xs flex items-center justify-between w-full">
+                                        <span className="flex items-center gap-1">
+                                            <Receipt size={13} className="text-teal-600" /> Trx / Receipt
+                                        </span>
+                                        {!isPaymentWaiting && paymentMethod && !["Cash", "Other"].includes(paymentMethod) && (
+                                            <span className="text-red-500 font-bold text-[10px]">* Required</span>
+                                        )}
+                                    </span>
+                                </label>
+                                <input
+                                    type="text"
+                                    required={!isPaymentWaiting && Boolean(paymentMethod && !["Cash", "Other"].includes(paymentMethod))}
+                                    value={transactionId}
+                                    onChange={e => setTransactionId(e.target.value)}
+                                    placeholder={paymentMethod === "Cash" || paymentMethod === "Other" ? "Optional for Cash / Other" : "e.g. TRX-982314 / Slip No"}
+                                    className={`input input-sm input-bordered w-full rounded-xl bg-white text-xs ${!isPaymentWaiting && paymentMethod && !["Cash", "Other"].includes(paymentMethod) && !transactionId.trim() ? 'border-amber-400' : ''}`}
+                                />
+                            </div>
                         </div>
 
                         {/* Live Calculation Summary Banner */}
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 rounded-xl bg-white border border-slate-200 text-xs mt-1">
                             <div className="space-y-0.5">
                                 <div className="flex items-center gap-2.5">
-                                    <span className="text-slate-500">Gross: <strong>৳{standardTotal.toLocaleString()}</strong></span>
-                                    {discount > 0 && <span className="text-emerald-700 font-semibold">Discount: -৳{discount.toLocaleString()}</span>}
-                                    <span className="text-teal-900 font-extrabold text-xs sm:text-sm">Net Payable: ৳{finalTotal.toLocaleString()}</span>
+                                    <span className="text-teal-900 font-extrabold text-xs sm:text-sm">Total Payable: ৳{finalTotal.toLocaleString()}</span>
                                 </div>
                                 <div className="text-[11px] text-slate-500">
                                     Paid: <strong className="text-emerald-700">৳{effectivePaid.toLocaleString()}</strong>
@@ -472,51 +649,31 @@ const ConfirmBookingModal = ({ booking, isOpen, onClose, onSuccess, targetStatus
                         </div>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        {/* Payment Method */}
-                        <div className="form-control">
-                            <label className="label py-0.5">
-                                <span className="label-text font-semibold text-slate-700 text-xs flex items-center gap-1">
-                                    <CreditCard size={14} className="text-teal-600" /> Payment Method
-                                </span>
-                            </label>
-                            <select
-                                value={paymentMethod}
-                                onChange={e => setPaymentMethod(e.target.value)}
-                                className="select select-sm select-bordered w-full rounded-xl bg-white text-xs font-semibold"
-                            >
-                                <option value="bKash">bKash (Mobile)</option>
-                                <option value="Nagad">Nagad (Mobile)</option>
-                                <option value="Rocket">Rocket (DBBL)</option>
-                                <option value="Upay">Upay (UCB)</option>
-                                <option value="Card / POS">Card / POS (Visa/Master/Amex)</option>
-                                <option value="Cash">Cash (Front Desk)</option>
-                                <option value="Bank Cheque">Bank Cheque / Cheque</option>
-                                <option value="Bank Transfer">Bank Transfer / EFT / BEFTN</option>
-                                <option value="Online Gateway">Online Payment Gateway</option>
-                                <option value="Other">Other</option>
-                            </select>
-                        </div>
-
-                        {/* Transaction ID */}
-                        <div className="form-control">
-                            <label className="label py-0.5">
-                                <span className="label-text font-semibold text-slate-700 text-xs flex items-center justify-between w-full">
-                                    <span className="flex items-center gap-1">
-                                        <Receipt size={14} className="text-teal-600" /> Transaction ID / Receipt
-                                    </span>
-                                    {!isPaymentWaiting && effectivePaid > 0 && <span className="text-rose-600 font-bold text-[10px]">* Required</span>}
-                                </span>
-                            </label>
-                            <input
-                                type="text"
-                                required={!isPaymentWaiting && effectivePaid > 0}
-                                value={transactionId}
-                                onChange={e => setTransactionId(e.target.value)}
-                                placeholder="e.g. TRX-982314 / Cash / Cheque"
-                                className={`input input-sm input-bordered w-full rounded-xl bg-white text-xs ${!isPaymentWaiting && effectivePaid > 0 && !transactionId.trim() ? 'border-amber-400' : ''}`}
-                            />
-                        </div>
+                    {/* Reference Dropdown (Anyone without 'user' role) */}
+                    <div className="form-control">
+                        <label className="label py-0.5 block">
+                            <span className="label-text font-semibold text-slate-700 text-xs flex items-center gap-1">
+                                <UserCheck size={14} className="text-teal-600" /> Reference (Staff / Admin) {!isPaymentWaiting && <span className="text-red-500 font-bold">*</span>}
+                            </span>
+                        </label>
+                        <select
+                            value={reference}
+                            onChange={e => setReference(e.target.value)}
+                            className={`select select-sm select-bordered w-full rounded-xl bg-white text-xs font-medium ${!isPaymentWaiting && !reference ? 'border-amber-400' : ''}`}
+                        >
+                            <option value="">-- Select Reference {!isPaymentWaiting ? "(Required)" : "(Optional)"} --</option>
+                            {eligibleReferences.map(u => (
+                                <option key={u._id} value={u.name || u.email}>
+                                    {u.name || u.email} ({u.role || "staff"})
+                                </option>
+                            ))}
+                            {eligibleReferences.length === 0 && (
+                                <>
+                                    <option value="Direct Frontdesk">Direct Frontdesk (frontdesk)</option>
+                                    <option value="Admin Management">Admin Management (admin)</option>
+                                </>
+                            )}
+                        </select>
                     </div>
 
                     {/* Submit Actions */}

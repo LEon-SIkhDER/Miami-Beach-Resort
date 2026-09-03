@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useContext, useMemo } from "react";
 import { useNavigate } from "react-router";
 import DatePicker from "react-datepicker";
-import { eachDayOfInterval, format, addDays, subDays, startOfMonth, endOfMonth } from "date-fns";
+import { eachDayOfInterval, format, addDays, subDays, startOfMonth, endOfMonth, addMonths } from "date-fns";
 import "react-datepicker/dist/react-datepicker.css";
 import { AuthContext } from "../../../Context/AuthContext";
 import useRole from "../../../hooks/useRole";
@@ -125,97 +125,53 @@ const Calender = () => {
         }
     });
 
-    // Date Range State with robust localStorage persistence
-    const [startDate, setStartDate] = useState(() => {
-        try {
-            const saved = localStorage.getItem("calendar_startDate") || localStorage.getItem("startDate");
-            if (saved) {
-                const parsed = new Date(saved);
-                if (!isNaN(parsed.getTime())) return parsed;
-            }
-        } catch (e) {
-            console.error("Error reading startDate from localStorage:", e);
-        }
-        return subDays(new Date(), 3);
-    });
+    // Date Range State: Always starts on current date to 1 month forward on load (no localStorage persistence)
+    const [startDate, setStartDate] = useState(() => new Date());
+    const [endDate, setEndDate] = useState(() => addMonths(new Date(), 1));
 
-    const [endDate, setEndDate] = useState(() => {
+    // Clean up any old calendar date keys from localStorage
+    useEffect(() => {
         try {
-            const saved = localStorage.getItem("calendar_endDate") || localStorage.getItem("endDate");
-            if (saved) {
-                const parsed = new Date(saved);
-                if (!isNaN(parsed.getTime())) return parsed;
-            }
-        } catch (e) {
-            console.error("Error reading endDate from localStorage:", e);
-        }
-        return addDays(new Date(), 11);
-    });
+            localStorage.removeItem("calendar_startDate");
+            localStorage.removeItem("calendar_endDate");
+            localStorage.removeItem("startDate");
+            localStorage.removeItem("endDate");
+        } catch (e) {}
+    }, []);
 
     const handleStartDate = (date) => {
         if (!date || isNaN(date.getTime())) return;
         setStartDate(date);
-        try {
-            localStorage.setItem("calendar_startDate", date.toISOString());
-            localStorage.setItem("startDate", date.toISOString());
-
-            if (endDate && date > endDate) {
-                const adjustedEnd = addDays(date, 14);
-                setEndDate(adjustedEnd);
-                localStorage.setItem("calendar_endDate", adjustedEnd.toISOString());
-                localStorage.setItem("endDate", adjustedEnd.toISOString());
-            }
-        } catch (e) {
-            console.error("Error saving startDate to localStorage:", e);
+        if (endDate && date > endDate) {
+            const adjustedEnd = addMonths(date, 1);
+            setEndDate(adjustedEnd);
         }
     };
 
     const handleEndDate = (date) => {
         if (!date || isNaN(date.getTime())) return;
         setEndDate(date);
-        try {
-            localStorage.setItem("calendar_endDate", date.toISOString());
-            localStorage.setItem("endDate", date.toISOString());
-        } catch (e) {
-            console.error("Error saving endDate to localStorage:", e);
-        }
     };
 
     // Quick Date Navigation Helpers
     const handleShiftDays = (days) => {
-        const currentSpan = endDate && startDate ? Math.max(1, Math.round((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24))) : 14;
+        const currentSpan = endDate && startDate ? Math.max(1, Math.round((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24))) : 30;
         const newStart = days > 0 ? addDays(startDate, days) : subDays(startDate, Math.abs(days));
         const newEnd = addDays(newStart, currentSpan);
         setStartDate(newStart);
         setEndDate(newEnd);
-        try {
-            localStorage.setItem("calendar_startDate", newStart.toISOString());
-            localStorage.setItem("calendar_endDate", newEnd.toISOString());
-        } catch (e) {}
     };
 
     const handleSetTodayView = () => {
         const today = new Date();
-        const newStart = subDays(today, 2);
-        const newEnd = addDays(today, 12);
-        setStartDate(newStart);
-        setEndDate(newEnd);
-        try {
-            localStorage.setItem("calendar_startDate", newStart.toISOString());
-            localStorage.setItem("calendar_endDate", newEnd.toISOString());
-        } catch (e) {}
+        setStartDate(today);
+        setEndDate(addMonths(today, 1));
     };
 
     const handleSetThisMonth = () => {
         const today = new Date();
-        const newStart = startOfMonth(today);
-        const newEnd = endOfMonth(today);
-        setStartDate(newStart);
-        setEndDate(newEnd);
-        try {
-            localStorage.setItem("calendar_startDate", newStart.toISOString());
-            localStorage.setItem("calendar_endDate", newEnd.toISOString());
-        } catch (e) {}
+        setStartDate(startOfMonth(today));
+        setEndDate(endOfMonth(today));
     };
 
     // Calculate array of date interval objects safely
@@ -663,13 +619,13 @@ const Calender = () => {
                                     <tr>
                                         <th className="sticky left-0 z-40 border border-gray-300 bg-slate-800 text-xs font-bold px-2.5 py-1.5 text-white shadow-md whitespace-nowrap text-left">
                                             <div className="flex items-center justify-between gap-3">
-                                                <span>{category.category}</span>
+                                                <span className="text-[10px]">{category.category}</span>
                                             </div>
                                         </th>
                                         {dateRange.map((dateObj) => (
                                             <td
                                                 key={`${category.category}-${dateObj.iso}`}
-                                                className={`px-0.5 py-1 border border-gray-300 text-center text-[11px] font-semibold whitespace-nowrap ${
+                                                className={`px-0.5 py-1 border border-gray-300 text-center text-[11px] font-bold whitespace-nowrap ${
                                                     dateObj.isToday ? "bg-amber-100 text-amber-900 font-bold" : "bg-slate-100 text-slate-700"
                                                 }`}
                                             >
@@ -768,7 +724,7 @@ const Calender = () => {
                                                         colSpan={bookingSpan}
                                                         onClick={() => handleCellClick(bookingInfo, null, category, roomNo, dateObj)}
                                                         title={`${bookingInfo.guestName} (${bookingInfo.phone})\nStatus: ${bookingInfo.status}\nStay: ${bookingInfo.checkIn} → ${bookingInfo.checkOut}\nBooking ID: ${bookingInfo.bookingId}${hasDue ? `\n⚠️ PAYMENT DUE: ৳${dueAmount.toLocaleString()}` : '\n✅ Fully Paid'}\nClick to view or manage.`}
-                                                        className={`px-1 py-1 text-center text-xs whitespace-nowrap transition-all select-none border-2 border-white cursor-pointer ${getStatusCellClass(bookingInfo.status)}`}
+                                                        className={`px-1 py-1 text-center text-xs whitespace-nowrap transition-all select-none border-2 border-white cursor-pointer rounded-tl-full  rounded-br-full  ${getStatusCellClass(bookingInfo.status)}`}
                                                     >
                                                         <div className="flex items-center justify-center gap-1.5 min-w-0 max-w-full px-1">
                                                             <span className="truncate block font-semibold text-[11px] leading-tight">

@@ -23,7 +23,6 @@ import Calender from "../Pages/Dashboard/Calender/Calender"
 import CategoryAndPricing from "../Pages/Dashboard/Category&Pricing/CategoryAndPricing"
 import CategoryRoomDetails from "../Pages/Dashboard/Category&Pricing/CategoryRoomDetails"
 import MyBookings from "../Pages/MyBookings/MyBookings"
-import WorkerWorkflow from "../Pages/Dashboard/Workflow/WorkerWorkflow"
 
 export const router = createBrowserRouter([
     {
@@ -64,7 +63,6 @@ export const router = createBrowserRouter([
             { path: "category&room", element: <RoleRoute allowedRoles={["admin", "manager"]}><CategoryAndPricing /></RoleRoute> },
             { path: "category&room/:id", element: <RoleRoute allowedRoles={["admin", "manager"]}><CategoryRoomDetails /></RoleRoute> },
             { path: "users", element: <RoleRoute allowedRoles={["admin", "manager"]}><Users /></RoleRoute> },
-            { path: "workflow", element: <RoleRoute allowedRoles={["admin", "manager"]}><WorkerWorkflow /></RoleRoute> },
         ]
     },
     { path: "/forbidden", Component: Forbidden }

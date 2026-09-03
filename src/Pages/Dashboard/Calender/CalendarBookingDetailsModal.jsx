@@ -124,6 +124,14 @@ const CalendarBookingDetailsModal = ({
         enabled: !!isOpen
     })
 
+    const handleCopy = (text) => {
+        if (!text) return
+        navigator.clipboard.writeText(text)
+        setCopiedId(text)
+        toast.success(`Copied: ${text}`)
+        setTimeout(() => setCopiedId(null), 2000)
+    }
+
     const handleCopyBookingId = (bId) => {
         if (!bId) return
         navigator.clipboard.writeText(bId)
@@ -317,16 +325,11 @@ const CalendarBookingDetailsModal = ({
 
                                 <div className="sm:text-right">
                                     <span className="text-[10px] uppercase font-bold text-slate-400 block leading-tight">
-                                        {discountAmount > 0 ? "Net Payable Bill" : "Total Bill"}
+                                        Total Bill
                                     </span>
                                     <span className="font-black text-teal-900 text-lg sm:text-xl">
-                                        ৳{Number(payableTotal || 0).toLocaleString()}
+                                        ৳{Number(payableTotal || subtotal || 0).toLocaleString()}
                                     </span>
-                                    {discountAmount > 0 && (
-                                        <span className="text-[10px] text-emerald-700 block font-semibold">
-                                            (৳{subtotal.toLocaleString()} - ৳{discountAmount.toLocaleString()})
-                                        </span>
-                                    )}
                                 </div>
                             </div>
 
@@ -433,20 +436,8 @@ const CalendarBookingDetailsModal = ({
                                 <div className="space-y-1.5">
                                     <div className="flex justify-between items-center">
                                         <span className="text-slate-500">Total Bill:</span>
-                                        <span className="font-bold text-slate-900">৳{Number(subtotal || 0).toLocaleString()}</span>
+                                        <span className="font-bold text-slate-900">৳{Number(payableTotal || subtotal || 0).toLocaleString()}</span>
                                     </div>
-                                    {discountAmount > 0 && (
-                                        <div className="flex justify-between items-center text-emerald-700 font-semibold">
-                                            <span>Special Discount:</span>
-                                            <span>-৳{discountAmount.toLocaleString()}</span>
-                                        </div>
-                                    )}
-                                    {discountAmount > 0 && (
-                                        <div className="flex justify-between items-center text-slate-700 font-bold border-t border-teal-100/60 pt-1">
-                                            <span>Net Payable:</span>
-                                            <span className="font-extrabold text-teal-900">৳{Number(payableTotal || 0).toLocaleString()}</span>
-                                        </div>
-                                    )}
                                     <div className="flex justify-between items-center">
                                         <span className="text-slate-500">Paid Amount:</span>
                                         <span className="font-bold text-emerald-700">৳{paidAmount.toLocaleString()}</span>
@@ -587,7 +578,7 @@ const CalendarBookingDetailsModal = ({
                         </Link>
 
                         {/* Print / PDF Reservation Letter (Only available after booking status is confirmed) */}
-                        {booking && ["booking_confirmed", "confirmed", "checked_id", "checked_in", "checked_out"].includes(booking.status) && (
+                        {booking && booking.status !== "request_booking" && (
                             <button
                                 type="button"
                                 onClick={() => setIsVoucherOpen(true)}

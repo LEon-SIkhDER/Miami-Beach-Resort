@@ -62,7 +62,7 @@ export const getBookingRooms = (booking = {}) => {
         categoryId: booking.categoryId,
         checkIn: booking.checkIn,
         checkOut: booking.checkOut,
-        adults: Number(booking.adults || 1),
+        adults: Number(booking.adults || 0),
         babies: childCount,
         children: childCount,
         pricePerNight: Number(booking.pricePerNight || booking.price || 0),
@@ -82,12 +82,14 @@ export const getRoomTotal = (roomItem = {}) => {
 }
 
 export const getBookingSubtotal = (booking = {}) => {
+    const extraCost = Number(booking.extraServiceCost || booking.financials?.extraServiceCost || 0)
     const rooms = getBookingRooms(booking)
     if (rooms.length) {
         const total = rooms.reduce((sum, room) => sum + getRoomTotal(room), 0)
-        if (total > 0) return total
+        if (total > 0) return total + extraCost
     }
-    return Number(booking.subtotal || booking.standardTotal || booking.totalAmount || 0)
+    const base = Number(booking.subtotal || booking.standardTotal || booking.totalAmount || 0)
+    return base > 0 ? base + extraCost : 0
 }
 
 export const getBookingDiscount = (booking = {}) => {

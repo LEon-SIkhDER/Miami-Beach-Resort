@@ -56,7 +56,7 @@ const createRoomEntry = (initialCategoryId = "", initialSameCategory = false) =>
     sameCategory: initialSameCategory,
     checkInDate: null,
     checkOutDate: null,
-    adults: 2,
+    adults: '',
     babies: 0,
 })
 
@@ -235,7 +235,7 @@ const Home = () => {
                 categoryName: cat?.name || "Category",
                 checkIn: formatLocalDate(item.checkInDate),
                 checkOut: formatLocalDate(item.checkOutDate),
-                adults: Number(item.adults || 2),
+                adults: item.adults !== '' && item.adults !== undefined ? Number(item.adults) : 0,
                 babies: Number(item.babies || 0),
                 pricePerNight: Number(cat?.price || 0),
                 nights: getRoomNights(item)
@@ -789,7 +789,7 @@ const Home = () => {
                             {/* Guest Details */}
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 bg-slate-50/70 p-4 rounded-2xl border border-slate-200">
                                 <div className="form-control">
-                                    <label className="label py-0.5"><span className="label-text font-semibold text-slate-700 text-xs">Guest Full Name *</span></label>
+                                    <label className="label py-0.5"><span className="label-text font-semibold text-slate-700 text-xs">Guest Full Name <span className="text-red-500 font-bold">*</span></span></label>
                                     <input
                                         name="name" value={formData.name} onChange={handleInput}
                                         type="text" placeholder="Your full name"
@@ -798,7 +798,7 @@ const Home = () => {
                                     {formErrors.name && <span className="text-error text-[11px] mt-0.5">{formErrors.name}</span>}
                                 </div>
                                 <div className="form-control">
-                                    <label className="label py-0.5"><span className="label-text font-semibold text-slate-700 text-xs">Mobile (WhatsApp) *</span></label>
+                                    <label className="label py-0.5"><span className="label-text font-semibold text-slate-700 text-xs">Mobile (WhatsApp) <span className="text-red-500 font-bold">*</span></span></label>
                                     <input
                                         name="mobile" value={formData.mobile} onChange={handleInput}
                                         type="tel" placeholder="+88017..."
@@ -865,7 +865,7 @@ const Home = () => {
                                                     <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-center">
                                                         <div className="form-control sm:col-span-8">
                                                             <label className="label py-0.5">
-                                                                <span className="label-text font-semibold text-slate-700 text-xs">Category *</span>
+                                                                <span className="label-text font-semibold text-slate-700 text-xs">Category <span className="text-red-500 font-bold">*</span></span>
                                                             </label>
                                                             <select
                                                                 value={item.categoryId}
@@ -903,7 +903,7 @@ const Home = () => {
                                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                                     <div className="form-control">
                                                         <label className="label py-0.5">
-                                                            <span className="label-text font-semibold text-slate-700 text-xs">Check-In *</span>
+                                                            <span className="label-text font-semibold text-slate-700 text-xs">Check-In <span className="text-red-500 font-bold">*</span></span>
                                                         </label>
                                                         <DatePicker
                                                             selected={item.checkInDate}
@@ -922,7 +922,7 @@ const Home = () => {
 
                                                     <div className="form-control">
                                                         <label className="label py-0.5">
-                                                            <span className="label-text font-semibold text-slate-700 text-xs">Check-Out *</span>
+                                                            <span className="label-text font-semibold text-slate-700 text-xs">Check-Out <span className="text-red-500 font-bold">*</span></span>
                                                         </label>
                                                         <DatePicker
                                                             selected={item.checkOutDate}
@@ -948,7 +948,8 @@ const Home = () => {
                                                             <span className="label-text font-semibold text-slate-700 text-xs">Adults</span>
                                                         </label>
                                                         <input
-                                                            type="number" min="1" value={item.adults}
+                                                            type="number" min="0" value={item.adults !== undefined ? item.adults : ''}
+                                                            placeholder="0"
                                                             onChange={e => handleRoomChange(item.itemId, { adults: e.target.value })}
                                                             className="input input-sm input-bordered w-full rounded-xl bg-white text-xs"
                                                         />

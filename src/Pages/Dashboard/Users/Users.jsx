@@ -272,7 +272,7 @@ const Users = () => {
             </div>
 
             {/* Desktop Table View */}
-            <div className="hidden md:block bg-white border border-slate-200 rounded-2xl overflow-x-auto shadow-xs">
+            <div className="hidden md:block bg-white border border-slate-200 shadow-xs">
                 <table className="table table-zebra w-full whitespace-nowrap">
                         <thead>
                             <tr className="bg-slate-50 text-slate-600 font-bold text-xs uppercase tracking-wider whitespace-nowrap">

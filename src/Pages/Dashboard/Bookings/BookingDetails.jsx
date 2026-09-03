@@ -295,7 +295,7 @@ const BookingDetails = () => {
                     )}
 
                     {/* Reservation Confirmation Voucher / Letter */}
-                    {["booking_confirmed", "confirmed", "checked_id", "checked_in", "checked_out"].includes(booking.status) && (
+                    {booking.status !== "request_booking" && (
                         <button 
                             onClick={() => setIsVoucherOpen(true)}
                             className="btn btn-sm bg-[#5261d6] hover:bg-[#4351be] text-white gap-1.5 rounded-xl shadow-xs border-none"
@@ -314,14 +314,14 @@ const BookingDetails = () => {
                         </button>
                     )}
 
-                    {!isCancelled && canRecordPayment && dueAmount > 0.01 && (
+                    {/* {!isCancelled && canRecordPayment && dueAmount > 0.01 && (
                         <button 
                             onClick={() => setIsAddPaymentOpen(true)}
                             className="btn btn-sm bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5 rounded-xl shadow-xs border-none"
                         >
                             <CreditCard size={15} /> Record Payment
                         </button>
-                    )}
+                    )} */}
 
                     {!isCancelled && canCancel && booking.status !== "checked_out" && (
                         <button 
@@ -563,20 +563,8 @@ const BookingDetails = () => {
                             <div className="bg-slate-50 p-5 rounded-2xl border border-slate-100 space-y-3 text-xs sm:text-sm">
                                 <div className="flex justify-between items-center text-slate-600">
                                     <span>Total Bill:</span>
-                                    <span className="font-bold text-slate-900">৳{subtotal.toLocaleString()}</span>
+                                    <span className="font-bold text-slate-900">৳{(payableTotal || subtotal).toLocaleString()}</span>
                                 </div>
-                                {discountAmount > 0 && (
-                                    <div className="flex justify-between items-center text-emerald-700 font-semibold">
-                                        <span>Special Discount:</span>
-                                        <span>-৳{discountAmount.toLocaleString()}</span>
-                                    </div>
-                                )}
-                                {discountAmount > 0 && (
-                                    <div className="flex justify-between items-center text-slate-700 font-bold border-t border-slate-200/60 pt-1.5">
-                                        <span>Net Payable Bill:</span>
-                                        <span className="font-extrabold text-teal-900">৳{payableTotal.toLocaleString()}</span>
-                                    </div>
-                                )}
                                 <div className="flex justify-between items-center text-slate-600">
                                     <span>Paid / Done:</span>
                                     <span className="text-emerald-700 font-semibold">৳{paidAmount.toLocaleString()}</span>

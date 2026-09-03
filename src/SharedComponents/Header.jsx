@@ -107,10 +107,28 @@ const Header = () => {
                     {user && !isStaffRole && (
                         <Link to="/my-bookings" className="hover:text-teal-700 transition-colors">My Bookings</Link>
                     )}
+                    {user && isStaffRole && (
+                        <Link 
+                            to="/dashboard" 
+                            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-teal-50 hover:bg-teal-100 text-teal-900 font-bold border border-teal-200/80 transition-all shadow-2xs"
+                        >
+                            <LayoutDashboard size={15} className="text-teal-700" />
+                            <span>Dashboard</span>
+                        </Link>
+                    )}
                 </nav>
 
                 {/* Right Actions */}
                 <div className="flex items-center gap-2.5">
+                    {/* {user && isStaffRole && (
+                        <Link
+                            to="/dashboard"
+                            className="btn btn-sm bg-[#01966e] hover:bg-[#017c5b] text-white font-bold rounded-xl gap-1.5 shadow-xs border-none"
+                        >
+                            <LayoutDashboard size={14} />
+                            <span className="hidden sm:inline">Dashboard</span>
+                        </Link>
+                    )} */}
                     
 
 

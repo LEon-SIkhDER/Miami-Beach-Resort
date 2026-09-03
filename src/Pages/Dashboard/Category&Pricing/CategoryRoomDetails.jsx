@@ -524,7 +524,7 @@ const CategoryRoomDetails = () => {
                             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                                 <div className="form-control">
                                     <label className="label py-0.5">
-                                        <span className="label-text text-xs font-semibold text-slate-700">Effective Date *</span>
+                                        <span className="label-text text-xs font-semibold text-slate-700">Effective Date <span className="text-red-500 font-bold">*</span></span>
                                     </label>
                                     <input
                                         type="date"
@@ -537,7 +537,7 @@ const CategoryRoomDetails = () => {
 
                                 <div className="form-control">
                                     <label className="label py-0.5">
-                                        <span className="label-text text-xs font-semibold text-slate-700">New Price / Night (৳) *</span>
+                                        <span className="label-text text-xs font-semibold text-slate-700">New Price / Night (৳) <span className="text-red-500 font-bold">*</span></span>
                                     </label>
                                     <input
                                         type="number"

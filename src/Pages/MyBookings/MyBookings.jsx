@@ -462,8 +462,8 @@ const MyBookings = () => {
                                                 <Eye size={14} /> View Details
                                             </button>
 
-                                            {/* Confirmation Voucher / Letter button for confirmed bookings */}
-                                            {isConfirmed && (
+                                            {/* Confirmation Voucher / Letter button for all statuses except request_booking */}
+                                            {b.status !== "request_booking" && (
                                                 <button
                                                     type="button"
                                                     onClick={() => setVoucherBooking(b)}
@@ -540,7 +540,7 @@ const MyBookings = () => {
                                         <div>
                                             <p className="font-bold text-slate-900">{getRoomName(r)}</p>
                                             <p className="text-[11px] text-slate-500">
-                                                {r.roomNo ? `Room Number: ${r.roomNo}` : 'Assigned upon check-in'} • {r.adults || 2} Adults
+                                                {r.roomNo ? `Room Number: ${r.roomNo}` : 'Assigned upon check-in'} • {Number(r.adults || 0)} Adults
                                             </p>
                                         </div>
                                         <p className="font-bold text-slate-900 text-sm">
