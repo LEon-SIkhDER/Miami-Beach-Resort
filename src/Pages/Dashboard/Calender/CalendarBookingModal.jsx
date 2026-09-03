@@ -41,6 +41,25 @@ const getRoomNights = (entry) => {
     return Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)))
 }
 
+// Resolve the effective price for a category on a given check-in date.
+// Finds the latest scheduledPrice whose effectiveDate <= checkInDate (YYYY-MM-DD).
+// Falls back to the category's base price if no scheduled price applies.
+const getEffectivePrice = (cat, checkInDate) => {
+    const basePrice = Number(cat?.price || 0)
+    if (!checkInDate || !Array.isArray(cat?.scheduledPrices) || cat.scheduledPrices.length === 0) {
+        return basePrice
+    }
+    const checkIn = typeof checkInDate === 'string' ? checkInDate : formatLocalDate(checkInDate)
+    if (!checkIn) return basePrice
+
+    const applicable = cat.scheduledPrices
+        .filter(sp => sp.effectiveDate && sp.effectiveDate <= checkIn)
+        .sort((a, b) => b.effectiveDate.localeCompare(a.effectiveDate)) // latest first
+
+    return applicable.length > 0 ? Number(applicable[0].price || 0) : basePrice
+}
+
+
 const CalendarBookingModal = ({
     isOpen,
     onClose,
@@ -152,7 +171,7 @@ const CalendarBookingModal = ({
                 adults: 2,
                 babies: 0,
                 sameCategory: true,
-                pricePerNight: Number(clickedCat?.price || 0)
+                pricePerNight: getEffectivePrice(clickedCat, clickedDate)
             }
 
             setBookingRooms([firstRoom])
@@ -181,7 +200,7 @@ const CalendarBookingModal = ({
     // Standard base calculation (sum of original category prices * nights)
     const standardTotal = bookingRooms.reduce((sum, room) => {
         const cat = categories.find(c => String(c._id) === String(room.categoryId))
-        const price = Number(cat?.price || room.pricePerNight || 0)
+        const price = getEffectivePrice(cat, room.checkInDate) || Number(room.pricePerNight || 0)
         const nights = getRoomNights(room)
         return sum + (price * nights)
     }, 0)
@@ -201,7 +220,7 @@ const CalendarBookingModal = ({
         const firstIn = bookingRooms[0]?.checkInDate || new Date()
         const firstOut = bookingRooms[0]?.checkOutDate || new Date(firstIn.getTime() + 24 * 60 * 60 * 1000)
         const nights = Math.max(1, Math.ceil((new Date(firstOut) - new Date(firstIn)) / (1000 * 60 * 60 * 24)))
-        const pricePerNight = Number(firstCat?.price || 0)
+        const pricePerNight = getEffectivePrice(firstCat, firstIn)
         const newRoomPrice = pricePerNight * nights
 
         const newRoom = {
@@ -233,7 +252,7 @@ const CalendarBookingModal = ({
             if (changes.categoryId) {
                 const cat = categories.find(c => String(c._id) === String(changes.categoryId))
                 next.categoryName = cat?.name || ""
-                next.pricePerNight = Number(cat?.price || 0)
+                next.pricePerNight = getEffectivePrice(cat, next.checkInDate)
                 next.roomNo = "" // Reset physical room selection when category changes
             }
             if (changes.sameCategory !== undefined && changes.sameCategory) {
@@ -241,7 +260,7 @@ const CalendarBookingModal = ({
                 if (firstCat) {
                     next.categoryId = firstCat._id
                     next.categoryName = firstCat.name
-                    next.pricePerNight = Number(firstCat.price || 0)
+                    next.pricePerNight = getEffectivePrice(firstCat, next.checkInDate)
                     next.roomNo = ""
                 }
             }
@@ -313,7 +332,7 @@ const CalendarBookingModal = ({
                     adults: Number(r.adults || 2),
                     babies: Number(r.children !== undefined ? r.children : (r.babies || 0)),
                     children: Number(r.children !== undefined ? r.children : (r.babies || 0)),
-                    pricePerNight: Number(cat?.price || r.pricePerNight || 0),
+                    pricePerNight: getEffectivePrice(cat, r.checkInDate) || Number(r.pricePerNight || 0),
                     nights: getRoomNights(r)
                 }
             })
@@ -922,7 +941,7 @@ const CalendarBookingModal = ({
                             type="button"
                             onClick={() => handleSubmit("payment_waiting")}
                             disabled={submittingStatus !== null}
-                            className="btn btn-sm bg-[#eab308] hover:bg-yellow-500 text-amber-950 font-bold rounded-xl px-3 shadow-xs border-none"
+                            className="btn btn-sm bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl px-3 shadow-xs border-none"
                         >
                             {submittingStatus === "payment_waiting" ? (
                                 <span className="loading loading-spinner loading-xs" />

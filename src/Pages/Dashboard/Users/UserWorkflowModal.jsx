@@ -88,7 +88,7 @@ const UserWorkflowModal = ({ user, isOpen, onClose }) => {
             case "confirmed":
                 return <span className="badge badge-xs bg-emerald-50 text-emerald-700 border-emerald-200 font-bold">Confirmed</span>
             case "payment_waiting":
-                return <span className="badge badge-xs bg-sky-50 text-sky-700 border-sky-200 font-bold">Payment Waiting</span>
+                return <span className="badge badge-xs bg-rose-50 text-rose-700 border-rose-200 font-bold">Payment Waiting</span>
             case "checked_id":
                 return <span className="badge badge-xs bg-indigo-50 text-indigo-700 border-indigo-200 font-bold">Checked In</span>
             case "checked_out":

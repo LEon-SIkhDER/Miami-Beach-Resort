@@ -227,7 +227,7 @@ const Bookings = () => {
 
         switch (status) {
             case BOOKING_STATUS.PAYMENT_WAITING:
-                return <span className={`${baseClass} bg-sky-50 text-sky-700 border-sky-200 rounded-full`}><CreditCard size={12} /> Payment Waiting</span>
+                return <span className={`${baseClass} bg-rose-50 text-rose-700 border-rose-200 rounded-full`}><CreditCard size={12} /> Payment Waiting</span>
             case BOOKING_STATUS.BOOKING_CONFIRMED:
                 return <span className={`${baseClass} bg-emerald-50 text-emerald-700 border-emerald-200 rounded-full`}><CheckCircle2 size={12} /> Booking Confirmed</span>
             case BOOKING_STATUS.CHECKED_IN:
@@ -518,7 +518,7 @@ const Bookings = () => {
                                                         <button
                                                             type="button"
                                                             onClick={() => handleStatusChange(b, status)}
-                                                            className={status === BOOKING_STATUS.CANCEL ? "text-rose-600 hover:bg-rose-50" : status === BOOKING_STATUS.BOOKING_CONFIRMED ? "text-emerald-700 hover:bg-emerald-50 font-semibold" : status === BOOKING_STATUS.PAYMENT_WAITING ? "text-sky-700 hover:bg-sky-50 font-semibold" : "text-slate-600 hover:text-teal-700 hover:bg-teal-50"}
+                                                            className={status === BOOKING_STATUS.CANCEL ? "text-rose-600 hover:bg-rose-50" : status === BOOKING_STATUS.BOOKING_CONFIRMED ? "text-emerald-700 hover:bg-emerald-50 font-semibold" : status === BOOKING_STATUS.PAYMENT_WAITING ? "text-rose-700 hover:bg-rose-50 font-semibold" : "text-slate-600 hover:text-teal-700 hover:bg-teal-50"}
                                                         >
                                                             {status === BOOKING_STATUS.CANCEL ? <XCircle size={15} /> : <CheckCircle2 size={15} />}
                                                             {statusText(status)}
@@ -625,7 +625,7 @@ const Bookings = () => {
                                                 <button
                                                     type="button"
                                                     onClick={() => handleStatusChange(b, status)}
-                                                    className={status === BOOKING_STATUS.CANCEL ? "text-rose-600 hover:bg-rose-50" : status === BOOKING_STATUS.BOOKING_CONFIRMED ? "text-emerald-700 hover:bg-emerald-50 font-semibold" : status === BOOKING_STATUS.PAYMENT_WAITING ? "text-sky-700 hover:bg-sky-50 font-semibold" : "text-slate-600 hover:text-teal-700 hover:bg-teal-50"}
+                                                    className={status === BOOKING_STATUS.CANCEL ? "text-rose-600 hover:bg-rose-50" : status === BOOKING_STATUS.BOOKING_CONFIRMED ? "text-emerald-700 hover:bg-emerald-50 font-semibold" : status === BOOKING_STATUS.PAYMENT_WAITING ? "text-rose-700 hover:bg-rose-50 font-semibold" : "text-slate-600 hover:text-teal-700 hover:bg-teal-50"}
                                                 >
                                                     {status === BOOKING_STATUS.CANCEL ? <XCircle size={15} /> : <CheckCircle2 size={15} />}
                                                     {statusText(status)}

@@ -34,6 +34,7 @@ import {
     getBookingGuestTotals, 
     getBookingRooms, 
     getBookingTotal, 
+    getEffectivePaymentHistory,
     getNightCount, 
     getRoomName, 
     getRoomTotal 
@@ -135,7 +136,7 @@ const MyBookings = () => {
                 )
             case "payment_waiting":
                 return (
-                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-sky-50 text-sky-700 border border-sky-200">
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-rose-50 text-rose-700 border border-rose-200">
                         <CreditCard size={13} /> Payment Waiting
                     </span>
                 )
@@ -550,16 +551,48 @@ const MyBookings = () => {
                             </div>
                         </div>
 
-                        {/* Total & Policies */}
-                        <div className="bg-teal-50/60 p-4 rounded-2xl border border-teal-100 space-y-2 text-xs">
+                        {/* Total & Payments */}
+                        <div className="bg-teal-50/60 p-4 rounded-2xl border border-teal-100 space-y-2.5 text-xs">
                             <div className="flex justify-between items-center text-sm font-bold text-slate-900">
                                 <span>Grand Total:</span>
                                 <span>৳{Number(detailsBooking.totalAmount !== undefined ? detailsBooking.totalAmount : getBookingTotal(detailsBooking)).toLocaleString()}</span>
                             </div>
                             <div className="flex justify-between items-center text-slate-600">
-                                <span>Paid Amount:</span>
+                                <span>Total Paid:</span>
                                 <span className="font-semibold text-emerald-700">৳{Number(detailsBooking.paidAmount || detailsBooking.advanceAmount || 0).toLocaleString()}</span>
                             </div>
+
+                            {/* Payment Method Breakdown */}
+                            {(() => {
+                                const payments = getEffectivePaymentHistory(detailsBooking)
+                                if (!payments.length) return null
+                                return (
+                                    <div className="space-y-1 pt-2 border-t border-teal-200/60">
+                                        <p className="font-bold text-slate-700 text-[11px] flex items-center gap-1">
+                                            <CreditCard size={12} className="text-teal-700" /> Payment Transactions:
+                                        </p>
+                                        <div className="space-y-1">
+                                            {payments.map((p, idx) => (
+                                                <div key={idx} className="flex justify-between items-center bg-white p-2 rounded-xl border border-slate-200 text-xs">
+                                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                                        <span className="font-bold text-slate-800 capitalize bg-slate-100 px-1.5 py-0.5 rounded text-[10px]">
+                                                            {p.paymentMethod || "Payment"}
+                                                        </span>
+                                                        {p.transactionId && (
+                                                            <span className="font-mono text-slate-600 text-[10.5px]">
+                                                                Trx: {p.transactionId}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    <span className="font-extrabold text-emerald-700 font-mono">
+                                                        ৳{Number(p.amount || 0).toLocaleString()}
+                                                    </span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )
+                            })()}
                         </div>
 
                         {/* Footer Action */}

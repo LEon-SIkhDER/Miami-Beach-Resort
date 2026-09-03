@@ -724,7 +724,7 @@ const Home = () => {
             </section>
 
             {/* Quick Policies */}
-            <section className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 pb-16">
+            <section className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-16">
                 <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 shadow-xs grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 text-xs sm:text-sm">
                     <div className="space-y-1">
                         <p className="font-bold text-slate-900 flex items-center gap-1.5"><Clock size={16} className="text-teal-600 shrink-0" /> Stay Timings</p>

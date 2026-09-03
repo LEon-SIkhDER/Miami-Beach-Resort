@@ -126,13 +126,22 @@ const ReservationVoucherModal = ({
     const paidAmount = Number(booking.financials?.paidAmount !== undefined ? booking.financials.paidAmount : (initialBooking?.paidAmount || initialBooking?.advanceAmount || 0))
     const dueAmount = Math.max(0, payableTotal - paidAmount)
 
+    const paymentHistory = Array.isArray(booking.financials?.paymentHistory) && booking.financials.paymentHistory.length > 0
+        ? booking.financials.paymentHistory
+        : Array.isArray(booking.paymentHistory) && booking.paymentHistory.length > 0
+        ? booking.paymentHistory
+        : Array.isArray(initialBooking?.paymentHistory) && initialBooking.paymentHistory.length > 0
+        ? initialBooking.paymentHistory
+        : []
+
     const financials = {
         subtotal: subtotalAmount,
         discountAmount,
         totalAmount: payableTotal,
         paidAmount,
         dueAmount,
-        paymentMethod: booking.financials?.paymentMethod || initialBooking?.paymentMethod || "M-Banking Advance"
+        paymentMethod: booking.financials?.paymentMethod || initialBooking?.paymentMethod || "M-Banking Advance",
+        paymentHistory
     }
 
     const creatorName = booking.creator || initialBooking?.reference || initialBooking?.changedBy?.name || "Taniya Sharmin"
@@ -367,10 +376,38 @@ const ReservationVoucherModal = ({
                                             <td className="p-0.5 px-1 text-right font-mono font-bold text-teal-900">BDT {Number(financials.totalAmount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                                         </tr>
                                     )}
-                                    <tr>
-                                        <td colSpan={6} className="p-0.5 px-1 text-right font-bold border-r border-slate-200">{financials.paymentMethod || "Advance Paid"}:</td>
-                                        <td className="p-0.5 px-1 text-right font-mono font-semibold text-emerald-800">BDT {Number(financials.paidAmount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                                    </tr>
+                                    {/* Multi-Method Payment Breakdown */}
+                                    {paymentHistory.length > 1 ? (
+                                        <>
+                                            {paymentHistory.map((pay, pIdx) => (
+                                                <tr key={pIdx} className="text-slate-800">
+                                                    <td colSpan={6} className="p-0.5 px-1 text-right font-medium border-r border-slate-200">
+                                                        Paid ({pay.paymentMethod || "Payment"}{pay.transactionId && pay.transactionId !== "Cash / Direct" ? ` - Trx: ${pay.transactionId}` : ""}):
+                                                    </td>
+                                                    <td className="p-0.5 px-1 text-right font-mono font-semibold text-emerald-800">
+                                                        BDT {Number(pay.amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                            <tr className="bg-slate-50/70 font-bold">
+                                                <td colSpan={6} className="p-0.5 px-1 text-right font-bold border-r border-slate-200">Total Paid Amount:</td>
+                                                <td className="p-0.5 px-1 text-right font-mono font-bold text-emerald-800">
+                                                    BDT {Number(financials.paidAmount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                </td>
+                                            </tr>
+                                        </>
+                                    ) : (
+                                        <tr>
+                                            <td colSpan={6} className="p-0.5 px-1 text-right font-bold border-r border-slate-200">
+                                                {paymentHistory[0]?.paymentMethod 
+                                                    ? `Paid (${paymentHistory[0].paymentMethod}${paymentHistory[0].transactionId && paymentHistory[0].transactionId !== "Cash / Direct" ? ` - Trx: ${paymentHistory[0].transactionId}` : ""})`
+                                                    : (financials.paymentMethod || "Advance Paid")}:
+                                            </td>
+                                            <td className="p-0.5 px-1 text-right font-mono font-semibold text-emerald-800">
+                                                BDT {Number(financials.paidAmount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                            </td>
+                                        </tr>
+                                    )}
                                     <tr className="bg-slate-100/60 font-black">
                                         <td colSpan={6} className="p-0.5 px-1 text-right font-bold border-r border-slate-200">Due Balance:</td>
                                         <td className="p-0.5 px-1 text-right font-mono text-slate-900">BDT {Number(financials.dueAmount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>

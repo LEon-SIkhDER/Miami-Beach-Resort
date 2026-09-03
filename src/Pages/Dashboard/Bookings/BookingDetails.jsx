@@ -43,6 +43,7 @@ import {
     getBookingDiscount,
     getBookingPaidAmount,
     getBookingDueAmount,
+    getEffectivePaymentHistory,
     getNightCount, 
     getRoomName, 
     getRoomTotal 
@@ -53,6 +54,29 @@ import CancelBookingModal from './CancelBookingModal'
 import AddPaymentModal from './AddPaymentModal'
 import ReservationVoucherModal from '../Calender/ReservationVoucherModal'
 
+const getPaymentMethodBadge = (method) => {
+    const m = String(method || "").toLowerCase()
+    if (m.includes("bkash")) {
+        return <span className="badge badge-sm bg-pink-50 text-pink-700 border-pink-200 font-bold">bKash</span>
+    }
+    if (m.includes("nagad")) {
+        return <span className="badge badge-sm bg-orange-50 text-orange-700 border-orange-200 font-bold">Nagad</span>
+    }
+    if (m.includes("rocket")) {
+        return <span className="badge badge-sm bg-purple-50 text-purple-700 border-purple-200 font-bold">Rocket</span>
+    }
+    if (m.includes("cash")) {
+        return <span className="badge badge-sm bg-emerald-50 text-emerald-700 border-emerald-200 font-bold">Cash</span>
+    }
+    if (m.includes("bank")) {
+        return <span className="badge badge-sm bg-blue-50 text-blue-700 border-blue-200 font-bold">Bank Transfer</span>
+    }
+    if (m.includes("card") || m.includes("visa") || m.includes("master")) {
+        return <span className="badge badge-sm bg-indigo-50 text-indigo-700 border-indigo-200 font-bold">Card</span>
+    }
+    return <span className="badge badge-sm bg-slate-100 text-slate-700 border-slate-200 font-bold">{method || "Cash / Direct"}</span>
+}
+
 const BookingDetails = () => {
     const { id } = useParams()
     const { user: currentUser } = useContext(AuthContext)
@@ -61,6 +85,15 @@ const BookingDetails = () => {
     const queryClient = useQueryClient()
     const navigate = useNavigate()
     const [copied, setCopied] = useState(false)
+    const [copiedTrxId, setCopiedTrxId] = useState(null)
+
+    const handleCopyTrx = (trx) => {
+        if (!trx) return
+        navigator.clipboard.writeText(trx)
+        setCopiedTrxId(trx)
+        toast.success(`Copied TrxID: ${trx}`)
+        setTimeout(() => setCopiedTrxId(null), 2000)
+    }
 
     // Modals
     const [confirmModalTarget, setConfirmModalTarget] = useState(null) // "payment_waiting" or "booking_confirmed"
@@ -167,7 +200,7 @@ const BookingDetails = () => {
                 )
             case "payment_waiting":
                 return (
-                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-sky-50 text-sky-700 border border-sky-200">
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-rose-50 text-rose-700 border border-rose-200">
                         <CreditCard size={14} /> Payment Waiting
                     </span>
                 )
@@ -222,11 +255,13 @@ const BookingDetails = () => {
     const bookingRooms = getBookingRooms(booking)
     const guestTotals = getBookingGuestTotals(booking)
     const totalAmount = getBookingTotal(booking)
+    const dueAmount = getBookingDueAmount(booking)
     const sortedCheckIns = bookingRooms.map(room => room.checkIn).filter(Boolean).sort()
     const sortedCheckOuts = bookingRooms.map(room => room.checkOut).filter(Boolean).sort()
     const firstCheckIn = sortedCheckIns[0] || booking.checkIn
     const lastCheckOut = sortedCheckOuts[sortedCheckOuts.length - 1] || booking.checkOut
     const statusHistory = Array.isArray(booking.statusHistory) ? booking.statusHistory : []
+    const effectivePaymentHistory = getEffectivePaymentHistory(booking)
     const isCancelled = ["cancel", "cancelled"].includes(booking.status)
 
     return (
@@ -253,7 +288,7 @@ const BookingDetails = () => {
                     {canSetPaymentWaiting && booking.status === "request_booking" && (
                         <button 
                             onClick={() => setConfirmModalTarget("payment_waiting")}
-                            className="btn btn-sm bg-[#eab308] hover:bg-yellow-500 text-amber-950 font-bold gap-1.5 rounded-xl shadow-xs border-none"
+                            className="btn btn-sm bg-rose-600 hover:bg-rose-700 text-white font-bold gap-1.5 rounded-xl shadow-xs border-none"
                         >
                             <CreditCard size={15} /> Set to Payment Waiting
                         </button>
@@ -279,7 +314,7 @@ const BookingDetails = () => {
                         </button>
                     )}
 
-                    {!isCancelled && canRecordPayment && (
+                    {!isCancelled && canRecordPayment && dueAmount > 0.01 && (
                         <button 
                             onClick={() => setIsAddPaymentOpen(true)}
                             className="btn btn-sm bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5 rounded-xl shadow-xs border-none"
@@ -565,6 +600,131 @@ const BookingDetails = () => {
                         )
                     })()}
                 </div>
+            </div>
+
+            {/* PAYMENT TRANSACTIONS & METHODS FULL HISTORY */}
+            <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 space-y-5 print:border-none print:shadow-none print:p-0">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+                    <div>
+                        <h3 className="text-base sm:text-lg font-bold text-slate-900 font-serif flex items-center gap-2">
+                            <CreditCard size={18} className="text-emerald-600" /> Payment & Transaction History
+                        </h3>
+                        <p className="text-xs text-slate-500 mt-0.5">
+                            Every payment installment, payment method, and transaction reference recorded for this reservation.
+                        </p>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                        <span className="badge badge-sm bg-emerald-50 text-emerald-800 border-emerald-200 font-bold">
+                            {effectivePaymentHistory.length} Payment{effectivePaymentHistory.length !== 1 ? 's' : ''}
+                        </span>
+                        {dueAmount > 0.01 && !isCancelled && canRecordPayment && (
+                            <button
+                                onClick={() => setIsAddPaymentOpen(true)}
+                                className="btn btn-xs bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl gap-1 border-none shadow-xs"
+                            >
+                                <CreditCard size={12} />
+                                <span>Record Payment</span>
+                            </button>
+                        )}
+                    </div>
+                </div>
+
+                {effectivePaymentHistory.length === 0 ? (
+                    <div className="p-8 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200 text-slate-400 space-y-2">
+                        <CreditCard size={32} className="mx-auto opacity-40 text-slate-400" />
+                        <p className="text-xs font-semibold text-slate-600">No payment records entered yet.</p>
+                        {dueAmount > 0 && !isCancelled && canRecordPayment && (
+                            <button
+                                onClick={() => setIsAddPaymentOpen(true)}
+                                className="btn btn-xs btn-outline border-emerald-300 text-emerald-700 hover:bg-emerald-50 rounded-xl mt-2"
+                            >
+                                + Record Initial Payment
+                            </button>
+                        )}
+                    </div>
+                ) : (
+                    <div className="overflow-x-auto border border-slate-200 rounded-2xl">
+                        <table className="table w-full text-xs">
+                            <thead>
+                                <tr className="bg-slate-50 text-slate-600 font-bold uppercase text-[10.5px] tracking-wider">
+                                    <th>#</th>
+                                    <th>Date & Time</th>
+                                    <th>Payment Method</th>
+                                    <th>Amount (৳)</th>
+                                    <th>Transaction ID / Receipt</th>
+                                    <th>Collected By</th>
+                                    <th>Notes / Ref</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100">
+                                {effectivePaymentHistory.map((pay, idx) => {
+                                    const collector = pay.collectedBy || {}
+                                    const isCopied = copiedTrxId === pay.transactionId
+                                    return (
+                                        <tr key={idx} className="hover:bg-slate-50/60 transition-colors">
+                                            <td className="font-bold text-slate-400">{idx + 1}</td>
+                                            <td className="whitespace-nowrap font-medium text-slate-700">
+                                                {pay.date ? formatDateTime(pay.date) : "—"}
+                                            </td>
+                                            <td>
+                                                {getPaymentMethodBadge(pay.paymentMethod)}
+                                            </td>
+                                            <td className="font-extrabold text-emerald-700 text-sm font-mono whitespace-nowrap">
+                                                ৳{Number(pay.amount || 0).toLocaleString()}
+                                            </td>
+                                            <td>
+                                                {pay.transactionId ? (
+                                                    <div className="inline-flex items-center gap-1.5 bg-slate-100/90 px-2 py-0.5 rounded-lg border border-slate-200">
+                                                        <span className="font-mono font-bold text-slate-800 text-[11px]">
+                                                            {pay.transactionId}
+                                                        </span>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleCopyTrx(pay.transactionId)}
+                                                            className="text-slate-400 hover:text-teal-600 transition-colors p-0.5"
+                                                            title="Copy Transaction ID"
+                                                        >
+                                                            {isCopied ? <Check size={12} className="text-emerald-600" /> : <Copy size={12} />}
+                                                        </button>
+                                                    </div>
+                                                ) : (
+                                                    <span className="text-slate-400 italic">None</span>
+                                                )}
+                                            </td>
+                                            <td>
+                                                <div className="flex items-center gap-1.5">
+                                                    <span className="font-semibold text-slate-800">
+                                                        {collector.name || pay.reference || "Staff"}
+                                                    </span>
+                                                    {collector.role && getActorRoleBadge(collector.role)}
+                                                </div>
+                                            </td>
+                                            <td className="text-slate-500 max-w-[180px] truncate" title={pay.note || pay.reference || ""}>
+                                                {pay.note || pay.reference || <span className="text-slate-300">—</span>}
+                                            </td>
+                                        </tr>
+                                    )
+                                })}
+                            </tbody>
+                            <tfoot className="bg-slate-50/90 font-bold text-slate-800 border-t border-slate-200">
+                                <tr>
+                                    <td colSpan={3} className="text-right">Total Paid Across Methods:</td>
+                                    <td className="text-emerald-800 font-extrabold font-mono text-sm">
+                                        ৳{Number(getBookingPaidAmount(booking) || 0).toLocaleString()}
+                                    </td>
+                                    <td colSpan={3} className="text-slate-500 text-[11px] font-normal">
+                                        {dueAmount > 0.01 ? (
+                                            <span className="text-orange-600 font-bold">⚠️ Due Remaining: ৳{Number(dueAmount).toLocaleString()}</span>
+                                        ) : (
+                                            <span className="text-emerald-700 font-bold">✅ Full Payment Completed</span>
+                                        )}
+                                    </td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                )}
             </div>
 
             {/* STATUS HISTORY TIMELINE (Who Changed Status & When) */}

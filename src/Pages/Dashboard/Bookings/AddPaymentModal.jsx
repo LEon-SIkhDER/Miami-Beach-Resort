@@ -88,8 +88,8 @@ const AddPaymentModal = ({
             return
         }
 
-        if (!transactionId.trim()) {
-            toast.error("Transaction ID / Receipt No is required.")
+        if (paymentMethod !== "Cash" && !transactionId.trim()) {
+            toast.error("Transaction ID / Receipt No is required for digital payments.")
             return
         }
 
@@ -101,7 +101,7 @@ const AddPaymentModal = ({
                 amount: payAmount,
                 paymentMethod,
                 reference: reference.trim(),
-                transactionId: transactionId.trim(),
+                transactionId: transactionId.trim() || (paymentMethod === "Cash" ? "Cash / Direct" : ""),
                 note: note.trim(),
                 collectedBy: {
                     name: currentUser?.displayName || "Admin / Staff",

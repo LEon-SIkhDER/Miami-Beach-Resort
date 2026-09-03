@@ -147,3 +147,22 @@ export const getBookingDateSummary = (booking = {}) => {
     const checkOuts = rooms.map(room => room.checkOut).sort()
     return `${formatDate(checkIns[0])} to ${formatDate(checkOuts[checkOuts.length - 1])}`
 }
+
+export const getEffectivePaymentHistory = (booking = {}) => {
+    if (Array.isArray(booking.paymentHistory) && booking.paymentHistory.length > 0) {
+        return booking.paymentHistory
+    }
+    const paid = Number(booking.paidAmount !== undefined && booking.paidAmount !== null ? booking.paidAmount : (booking.advanceAmount || 0))
+    if (paid > 0) {
+        return [{
+            amount: paid,
+            paymentMethod: booking.paymentMethod || "Advance / Direct",
+            transactionId: booking.transactionId || (booking.paymentMethod === "Cash" ? "Cash / Direct" : ""),
+            reference: booking.reference || "",
+            note: "Initial payment recorded",
+            date: booking.createdAt || booking.statusUpdatedAt || new Date(),
+            collectedBy: booking.bookedBy || booking.createdBy || { name: booking.reference || "Staff / Admin" }
+        }]
+    }
+    return []
+}

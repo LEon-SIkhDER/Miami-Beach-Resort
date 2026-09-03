@@ -42,6 +42,7 @@ import {
     getBookingDiscount,
     getBookingPaidAmount,
     getBookingDueAmount,
+    getEffectivePaymentHistory,
     getNightCount, 
     getRoomName, 
     getBookingGuestTotals 
@@ -57,7 +58,7 @@ const getStatusBadge = (status) => {
         case "request_booking":
             return <span className="badge badge-sm bg-[#f59e0b] text-white font-bold border-none">Request Booking</span>
         case "payment_waiting":
-            return <span className="badge badge-sm bg-[#eab308] text-amber-950 font-extrabold border-none">Payment Waiting</span>
+            return <span className="badge badge-sm bg-rose-600 text-white font-bold border-none">Payment Waiting</span>
         case "booking_confirmed":
         case "confirmed":
             return <span className="badge badge-sm bg-[#5261d6] text-white font-bold border-none">Confirmed</span>
@@ -157,6 +158,14 @@ const CalendarBookingDetailsModal = ({
 
             if (oooRoom) {
                 toast.error(`Room ${oooRoom.roomNo} is Out of Order for maintenance. Cannot mark as ${actionLabel}.`)
+                return
+            }
+        }
+
+        if (newStatus === "checked_out") {
+            const dueAmount = getBookingDueAmount(booking)
+            if (dueAmount > 0.01) {
+                toast.error(`Cannot check out: Outstanding balance of ৳${dueAmount.toLocaleString()} is remaining. Please complete full payment before checking out.`)
                 return
             }
         }
@@ -472,27 +481,78 @@ const CalendarBookingDetailsModal = ({
 
                                 <div className="space-y-1.5 sm:border-l sm:border-teal-100 sm:pl-3">
                                     <div>
-                                        <span className="text-slate-400 block text-[10px] uppercase font-semibold">Payment Method:</span>
-                                        <span className="font-bold text-slate-800 bg-white px-2 py-0.5 rounded-md inline-block mt-0.5 border border-slate-100">
-                                            {booking.paymentMethod || booking.paymentHistory?.[0]?.paymentMethod || "Cash / Direct"}
-                                        </span>
-                                    </div>
-                                    <div>
-                                        <span className="text-slate-400 block text-[10px] uppercase font-semibold">Reference:</span>
-                                        <span className="font-medium text-slate-800">{booking.reference || "Direct"}</span>
-                                    </div>
-                                    <div>
-                                        <span className="text-slate-400 block text-[10px] uppercase font-semibold">Transaction ID:</span>
-                                        <span className="font-medium text-slate-800 font-mono">{booking.transactionId || "None"}</span>
+                                        <span className="text-slate-400 block text-[10px] uppercase font-semibold">Reference / Agent:</span>
+                                        <span className="font-bold text-slate-800">{booking.reference || "Direct"}</span>
                                     </div>
                                     {booking.notes && (
                                         <div>
                                             <span className="text-slate-400 block text-[10px] uppercase font-semibold">Notes:</span>
-                                            <span className="italic text-slate-600">"{booking.notes}"</span>
+                                            <span className="italic text-slate-600 text-xs">"{booking.notes}"</span>
                                         </div>
                                     )}
                                 </div>
                             </div>
+
+                            {/* Multi-Method Payments Breakdown */}
+                            {(() => {
+                                const payments = getEffectivePaymentHistory(booking)
+                                return (
+                                    <div className="bg-slate-50/80 p-3 rounded-2xl border border-slate-200/80 space-y-2">
+                                        <div className="flex items-center justify-between text-[11px] font-bold text-slate-700">
+                                            <span className="flex items-center gap-1.5">
+                                                <CreditCard size={13} className="text-emerald-600" />
+                                                <span>Payment History ({payments.length})</span>
+                                            </span>
+                                            <span className="text-emerald-700 font-mono font-extrabold">
+                                                Paid: ৳{paidAmount.toLocaleString()}
+                                            </span>
+                                        </div>
+
+                                        {payments.length === 0 ? (
+                                            <p className="text-[11px] text-slate-400 italic pl-1">No payments recorded yet.</p>
+                                        ) : (
+                                            <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
+                                                {payments.map((pay, pIdx) => {
+                                                    const isCopied = copiedId === pay.transactionId
+                                                    return (
+                                                        <div key={pIdx} className="bg-white p-2 rounded-xl border border-slate-200/80 flex items-center justify-between text-[11px] shadow-2xs">
+                                                            <div className="space-y-0.5 min-w-0">
+                                                                <div className="flex items-center gap-1.5 flex-wrap">
+                                                                    <span className="font-bold text-slate-900 capitalize px-1.5 py-0.2 rounded bg-slate-100 text-[10px]">
+                                                                        {pay.paymentMethod || "Payment"}
+                                                                    </span>
+                                                                    {pay.transactionId && (
+                                                                        <span className="font-mono font-bold text-slate-700 text-[10.5px] bg-slate-50 px-1 rounded border border-slate-200 inline-flex items-center gap-1">
+                                                                            <span>{pay.transactionId}</span>
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={() => handleCopy(pay.transactionId)}
+                                                                                className="text-slate-400 hover:text-teal-600 transition-colors p-0.5"
+                                                                                title="Copy TrxID"
+                                                                            >
+                                                                                {isCopied ? <Check size={11} className="text-emerald-600" /> : <Copy size={11} />}
+                                                                            </button>
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                                <p className="text-[10px] text-slate-400">
+                                                                    {pay.date ? formatDateTime(pay.date) : "—"}
+                                                                    {pay.collectedBy?.name ? ` • ${pay.collectedBy.name}` : ""}
+                                                                </p>
+                                                            </div>
+                                                            <div className="text-right shrink-0 pl-2">
+                                                                <span className="font-extrabold text-emerald-800 font-mono text-xs">
+                                                                    ৳{Number(pay.amount || 0).toLocaleString()}
+                                                                </span>
+                                                            </div>
+                                                        </div>
+                                                    )
+                                                })}
+                                            </div>
+                                        )}
+                                    </div>
+                                )
+                            })()}
 
                             {/* Latest Status Change Audit */}
                             {Array.isArray(booking.statusHistory) && booking.statusHistory.length > 0 && (
@@ -580,7 +640,7 @@ const CalendarBookingDetailsModal = ({
                                 <button
                                     type="button"
                                     onClick={() => setConfirmModalData({ booking, targetStatus: "payment_waiting" })}
-                                    className="btn btn-sm bg-[#eab308] hover:bg-yellow-500 text-amber-950 font-bold rounded-xl gap-1 shadow-xs border-none"
+                                    className="btn btn-sm bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl gap-1 shadow-xs border-none"
                                 >
                                     <Clock size={14} /> Payment Waiting
                                 </button>
@@ -613,11 +673,20 @@ const CalendarBookingDetailsModal = ({
                             {!isB2B && booking.status === "checked_id" && (
                                 <button
                                     type="button"
-                                    disabled={isUpdatingStatus}
+                                    disabled={isUpdatingStatus || getBookingDueAmount(booking) > 0.01}
                                     onClick={() => handleQuickStatusChange("checked_out", "Checked Out")}
-                                    className="btn btn-sm bg-slate-700 hover:bg-slate-800 text-white font-bold rounded-xl gap-1 shadow-xs border-none"
+                                    className={`btn btn-sm ${
+                                        getBookingDueAmount(booking) > 0.01
+                                            ? "bg-slate-300 text-slate-500 cursor-not-allowed border-none"
+                                            : "bg-slate-700 hover:bg-slate-800 text-white shadow-xs border-none"
+                                    } font-bold rounded-xl gap-1`}
+                                    title={
+                                        getBookingDueAmount(booking) > 0.01
+                                            ? `Cannot Check Out: Remaining balance of ৳${getBookingDueAmount(booking).toLocaleString()} must be settled first.`
+                                            : "Mark reservation as Checked Out"
+                                    }
                                 >
-                                    <LogOut size={14} /> Check Out
+                                    <LogOut size={14} /> Check Out {getBookingDueAmount(booking) > 0.01 ? "(Due Pending)" : ""}
                                 </button>
                             )}
                         </div>

@@ -153,8 +153,10 @@ const EditBookingModal = ({ booking, isOpen, onClose, onSuccess }) => {
             setAddress(booking.address || '')
             setUserEmail(booking.userEmail || booking.email || '')
             setStatus(booking.status || 'request_booking')
-            setReference(booking.reference || '')
-            setTransactionId(booking.transactionId || '')
+            const existingTrxId = booking.transactionId || 
+                booking.paymentHistory?.[0]?.transactionId || 
+                booking.paymentHistory?.find(p => p.transactionId)?.transactionId || ''
+            setTransactionId(existingTrxId)
             setNotes(booking.notes || '')
             
             const rawRooms = getBookingRooms(booking)
@@ -268,9 +270,16 @@ const EditBookingModal = ({ booking, isOpen, onClose, onSuccess }) => {
             }
         }
 
+        if (status === "checked_out" && dueAmount > 0.01) {
+            toast.error(`Cannot check out: Outstanding balance of ৳${dueAmount.toLocaleString()} is remaining. Please clear all dues before checking out.`)
+            return
+        }
+
+        const prevPaid = Number(booking.paidAmount || booking.advanceAmount || 0)
+        const isPaymentIncreasing = effectivePaid > prevPaid
         const isConfirmedStatus = ["booking_confirmed", "checked_id", "checked_in", "checked_out", "confirmed"].includes(status)
-        if (isConfirmedStatus && effectivePaid > 0 && !transactionId.trim()) {
-            toast.error("Transaction ID / Receipt No is required when confirming with payment.")
+        if (isConfirmedStatus && isPaymentIncreasing && !transactionId.trim() && booking.paymentMethod !== "Cash") {
+            toast.error("Transaction ID / Receipt No is required when confirming with new payment.")
             return
         }
 
@@ -663,9 +672,18 @@ const EditBookingModal = ({ booking, isOpen, onClose, onSuccess }) => {
                                         onChange={e => setStatus(e.target.value)}
                                         className="select select-sm select-bordered w-full rounded-xl bg-white text-xs font-bold capitalize text-slate-800"
                                     >
-                                        {STATUS_OPTIONS.map(opt => (
-                                            <option key={opt.value} value={opt.value}>{opt.label}</option>
-                                        ))}
+                                        {STATUS_OPTIONS.map(opt => {
+                                            const isCheckedOutDisabled = opt.value === "checked_out" && dueAmount > 0.01
+                                            return (
+                                                <option 
+                                                    key={opt.value} 
+                                                    value={opt.value}
+                                                    disabled={isCheckedOutDisabled}
+                                                >
+                                                    {opt.label} {isCheckedOutDisabled ? "(Requires full payment)" : ""}
+                                                </option>
+                                            )
+                                        })}
                                     </select>
                                 </div>
                             </div>

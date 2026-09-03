@@ -14,7 +14,8 @@ import {
     Shield,
     CalendarDays,
     XCircle,
-    DollarSign
+    DollarSign,
+    Briefcase
 } from 'lucide-react'
 import { showConfirmAlert } from '../../utils/customSwal'
 import logo from '../../assets/logo.png'
@@ -51,7 +52,7 @@ const Dashboard = () => {
     ]
     const b2bLinks = [
         { to: "/dashboard/overview", label: "Sales Overview", icon: <LayoutDashboard size={18} /> },
-        { to: "/dashboard/bookings", label: "My Bookings", icon: <CalendarCheck size={18} /> },
+        // { to: "/dashboard/bookings", label: "My Bookings", icon: <CalendarCheck size={18} /> },
         { to: "/dashboard/calender", label: "Booking Calendar", icon: <CalendarDays size={18} /> },
     ]
     const agentLinks = [
@@ -67,6 +68,7 @@ const Dashboard = () => {
         { to: "/dashboard/income", label: "Room Income", icon: <DollarSign size={18} /> },
         { to: "/dashboard/cancellations", label: "Cancellations", icon: <XCircle size={18} /> },
         { to: "/dashboard/users", label: "Users & Roles", icon: <Users size={18} /> },
+        { to: "/dashboard/workflow", label: "Worker Workflow", icon: <Briefcase size={18} /> },
         { to: "/dashboard/calender", label: "Booking Calendar", icon: <CalendarDays size={18} /> },
     ]
     const adminLinks = [
@@ -76,6 +78,7 @@ const Dashboard = () => {
         { to: "/dashboard/income", label: "Room Income", icon: <DollarSign size={18} /> },
         { to: "/dashboard/cancellations", label: "Cancellations", icon: <XCircle size={18} /> },
         { to: "/dashboard/users", label: "Users & Roles", icon: <Users size={18} /> },
+        { to: "/dashboard/workflow", label: "Worker Workflow", icon: <Briefcase size={18} /> },
         { to: "/dashboard/calender", label: "Booking Calendar", icon: <CalendarDays size={18} /> },
     ]
 

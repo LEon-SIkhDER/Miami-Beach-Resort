@@ -46,7 +46,7 @@ const getRequestBookingStatusBadge = (status) => {
     switch (status) {
         case "payment_waiting":
             return (
-                <span className="badge badge-md bg-[#eab308] text-amber-950 font-extrabold border-none shadow-xs">
+                <span className="badge badge-md bg-rose-600 text-white font-bold border-none shadow-xs">
                     <Clock size={12} className="mr-1" /> Payment Waiting
                 </span>
             )
@@ -399,7 +399,7 @@ const RequestBookingsModal = ({ isOpen, onClose, requestBookings = [], role, cur
                                                     <button
                                                         type="button"
                                                         onClick={() => setConfirmModalData({ booking: b, targetStatus: "payment_waiting" })}
-                                                        className="btn btn-xs bg-[#eab308] hover:bg-yellow-500 text-amber-950 font-bold rounded-xl gap-1 shadow-xs border-none"
+                                                        className="btn btn-xs bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl gap-1 shadow-xs border-none"
                                                     >
                                                         <Clock size={13} /> Payment Waiting
                                                     </button>

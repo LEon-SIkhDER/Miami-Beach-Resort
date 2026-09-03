@@ -85,7 +85,10 @@ const ConfirmBookingModal = ({ booking, isOpen, onClose, onSuccess, targetStatus
             setPaidAmount(booking.paidAmount !== undefined ? String(booking.paidAmount) : (targetStatus === 'payment_waiting' ? '0' : String(netPayable)))
             setPaymentMethod(booking.paymentMethod || 'bKash')
             setReference(booking.reference || "")
-            setTransactionId(booking.transactionId || "")
+            const existingTrxId = booking.transactionId || 
+                booking.paymentHistory?.[0]?.transactionId || 
+                booking.paymentHistory?.find(p => p.transactionId)?.transactionId || ""
+            setTransactionId(existingTrxId)
         }
     }, [booking, isOpen, targetStatus])
 
@@ -148,8 +151,8 @@ const ConfirmBookingModal = ({ booking, isOpen, onClose, onSuccess, targetStatus
     const handleSubmit = async (e) => {
         e.preventDefault()
 
-        if (!isPaymentWaiting && effectivePaid > 0 && !transactionId.trim()) {
-            toast.error("Transaction ID / Receipt is required when payment is recorded.")
+        if (!isPaymentWaiting && effectivePaid > 0 && paymentMethod !== "Cash" && !transactionId.trim()) {
+            toast.error("Transaction ID / Receipt is required when digital payment is recorded.")
             return
         }
 

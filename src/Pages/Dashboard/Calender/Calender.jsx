@@ -12,7 +12,7 @@ import CalendarBookingDetailsModal from "./CalendarBookingDetailsModal";
 import OutOfOrderModal from "./OutOfOrderModal";
 import { Clock, RefreshCw, BedDouble, Wrench, AlertTriangle, Wallet, Filter, ChevronLeft, ChevronRight, ChevronDown, Calendar as CalendarIcon } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { getBookingRooms } from "../../../utils/bookingUtils";
+import { getBookingRooms, getBookingTotal, getBookingPaidAmount, getBookingDueAmount } from "../../../utils/bookingUtils";
 import toast from "react-hot-toast";
 
 const Calender = () => {
@@ -297,8 +297,9 @@ const Calender = () => {
                                 checkOut: roomItem.checkOut,
                                 roomNo: roomNo,
                                 categoryName: roomItem.categoryName || "",
-                                totalAmount: Number(booking.totalAmount || booking.calculatedTotalAmount || 0),
-                                paidAmount: Number(booking.paidAmount || booking.advanceAmount || 0)
+                                totalAmount: getBookingTotal(booking),
+                                paidAmount: getBookingPaidAmount(booking),
+                                dueAmount: getBookingDueAmount(booking)
                             });
                         });
                     }
@@ -419,7 +420,7 @@ const Calender = () => {
             case "checked_in":
                 return "bg-[#01966e] text-white font-medium hover:bg-[#017c5b]";
             case "payment_waiting":
-                return "bg-[#eab308] text-amber-950 font-bold hover:bg-[#ca9a04]";
+                return "bg-[#e11d48] text-white font-bold hover:bg-[#be123c]";
             case "request_booking":
                 return "bg-[#f59e0b] text-white font-medium hover:bg-[#d97706]";
             default:
@@ -467,8 +468,8 @@ const Calender = () => {
                     <span className="text-slate-300 font-black">➔</span>
 
                     {/* 2. Payment Waiting */}
-                    <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#eab308]/20 border border-[#eab308]/50 text-[#854d0e] font-extrabold text-[11px]">
-                        <span className="w-2.5 h-2.5 rounded-full bg-[#eab308] ring-2 ring-white" />
+                    <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 font-extrabold text-[11px]">
+                        <span className="w-2.5 h-2.5 rounded-full bg-rose-600 ring-2 ring-white" />
                         <span>Payment Waiting ({statistics.statusCounts.payment_waiting})</span>
                     </div>
                     <span className="text-slate-300 font-black">➔</span>
@@ -663,15 +664,12 @@ const Calender = () => {
                                         <th className="sticky left-0 z-40 border border-gray-300 bg-slate-800 text-xs font-bold px-2.5 py-1.5 text-white shadow-md whitespace-nowrap text-left">
                                             <div className="flex items-center justify-between gap-3">
                                                 <span>{category.category}</span>
-                                                <span className="text-[10px] text-teal-300 font-mono font-normal">
-                                                    ৳{Number(category.price || 0).toLocaleString()}
-                                                </span>
                                             </div>
                                         </th>
                                         {dateRange.map((dateObj) => (
                                             <td
                                                 key={`${category.category}-${dateObj.iso}`}
-                                                className={`px-1.5 py-1 border border-gray-300 text-center text-[11px] font-semibold whitespace-nowrap ${
+                                                className={`px-0.5 py-1 border border-gray-300 text-center text-[11px] font-semibold whitespace-nowrap ${
                                                     dateObj.isToday ? "bg-amber-100 text-amber-900 font-bold" : "bg-slate-100 text-slate-700"
                                                 }`}
                                             >
@@ -759,9 +757,10 @@ const Calender = () => {
                                                     bookingSpan++;
                                                 }
 
-                                                const hasDue = bookingInfo.status !== "cancel" && 
-                                                    Number(bookingInfo.totalAmount || 0) > Number(bookingInfo.paidAmount || 0);
-                                                const dueAmount = Math.max(0, Number(bookingInfo.totalAmount || 0) - Number(bookingInfo.paidAmount || 0));
+                                                const dueAmount = bookingInfo.dueAmount !== undefined 
+                                                    ? Number(bookingInfo.dueAmount || 0) 
+                                                    : Math.max(0, Number(bookingInfo.totalAmount || 0) - Number(bookingInfo.paidAmount || 0));
+                                                const hasDue = bookingInfo.status !== "cancel" && dueAmount > 0;
 
                                                 rowCells.push(
                                                     <td

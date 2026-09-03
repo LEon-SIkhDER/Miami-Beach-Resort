@@ -323,9 +323,14 @@ const DashboardHome = () => {
                             </p>
                         </div>
 
-                        <Link to="/dashboard/users" className="text-xs font-bold text-teal-700 hover:underline flex items-center gap-1">
-                            Manage All Users & Roles <ExternalLink size={12} />
-                        </Link>
+                        <div className="flex items-center gap-2">
+                            <Link to="/dashboard/workflow" className="btn btn-xs bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-xl gap-1 shadow-2xs border-none">
+                                Open Dedicated Workflow Page <ArrowUpRight size={13} />
+                            </Link>
+                            <Link to="/dashboard/users" className="text-xs font-bold text-teal-700 hover:underline flex items-center gap-1">
+                                Manage Roles <ExternalLink size={12} />
+                            </Link>
+                        </div>
                     </div>
 
                     {/* Partner Performance Summary Metrics */}
@@ -563,6 +568,7 @@ const DashboardHome = () => {
                 {selectedWorkflowUser && (
                     <UserWorkflowModal
                         user={selectedWorkflowUser}
+                        isOpen={!!selectedWorkflowUser}
                         onClose={() => setSelectedWorkflowUser(null)}
                     />
                 )}
@@ -586,7 +592,7 @@ const DashboardHome = () => {
     const pending = userBookings.filter(b => b.status === "request_booking" || b.status === "payment_waiting" || b.status === "pending").length
     const cancelled = userBookings.filter(b => b.status === "cancel" || b.status === "cancelled").length
 
-    if (isStaffRole) {
+    if (isPartnerStaff) {
         const {
             monthlySales = 0,
             totalSales = 0,
@@ -820,7 +826,7 @@ const DashboardHome = () => {
                                         <span className={`badge badge-xs font-bold border-none ${
                                             sell.status === "booking_confirmed" || sell.status === "confirmed" ? "bg-[#5261d6] text-white" :
                                             sell.status === "checked_id" || sell.status === "checked_in" ? "bg-[#01966e] text-white" :
-                                            sell.status === "payment_waiting" ? "bg-[#eab308] text-amber-950" :
+                                            sell.status === "payment_waiting" ? "bg-rose-600 text-white" :
                                             sell.status === "request_booking" ? "bg-[#f59e0b] text-white" :
                                             "bg-slate-200 text-slate-700"
                                         }`}>
