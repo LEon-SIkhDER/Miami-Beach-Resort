@@ -7,6 +7,7 @@ import 'react-datepicker/dist/react-datepicker.css'
 import { addDays } from 'date-fns'
 import toast from 'react-hot-toast'
 import { showSuccessAlert, showErrorAlert } from '../../utils/customSwal'
+import { saveGuestBookingId } from '../../utils/bookingUtils'
 import { getYouTubeEmbedUrl, parseFacilityList, parseRoomNumbers } from '../Dashboard/Category&Pricing/categoryRoomUtils'
 import { 
     BedDouble, 
@@ -269,6 +270,9 @@ const RoomDetails = () => {
 
         try {
             const res = await axios.post(`${SERVER_URL}/bookings`, bookingData)
+            if (res.data?.bookingId) {
+                saveGuestBookingId(res.data.bookingId)
+            }
             const roomLines = normalizedRooms.map((r, index) => [
                 `Room ${index + 1}: ${r.categoryName}`,
                 `Dates: ${r.checkIn} to ${r.checkOut} (${r.nights} nights)`,

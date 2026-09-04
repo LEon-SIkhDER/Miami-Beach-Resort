@@ -1,5 +1,5 @@
 import React, { useContext, useEffect, useRef, useState } from 'react'
-import { Link, useNavigate } from 'react-router'
+import { Link, useNavigate, useLocation } from 'react-router'
 import { AuthContext } from '../Context/AuthContext'
 import useRole from '../hooks/useRole'
 import { 
@@ -12,20 +12,40 @@ import {
     CalendarDays, 
     BedDouble, 
     ShieldCheck, 
-    User
+    User,
+    Menu,
+    X,
+    Sparkles,
+    PhoneCall
 } from 'lucide-react'
 import { showConfirmAlert } from '../utils/customSwal'
-import logo from '../assets/logo.png'
+import Logo from './Logo'
 
 const Header = () => {
     const { user, logOut } = useContext(AuthContext)
     const { role } = useRole()
     const navigate = useNavigate()
+    const location = useLocation()
     const [dropdownOpen, setDropdownOpen] = useState(false)
+    const [mobileNavOpen, setMobileNavOpen] = useState(false)
     const [imgError, setImgError] = useState(false)
+    const [scrolled, setScrolled] = useState(false)
     const dropdownRef = useRef(null)
 
     const isStaffRole = ["admin", "manager", "agent", "b2b"].includes(role)
+
+    // Handle scroll effect
+    useEffect(() => {
+        const handleScroll = () => {
+            if (window.scrollY > 20) {
+                setScrolled(true)
+            } else {
+                setScrolled(false)
+            }
+        }
+        window.addEventListener('scroll', handleScroll)
+        return () => window.removeEventListener('scroll', handleScroll)
+    }, [])
 
     // Close dropdown when clicking outside
     useEffect(() => {
@@ -39,6 +59,19 @@ const Header = () => {
             document.removeEventListener("mousedown", handleClickOutside)
         }
     }, [])
+
+    const handleAnchorClick = (e, targetId) => {
+        e.preventDefault()
+        setMobileNavOpen(false)
+        if (location.pathname === '/') {
+            const el = document.getElementById(targetId)
+            if (el) {
+                el.scrollIntoView({ behavior: 'smooth' })
+            }
+        } else {
+            navigate(`/#${targetId}`)
+        }
+    }
 
     const handleLogOut = () => {
         setDropdownOpen(false)
@@ -67,70 +100,88 @@ const Header = () => {
     const renderRoleBadge = (currentRole) => {
         switch (currentRole) {
             case "admin":
-                return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-400 text-slate-900 shadow-xs"><ShieldCheck size={11} /> Admin</span>
+                return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#c5a880] text-[#04261f] shadow-xs"><ShieldCheck size={11} /> Royal Admin</span>
             case "manager":
-                return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-600 text-white shadow-xs"><ShieldCheck size={11} /> Manager</span>
+                return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-700 text-white shadow-xs"><ShieldCheck size={11} /> Manager</span>
             case "agent":
-                return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-teal-600 text-white shadow-xs"><ShieldCheck size={11} /> Agent</span>
+                return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-700 text-white shadow-xs"><ShieldCheck size={11} /> Concierge Agent</span>
             case "b2b":
-                return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-600 text-white shadow-xs"><ShieldCheck size={11} /> B2B Partner</span>
+                return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-700 text-white shadow-xs"><ShieldCheck size={11} /> Corporate Partner</span>
             default:
-                return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-100 text-slate-700"><User size={11} /> Guest User</span>
+                return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-[#04261f] text-[#dfc89e] border border-[#c5a880]/30"><User size={11} /> Valued Guest</span>
         }
     }
 
     return (
-        <header className="glass-header sticky top-0 z-50 border-b border-slate-200/80 shadow-xs bg-white/90 backdrop-blur-md">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between">
+        <header 
+            className={`sticky top-0 z-50 transition-all duration-300 ${
+                scrolled 
+                    ? "bg-[#04261f]/95 backdrop-blur-md shadow-2xl border-b border-[#c5a880]/20 py-2.5" 
+                    : "bg-[#031d17]/90 backdrop-blur-md border-b border-[#c5a880]/15 py-3.5"
+            }`}
+        >
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between">
                 
-                {/* Brand Logo */}
-                <Link to="/" className="flex items-center gap-3 group select-none">
-                    <img 
-                        src={logo} 
-                        alt="Miami Beach Resort Logo" 
-                        className="h-11 w-auto object-contain group-hover:scale-105 transition-transform duration-200" 
-                    />
-                    <div>
-                        <div className="flex items-center gap-2">
-                            <span className="text-base sm:text-lg font-extrabold tracking-tight text-slate-900 font-serif">Miami Beach Resort</span>
-                            <span className="hidden sm:inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-teal-50 text-teal-700 border border-teal-200/60">Cox's Bazar</span>
-                        </div>
-                        <p className="text-xs text-slate-500 font-medium hidden xs:block">📍 Dolphin Mor, Kolatoli Beach</p>
-                    </div>
-                </Link>
+                {/* Brand Logo & Crest */}
+                <Logo />
 
                 {/* Desktop Center Navigation */}
-                <nav className="hidden lg:flex items-center gap-7 text-xs sm:text-sm font-bold text-slate-700">
-                    <Link to="/" className="hover:text-teal-700 transition-colors">Home</Link>
-                    <Link to="/services" className="hover:text-teal-700 transition-colors">Services & Amenities</Link>
-                    <Link to="/about" className="hover:text-teal-700 transition-colors">About Us</Link>
-                    {user && !isStaffRole && (
-                        <Link to="/my-bookings" className="hover:text-teal-700 transition-colors">My Bookings</Link>
+                <nav className="hidden lg:flex items-center gap-8 text-xs font-semibold uppercase tracking-[0.18em] text-slate-200">
+                    <a 
+                        href="#rooms" 
+                        onClick={(e) => handleAnchorClick(e, 'rooms')}
+                        className="hover:text-[#dfc89e] transition-colors cursor-pointer py-1 relative group"
+                    >
+                         Rooms
+                        <span className="absolute bottom-0 left-0 w-0 h-[1.5px] bg-[#c5a880] transition-all duration-300 group-hover:w-full"></span>
+                    </a>
+                    <a 
+                        href="#services" 
+                        onClick={(e) => handleAnchorClick(e, 'services')}
+                        className="hover:text-[#dfc89e] transition-colors cursor-pointer py-1 relative group"
+                    >
+                        Services 
+                        <span className="absolute bottom-0 left-0 w-0 h-[1.5px] bg-[#c5a880] transition-all duration-300 group-hover:w-full"></span>
+                    </a>
+                    <a 
+                        href="#contact" 
+                        onClick={(e) => handleAnchorClick(e, 'contact')}
+                        className="hover:text-[#dfc89e] transition-colors cursor-pointer py-1 relative group"
+                    >
+                        Contact  
+                        <span className="absolute bottom-0 left-0 w-0 h-[1.5px] bg-[#c5a880] transition-all duration-300 group-hover:w-full"></span>
+                    </a>
+                    
+                    {!isStaffRole && (
+                        <Link 
+                            to="/my-bookings" 
+                            className="hover:text-[#dfc89e] text-[#dfc89e] transition-colors font-bold"
+                        >
+                            My Bookings
+                        </Link>
                     )}
                     {user && isStaffRole && (
                         <Link 
                             to="/dashboard" 
-                            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-teal-50 hover:bg-teal-100 text-teal-900 font-bold border border-teal-200/80 transition-all shadow-2xs"
+                            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-[#c5a880]/20 hover:bg-[#c5a880]/30 text-[#f5ebd7] font-bold border border-[#c5a880]/40 transition-all text-[11px]"
                         >
-                            <LayoutDashboard size={15} className="text-teal-700" />
+                            <LayoutDashboard size={13} className="text-[#dfc89e]" />
                             <span>Dashboard</span>
                         </Link>
                     )}
                 </nav>
 
                 {/* Right Actions */}
-                <div className="flex items-center gap-2.5">
-                    {/* {user && isStaffRole && (
-                        <Link
-                            to="/dashboard"
-                            className="btn btn-sm bg-[#01966e] hover:bg-[#017c5b] text-white font-bold rounded-xl gap-1.5 shadow-xs border-none"
-                        >
-                            <LayoutDashboard size={14} />
-                            <span className="hidden sm:inline">Dashboard</span>
-                        </Link>
-                    )} */}
+                <div className="flex items-center gap-3">
                     
-
+                    {/* Direct Concierge Call button */}
+                    <a 
+                        href="tel:+8801616472282" 
+                        className="hidden sm:inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold text-[#dfc89e] hover:text-white bg-white/5 hover:bg-white/10 border border-[#c5a880]/30 transition-all"
+                    >
+                        <PhoneCall size={13} className="text-[#c5a880]" />
+                        <span className="tracking-wider font-mono text-[11px]">+8801616472282</span>
+                    </a>
 
                     {/* Logged in User Avatar & Dropdown */}
                     {user ? (
@@ -140,65 +191,63 @@ const Header = () => {
                             <button
                                 type="button"
                                 onClick={() => setDropdownOpen(prev => !prev)}
-                                className={`flex items-center gap-2 p-1 pl-1.5 pr-2 rounded-full border transition-all duration-200 select-none bg-white hover:bg-slate-50 ${
+                                className={`flex items-center gap-2 p-1 pl-1.5 pr-2.5 rounded-full border transition-all duration-200 select-none bg-[#03221b] ${
                                     dropdownOpen 
-                                        ? "border-teal-500 ring-2 ring-teal-500/20 shadow-md" 
-                                        : "border-slate-200 hover:border-teal-300 shadow-xs"
+                                        ? "border-[#c5a880] ring-2 ring-[#c5a880]/30 shadow-lg" 
+                                        : "border-[#c5a880]/30 hover:border-[#c5a880] shadow-xs"
                                 }`}
                                 aria-label="User Profile Menu"
                             >
-                                {/* Avatar Image or First Letter */}
                                 {user.photoURL && !imgError ? (
                                     <img 
                                         src={user.photoURL} 
                                         alt={user.displayName || "User Avatar"} 
                                         onError={() => setImgError(true)}
-                                        className="h-8 w-8 rounded-full object-cover border border-teal-200 ring-1 ring-teal-500/30"
+                                        className="h-8 w-8 rounded-full object-cover border border-[#c5a880] ring-1 ring-[#c5a880]/40"
                                     />
                                 ) : (
-                                    <div className="h-8 w-8 rounded-full bg-gradient-to-br from-teal-500 to-teal-700 text-white font-extrabold text-xs flex items-center justify-center shadow-xs">
+                                    <div className="h-8 w-8 rounded-full bg-gradient-to-br from-[#c5a880] to-[#9a7b52] text-[#04261f] font-black text-xs flex items-center justify-center shadow-xs">
                                         {getInitial()}
                                     </div>
                                 )}
 
-                                {/* User First Name (Optional on larger screens) */}
-                                <span className="text-xs font-bold text-slate-800 max-w-[100px] truncate hidden md:inline-block">
-                                    {user.displayName ? user.displayName.split(' ')[0] : "Guest"}
+                                <span className="text-xs font-semibold text-[#f5ebd7] max-w-[100px] truncate hidden md:inline-block">
+                                    {user.displayName ? user.displayName.split(' ')[0] : "VIP Guest"}
                                 </span>
 
                                 <ChevronDown 
-                                    size={14} 
-                                    className={`text-slate-500 transition-transform duration-200 ${dropdownOpen ? "rotate-180 text-teal-600" : ""}`} 
+                                    size={13} 
+                                    className={`text-[#dfc89e] transition-transform duration-200 ${dropdownOpen ? "rotate-180" : ""}`} 
                                 />
                             </button>
 
                             {/* Dropdown Menu Container */}
                             <div 
-                                className={`absolute right-0 mt-2 w-72 sm:w-80 bg-white rounded-2xl shadow-xl  overflow-hidden transition-all duration-200 origin-top-right z-50 ${
+                                className={`absolute right-0 mt-2 w-72 sm:w-80 bg-[#04261f] border border-[#c5a880]/30 rounded-2xl shadow-2xl overflow-hidden transition-all duration-200 origin-top-right z-50 ${
                                     dropdownOpen 
                                         ? "opacity-100 scale-100 pointer-events-auto" 
                                         : "opacity-0 scale-95 pointer-events-none"
                                 }`}
                             >
                                 {/* Dropdown Header Card */}
-                                <div className="bg-gradient-to-br from-slate-900 via-teal-950 to-slate-900 p-4 sm:p-5 text-white flex items-center gap-3.5">
+                                <div className="bg-gradient-to-br from-[#021a15] via-[#04261f] to-[#0b3b30] p-4 sm:p-5 text-white flex items-center gap-3.5 border-b border-[#c5a880]/20">
                                     {user.photoURL && !imgError ? (
                                         <img 
                                             src={user.photoURL} 
                                             alt={user.displayName || "User"} 
                                             onError={() => setImgError(true)}
-                                            className="h-12 w-12 rounded-full object-cover border-2 border-white/80 ring-2 ring-teal-400 shrink-0"
+                                            className="h-12 w-12 rounded-full object-cover border-2 border-[#dfc89e] ring-2 ring-[#c5a880]/30 shrink-0"
                                         />
                                     ) : (
-                                        <div className="h-12 w-12 rounded-full bg-gradient-to-br from-teal-400 to-teal-600 text-white font-black text-lg flex items-center justify-center border-2 border-white/80 shadow-md shrink-0">
+                                        <div className="h-12 w-12 rounded-full bg-gradient-to-br from-[#dfc89e] to-[#9a7b52] text-[#04261f] font-black text-lg flex items-center justify-center border-2 border-[#dfc89e] shadow-md shrink-0">
                                             {getInitial()}
                                         </div>
                                     )}
                                     <div className="min-w-0 flex-1">
-                                        <h3 className="font-bold text-sm sm:text-base text-white truncate">
-                                            {user.displayName || "Valued Guest"}
+                                        <h3 className="font-serif font-bold text-sm sm:text-base text-[#f5ebd7] truncate">
+                                            {user.displayName || "Distinguished Guest"}
                                         </h3>
-                                        <p className="text-xs text-teal-200/90 truncate font-mono mt-0.5">
+                                        <p className="text-xs text-slate-300 truncate font-mono mt-0.5">
                                             {user.email}
                                         </p>
                                         <div className="mt-2">
@@ -208,96 +257,90 @@ const Header = () => {
                                 </div>
 
                                 {/* Menu Items */}
-                                <div className="p-3 space-y-1 text-xs sm:text-sm">
-                                    
-                                    {/* Staff / Admin Dashboard Links */}
+                                <div className="p-3 space-y-1 text-xs">
                                     {isStaffRole ? (
                                         <>
                                             <Link 
                                                 to="/dashboard" 
                                                 onClick={() => setDropdownOpen(false)}
-                                                className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-700 hover:bg-teal-50 hover:text-teal-900 font-semibold transition-colors"
+                                                className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-200 hover:bg-white/10 hover:text-[#dfc89e] font-semibold transition-colors"
                                             >
-                                                <div className="w-8 h-8 rounded-lg bg-teal-100 text-teal-700 flex items-center justify-center shrink-0">
-                                                    <LayoutDashboard size={16} />
+                                                <div className="w-8 h-8 rounded-lg bg-[#c5a880]/20 text-[#dfc89e] flex items-center justify-center shrink-0 border border-[#c5a880]/30">
+                                                    <LayoutDashboard size={15} />
                                                 </div>
                                                 <div>
-                                                    <p className="font-bold text-slate-900 text-xs sm:text-sm">Dashboard Overview</p>
-                                                    <p className="text-[11px] text-slate-400 font-normal">Analytics & resort control</p>
+                                                    <p className="font-bold text-white text-xs">Dashboard Overview</p>
+                                                    <p className="text-[10px] text-slate-400">Analytics & resort management</p>
                                                 </div>
                                             </Link>
 
                                             <Link 
                                                 to="/dashboard/calender" 
                                                 onClick={() => setDropdownOpen(false)}
-                                                className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-700 hover:bg-teal-50 hover:text-teal-900 font-semibold transition-colors"
+                                                className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-200 hover:bg-white/10 hover:text-[#dfc89e] font-semibold transition-colors"
                                             >
-                                                <div className="w-8 h-8 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center shrink-0">
-                                                    <CalendarDays size={16} />
+                                                <div className="w-8 h-8 rounded-lg bg-[#c5a880]/20 text-[#dfc89e] flex items-center justify-center shrink-0 border border-[#c5a880]/30">
+                                                    <CalendarDays size={15} />
                                                 </div>
                                                 <div>
-                                                    <p className="font-bold text-slate-900 text-xs sm:text-sm">Booking Calendar</p>
-                                                    <p className="text-[11px] text-slate-400 font-normal">Live room status & reservations</p>
+                                                    <p className="font-bold text-white text-xs">Booking Calendar</p>
+                                                    <p className="text-[10px] text-slate-400">Live room occupancy & schedules</p>
                                                 </div>
                                             </Link>
 
                                             <Link 
                                                 to="/dashboard/bookings" 
                                                 onClick={() => setDropdownOpen(false)}
-                                                className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-700 hover:bg-teal-50 hover:text-teal-900 font-semibold transition-colors"
+                                                className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-200 hover:bg-white/10 hover:text-[#dfc89e] font-semibold transition-colors"
                                             >
-                                                <div className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
-                                                    <CalendarCheck size={16} />
+                                                <div className="w-8 h-8 rounded-lg bg-[#c5a880]/20 text-[#dfc89e] flex items-center justify-center shrink-0 border border-[#c5a880]/30">
+                                                    <CalendarCheck size={15} />
                                                 </div>
                                                 <div>
-                                                    <p className="font-bold text-slate-900 text-xs sm:text-sm">All Bookings</p>
-                                                    <p className="text-[11px] text-slate-400 font-normal">Manage all guest bookings</p>
+                                                    <p className="font-bold text-white text-xs">All Reservations</p>
+                                                    <p className="text-[10px] text-slate-400">Review & confirm guest orders</p>
                                                 </div>
                                             </Link>
                                         </>
                                     ) : (
-                                        /* Regular Guest User Links */
                                         <Link 
                                             to="/my-bookings" 
                                             onClick={() => setDropdownOpen(false)}
-                                            className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-700 hover:bg-teal-50 hover:text-teal-900 font-semibold transition-colors"
+                                            className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-200 hover:bg-white/10 hover:text-[#dfc89e] font-semibold transition-colors"
                                         >
-                                            <div className="w-8 h-8 rounded-lg bg-teal-100 text-teal-700 flex items-center justify-center shrink-0">
-                                                <CalendarCheck size={16} />
+                                            <div className="w-8 h-8 rounded-lg bg-[#c5a880]/20 text-[#dfc89e] flex items-center justify-center shrink-0 border border-[#c5a880]/30">
+                                                <CalendarCheck size={15} />
                                             </div>
                                             <div>
-                                                <p className="font-bold text-slate-900 text-xs sm:text-sm">My Bookings</p>
-                                                <p className="text-[11px] text-slate-400 font-normal">View reservations & voucher PDF</p>
+                                                <p className="font-bold text-white text-xs">My Bookings</p>
+                                                <p className="text-[10px] text-slate-400">View reservations & voucher PDF</p>
                                             </div>
                                         </Link>
                                     )}
 
-                                    {/* Browse Rooms Link */}
-                                    <Link 
-                                        to="/" 
-                                        onClick={() => setDropdownOpen(false)}
-                                        className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-700 hover:bg-slate-100 font-semibold transition-colors"
+                                    <a 
+                                        href="#rooms" 
+                                        onClick={(e) => { setDropdownOpen(false); handleAnchorClick(e, 'rooms') }}
+                                        className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-200 hover:bg-white/10 hover:text-[#dfc89e] font-semibold transition-colors cursor-pointer"
                                     >
-                                        <div className="w-8 h-8 rounded-lg bg-slate-100 text-slate-600 flex items-center justify-center shrink-0">
-                                            <BedDouble size={16} />
+                                        <div className="w-8 h-8 rounded-lg bg-white/5 text-slate-300 flex items-center justify-center shrink-0">
+                                            <BedDouble size={15} />
                                         </div>
                                         <div>
-                                            <p className="font-bold text-slate-900 text-xs sm:text-sm">Browse Suites & Rooms</p>
-                                            <p className="text-[11px] text-slate-400 font-normal">Explore Miami Beach Resort</p>
+                                            <p className="font-bold text-white text-xs">Explore Royal Suites</p>
+                                            <p className="text-[10px] text-slate-400">Choose luxury chambers</p>
                                         </div>
-                                    </Link>
+                                    </a>
 
-                                    {/* Divider */}
-                                    <div className="my-1.5 border-t border-slate-100"></div>
+                                    <div className="my-1.5 border-t border-[#c5a880]/20"></div>
 
-                                    {/* Sign Out Button */}
                                     <button 
                                         type="button"
                                         onClick={handleLogOut}
-                                        className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-rose-600 hover:bg-rose-50 font-bold transition-colors text-left"
+                                        className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-rose-400 hover:bg-rose-950/40 hover:text-rose-300 font-bold transition-colors text-left cursor-pointer"
                                     >
-                                        <div className="w-8 h-8 rounded-lg bg-rose-100 text-rose-600 flex items-center justify-center shrink-0">
-                                            <LogOut size={16} />
+                                        <div className="w-8 h-8 rounded-lg bg-rose-950/60 text-rose-400 flex items-center justify-center shrink-0 border border-rose-800/40">
+                                            <LogOut size={15} />
                                         </div>
                                         <span>Sign Out</span>
                                     </button>
@@ -305,26 +348,94 @@ const Header = () => {
                             </div>
                         </div>
                     ) : (
-                        /* Logged Out Buttons */
-                        <div className="flex items-center gap-1.5">
+                        <div className="flex items-center gap-2">
                             <Link 
                                 to="/login" 
-                                className="btn btn-sm btn-outline border-slate-300 text-slate-700 hover:bg-teal-50 hover:border-teal-300 hover:text-teal-700 gap-1.5 rounded-xl font-bold"
+                                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold text-[#f5ebd7] bg-[#c5a880]/20 hover:bg-[#c5a880]/30 border border-[#c5a880]/40 transition-all shadow-xs"
                             >
-                                <LogIn size={15} />
-                                <span>Login</span>
+                                <LogIn size={13} className="text-[#dfc89e]" />
+                                <span>Sign In</span>
                             </Link>
-                            <Link 
+                            {/* <Link 
                                 to="/register" 
-                                className="btn btn-sm btn-ghost text-slate-600 hover:text-teal-700 hidden sm:inline-flex rounded-xl font-semibold"
+                                className="hidden sm:inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold text-slate-300 hover:text-white transition-colors"
                             >
-                                <UserPlus size={15} />
-                                <span>Register</span>
-                            </Link>
+                                <UserPlus size={13} />
+                                <span>Join VIP</span>
+                            </Link> */}
                         </div>
                     )}
+
+                    {/* Mobile Menu Button */}
+                    <button
+                        type="button"
+                        onClick={() => setMobileNavOpen(prev => !prev)}
+                        className="lg:hidden p-2 rounded-xl text-[#dfc89e] hover:bg-white/10 transition-colors cursor-pointer"
+                        aria-label="Toggle Mobile Navigation"
+                    >
+                        {mobileNavOpen ? <X size={22} /> : <Menu size={22} />}
+                    </button>
                 </div>
             </div>
+
+            {/* Mobile Navigation Drawer */}
+            {mobileNavOpen && (
+                <div className="lg:hidden bg-[#031d17] border-b border-[#c5a880]/30 px-6 py-5 space-y-4 animate-in slide-in-from-top-4 duration-200">
+                    <nav className="flex flex-col space-y-3 text-sm font-semibold uppercase tracking-widest text-slate-200">
+                        <a 
+                            href="#rooms" 
+                            onClick={(e) => handleAnchorClick(e, 'rooms')}
+                            className="py-2 border-b border-white/5 hover:text-[#dfc89e]"
+                        >
+                            Suites & Rooms
+                        </a>
+                        <a 
+                            href="#services" 
+                            onClick={(e) => handleAnchorClick(e, 'services')}
+                            className="py-2 border-b border-white/5 hover:text-[#dfc89e]"
+                        >
+                            Services & Amenities
+                        </a>
+                        <a 
+                            href="#contact" 
+                            onClick={(e) => handleAnchorClick(e, 'contact')}
+                            className="py-2 border-b border-white/5 hover:text-[#dfc89e]"
+                        >
+                            Contact & Concierge
+                        </a>
+
+                        {!isStaffRole && (
+                            <Link 
+                                to="/my-bookings" 
+                                onClick={() => setMobileNavOpen(false)}
+                                className="py-2 text-[#dfc89e] font-bold"
+                            >
+                                My Bookings
+                            </Link>
+                        )}
+                        {user && isStaffRole && (
+                            <Link 
+                                to="/dashboard" 
+                                onClick={() => setMobileNavOpen(false)}
+                                className="py-2 text-[#dfc89e] font-bold flex items-center gap-2"
+                            >
+                                <LayoutDashboard size={16} />
+                                <span>Go to Dashboard</span>
+                            </Link>
+                        )}
+                    </nav>
+
+                    <div className="pt-2 border-t border-[#c5a880]/20 flex items-center justify-between text-xs text-slate-300">
+                        <span className="flex items-center gap-1.5">
+                            <Sparkles size={14} className="text-[#dfc89e]" />
+                            5-Star Luxury Resort
+                        </span>
+                        <a href="tel:+8801616472282" className="text-[#dfc89e] font-mono font-bold">
+                            +8801616472282
+                        </a>
+                    </div>
+                </div>
+            )}
         </header>
     )
 }

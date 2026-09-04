@@ -1,5 +1,6 @@
-import React, { useContext, useState } from 'react'
+import React, { useContext, useState, useEffect } from 'react'
 import { Link } from 'react-router'
+import axios from 'axios'
 import { AuthContext } from '../../Context/AuthContext'
 import useRole from '../../hooks/useRole'
 import useAxiosSecure from '../../hooks/useAxiosSecure'
@@ -26,7 +27,8 @@ import {
     LogIn,
     LogOut,
     ShieldCheck,
-    LayoutDashboard
+    LayoutDashboard,
+    UserCheck
 } from 'lucide-react'
 import { 
     formatDate,
@@ -37,7 +39,9 @@ import {
     getEffectivePaymentHistory,
     getNightCount, 
     getRoomName, 
-    getRoomTotal 
+    getRoomTotal,
+    getGuestBookingIds,
+    clearGuestBookingIds
 } from '../../utils/bookingUtils'
 import ReservationVoucherModal from '../Dashboard/Calender/ReservationVoucherModal'
 
@@ -53,13 +57,42 @@ const MyBookings = () => {
     const [voucherBooking, setVoucherBooking] = useState(null)
     const [detailsBooking, setDetailsBooking] = useState(null)
 
-    // Fetch personal bookings
+    const guestIds = getGuestBookingIds()
+    const isLoggedIn = !!user?.email
+
+    // Automatic claim of guest bookings when user is logged in
+    useEffect(() => {
+        if (isLoggedIn && guestIds.length > 0) {
+            axiosSecure.post("/bookings/claim-guest-bookings", {
+                bookingIds: guestIds,
+                userEmail: user.email,
+                name: user.displayName || user.name || "Guest"
+            }).then((res) => {
+                if (res.data?.modifiedCount > 0) {
+                    toast.success(`Linked ${res.data.modifiedCount} guest reservation(s) to your account! 🎉`)
+                }
+                clearGuestBookingIds()
+                queryClient.invalidateQueries({ queryKey: ["my-bookings"] })
+            }).catch(err => {
+                console.error("Auto claim guest bookings error:", err)
+            })
+        }
+    }, [isLoggedIn, user?.email])
+
+    // Fetch personal bookings (or guest device bookings if unauthenticated)
     const { data: bookings = [], isLoading } = useQuery({
-        queryKey: ["my-bookings", user?.email],
-        enabled: !!user?.email,
+        queryKey: ["my-bookings", user?.email, guestIds.join(",")],
+        enabled: isLoggedIn || guestIds.length > 0,
         queryFn: async () => {
-            const res = await axiosSecure.get(`/bookings?email=${encodeURIComponent(user.email)}`)
-            return Array.isArray(res.data) ? res.data : []
+            if (isLoggedIn) {
+                const res = await axiosSecure.get(`/bookings?email=${encodeURIComponent(user.email)}`)
+                return Array.isArray(res.data) ? res.data : []
+            } else if (guestIds.length > 0) {
+                const SERVER_URL = import.meta.env.VITE_SERVER_URL || ""
+                const res = await axios.post(`${SERVER_URL}/bookings/by-ids`, { bookingIds: guestIds })
+                return Array.isArray(res.data) ? res.data : []
+            }
+            return []
         }
     })
 
@@ -87,7 +120,7 @@ const MyBookings = () => {
         },
         onError: (_, __, context) => {
             toast.dismiss(context?.toastId)
-            toast.error("Failed to cancel reservation. Please contact resort support.")
+            toast.error(isLoggedIn ? "Failed to cancel reservation. Please contact resort support." : "Please log in or contact resort support to cancel.")
         }
     })
 
@@ -213,7 +246,11 @@ const MyBookings = () => {
                                 My Bookings & Reservations
                             </h1>
                             <p className="text-xs sm:text-sm text-slate-300 max-w-xl">
-                                Welcome back, <strong className="text-white font-bold">{user?.displayName || user?.email}</strong>. View your booking details, confirmation letters, and stay schedules.
+                                {isLoggedIn ? (
+                                    <>Welcome back, <strong className="text-white font-bold">{user?.displayName || user?.email}</strong>. View your booking details, confirmation letters, and stay schedules.</>
+                                ) : (
+                                    <>Welcome to Miami Beach Resort. View your saved device reservations, confirmation vouchers, and stay schedules.</>
+                                )}
                             </p>
                         </div>
 
@@ -228,6 +265,31 @@ const MyBookings = () => {
                         </div>
                     </div>
                 </div>
+
+                {/* Device Guest Mode Sync Banner (when unauthenticated guest has bookings) */}
+                {!isLoggedIn && bookings.length > 0 && (
+                    <div className="bg-gradient-to-r from-teal-950 via-slate-900 to-teal-900 border border-teal-500/30 p-4 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-white text-xs shadow-md">
+                        <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-xl bg-teal-500/20 text-teal-300 flex items-center justify-center shrink-0">
+                                <Sparkles size={16} className="text-amber-400" />
+                            </div>
+                            <div>
+                                <p className="font-bold text-sm text-white">Device Guest Mode Active</p>
+                                <p className="text-slate-300 text-[11.5px]">
+                                    Viewing reservations saved on this device. Sign in or create an account to permanently sync and access them from any device.
+                                </p>
+                            </div>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                            <Link to="/login" className="btn btn-xs btn-outline border-teal-400 text-teal-300 hover:bg-teal-800 hover:text-white rounded-xl font-bold">
+                                Log In
+                            </Link>
+                            <Link to="/register" className="btn btn-xs bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold rounded-xl border-none">
+                                Create Account
+                            </Link>
+                        </div>
+                    </div>
+                )}
 
                 {/* Metrics Grid */}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
@@ -321,16 +383,28 @@ const MyBookings = () => {
                             <p className="text-xs text-slate-500">
                                 {search || statusFilter 
                                     ? "No bookings match your current search and filter criteria." 
-                                    : "You haven't made any reservations at Miami Beach Resort yet."}
+                                    : (isLoggedIn 
+                                        ? "You haven't made any reservations at Miami Beach Resort yet." 
+                                        : "You haven't made any reservations on this browser yet. If you have an account, log in to view your bookings.")}
                             </p>
                         </div>
-                        <Link 
-                            to="/" 
-                            className="btn btn-primary rounded-2xl text-white font-bold gap-2 shadow-sm hover:shadow-md"
-                        >
-                            <span>Explore Room Categories</span>
-                            <ArrowRight size={15} />
-                        </Link>
+                        <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+                            <Link 
+                                to="/" 
+                                className="btn btn-primary rounded-2xl text-white font-bold gap-2 shadow-sm hover:shadow-md"
+                            >
+                                <span>Explore Room Categories</span>
+                                <ArrowRight size={15} />
+                            </Link>
+                            {!isLoggedIn && (
+                                <Link 
+                                    to="/login" 
+                                    className="btn btn-outline border-slate-300 text-slate-700 hover:bg-slate-50 rounded-2xl font-bold"
+                                >
+                                    <span>Log In to Account</span>
+                                </Link>
+                            )}
+                        </div>
                     </div>
                 ) : (
                     <div className="space-y-4">

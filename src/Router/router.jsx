@@ -35,8 +35,8 @@ export const router = createBrowserRouter([
             { path: "services", Component: Services },
             { path: "room/:id", Component: RoomDetails },
             { path: "rooms/:id", Component: RoomDetails },
-            { path: "my-bookings", element: <PrivateRoute><MyBookings /></PrivateRoute> },
-            { path: "my-bookings/:id", element: <PrivateRoute><BookingDetails /></PrivateRoute> },
+            { path: "my-bookings", Component: MyBookings },
+            { path: "my-bookings/:id", Component: BookingDetails },
         ]
     },
     {

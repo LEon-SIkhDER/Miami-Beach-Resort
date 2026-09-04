@@ -1,6 +1,8 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useContext } from 'react'
 import { createPortal } from 'react-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { AuthContext } from '../../../Context/AuthContext'
+import useRole from '../../../hooks/useRole'
 import useAxiosSecure from '../../../hooks/useAxiosSecure'
 import toast from 'react-hot-toast'
 import DatePicker from 'react-datepicker'
@@ -50,6 +52,8 @@ const STATUS_OPTIONS = [
 ]
 
 const EditBookingModal = ({ booking, isOpen, onClose, onSuccess }) => {
+    const { user: currentUser } = useContext(AuthContext)
+    const { role } = useRole()
     const axiosSecure = useAxiosSecure()
     const queryClient = useQueryClient()
     const [isSubmitting, setIsSubmitting] = useState(false)
@@ -307,7 +311,7 @@ const EditBookingModal = ({ booking, isOpen, onClose, onSuccess }) => {
             }
 
             const paidNum = Number(paidAmount)
-            if (paidAmount === '' || isNaN(paidNum) || paidNum <= 0) {
+            if (paidAmount === '' || isNaN(paidNum) || paidNum < 0) {
                 toast.error("Payment Done (৳) amount must be greater than 0 for confirmed bookings.")
                 return
             }
@@ -368,7 +372,12 @@ const EditBookingModal = ({ booking, isOpen, onClose, onSuccess }) => {
                 paymentMethod: paymentMethod.trim() || booking.paymentMethod || (effectivePaid > 0 ? "Cash" : ""),
                 reference: reference.trim(),
                 transactionId: transactionId.trim(),
-                notes: notes.trim()
+                notes: notes.trim(),
+                changedBy: {
+                    name: currentUser?.displayName || currentUser?.email || "Admin / Staff",
+                    email: currentUser?.email || "",
+                    role: role || "admin"
+                }
             }
 
             const res = await axiosSecure.patch(`/booking/${booking._id}`, payload)

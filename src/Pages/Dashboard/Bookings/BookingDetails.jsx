@@ -1,5 +1,6 @@
 import React, { useContext, useState } from 'react'
 import { useParams, Link, useNavigate } from 'react-router'
+import axios from 'axios'
 import { AuthContext } from '../../../Context/AuthContext'
 import useRole from '../../../hooks/useRole'
 import useAxiosSecure from '../../../hooks/useAxiosSecure'
@@ -31,7 +32,11 @@ import {
     AlertCircle,
     Building2,
     Briefcase,
-    Shield
+    Shield,
+    ArrowRight,
+    FileEdit,
+    ShieldCheck,
+    Tag
 } from 'lucide-react'
 import { 
     formatDate, 
@@ -77,6 +82,17 @@ const getPaymentMethodBadge = (method) => {
     return <span className="badge badge-sm bg-slate-100 text-slate-700 border-slate-200 font-bold">{method || "Cash / Direct"}</span>
 }
 
+const formatAuditLogText = (text) => {
+    if (!text || typeof text !== 'string') return text || ''
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+    return text.replace(/\b(\d{4})-(\d{2})-(\d{2})\b/g, (_, y, m, d) => {
+        const monthIndex = parseInt(m, 10) - 1
+        const monthName = months[monthIndex] || m
+        const cleanDay = String(d).padStart(2, '0')
+        return `${cleanDay} ${monthName} ${y}`
+    })
+}
+
 const BookingDetails = () => {
     const { id } = useParams()
     const { user: currentUser } = useContext(AuthContext)
@@ -108,22 +124,41 @@ const BookingDetails = () => {
     const canConfirm = ["admin", "manager", "agent"].includes(role)
     const canSetPaymentWaiting = ["admin", "manager", "agent", "b2b"].includes(role)
     const canCancel = ["admin", "manager", "agent"].includes(role)
+    const canViewAuditLogs = ["admin", "manager", "moderator"].includes(role?.toLowerCase())
 
     // Fetch booking details by ID
     const { data: booking, isLoading, isError } = useQuery({
-        queryKey: ["booking-details", id],
-        enabled: !!currentUser && !!id,
+        queryKey: ["booking-details", id, currentUser?.email],
+        enabled: !!id,
         queryFn: async () => {
-            try {
-                const res = await axiosSecure.get(`/booking/${id}`)
-                if (res.data) return res.data
-            } catch (e) {
-                console.log("Direct booking fetch fallback", e)
+            if (currentUser) {
+                try {
+                    const res = await axiosSecure.get(`/booking/${id}`)
+                    if (res.data) return res.data
+                } catch (e) {
+                    console.log("Direct booking fetch fallback", e)
+                }
+                try {
+                    const listRes = await axiosSecure.get(`/bookings`)
+                    const matched = listRes.data.find(b => b._id === id || b.bookingId === id)
+                    if (matched) return matched
+                } catch (e) {
+                    console.log("Bookings list fetch fallback", e)
+                }
             }
-            const listRes = await axiosSecure.get(`/bookings`)
-            const matched = listRes.data.find(b => b._id === id || b.bookingId === id)
-            if (!matched) throw new Error("Booking not found")
-            return matched
+
+            // Public lookup fallback for guest mode
+            try {
+                const apiBase = import.meta.env.VITE_API_URL || "http://localhost:5000"
+                const publicRes = await axios.post(`${apiBase}/bookings/by-ids`, { bookingIds: [id] })
+                if (publicRes.data && Array.isArray(publicRes.data) && publicRes.data.length > 0) {
+                    return publicRes.data[0]
+                }
+            } catch (err) {
+                console.error("Guest booking fetch error:", err)
+            }
+
+            throw new Error("Booking not found")
         }
     })
 
@@ -219,6 +254,8 @@ const BookingDetails = () => {
                 return <span className="badge badge-xs bg-amber-100 text-amber-800 border-none font-bold">Admin</span>
             case "manager":
                 return <span className="badge badge-xs bg-purple-100 text-purple-800 border-none font-bold">Manager</span>
+            case "moderator":
+                return <span className="badge badge-xs bg-indigo-100 text-indigo-800 border-none font-bold">Moderator</span>
             case "agent":
                 return <span className="badge badge-xs bg-teal-100 text-teal-800 border-none font-bold">Agent</span>
             case "b2b":
@@ -261,6 +298,7 @@ const BookingDetails = () => {
     const firstCheckIn = sortedCheckIns[0] || booking.checkIn
     const lastCheckOut = sortedCheckOuts[sortedCheckOuts.length - 1] || booking.checkOut
     const statusHistory = Array.isArray(booking.statusHistory) ? booking.statusHistory : []
+    const editHistory = Array.isArray(booking.editHistory) ? [...booking.editHistory].reverse() : []
     const effectivePaymentHistory = getEffectivePaymentHistory(booking)
     const isCancelled = ["cancel", "cancelled"].includes(booking.status)
 
@@ -768,6 +806,120 @@ const BookingDetails = () => {
                     </div>
                 )}
             </div>
+
+            {/* BOOKING MODIFICATION AUDIT LOG (Admin, Manager & Moderator View) */}
+            {canViewAuditLogs && (
+                <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 space-y-5 print:hidden">
+                    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-4">
+                        <div className="space-y-0.5">
+                            <h3 className="text-base sm:text-lg font-bold text-slate-900 font-serif flex items-center gap-2">
+                                <ShieldCheck size={20} className="text-teal-600" /> Booking Modification Audit Log
+                            </h3>
+                            <p className="text-xs text-slate-500">
+                                Detailed field-by-field change records showing who changed stay dates, room assignments, pricing, or guest info and when.
+                            </p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <span className="badge badge-sm bg-slate-100 text-slate-700 border-slate-200 font-bold">
+                                {editHistory.length} Record{editHistory.length !== 1 ? 's' : ''}
+                            </span>
+                            <span className="badge badge-sm bg-amber-50 text-amber-800 border-amber-200 font-semibold text-[10px]">
+                                Admin & Moderator View
+                            </span>
+                        </div>
+                    </div>
+
+                    {editHistory.length === 0 ? (
+                        <div className="p-6 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200 text-slate-400 space-y-1">
+                            <FileEdit size={28} className="mx-auto opacity-40 text-slate-400 mb-1.5" />
+                            <p className="text-xs font-semibold text-slate-600">No modification records entered yet.</p>
+                            <p className="text-[11px] text-slate-400">Any manual edits (e.g. date changes, room reassignments, pricing updates) will be automatically audited and displayed here.</p>
+                        </div>
+                    ) : (
+                        <div className="relative pl-6 border-l-2 border-slate-200 space-y-6 my-2">
+                            {editHistory.map((log, logIdx) => {
+                                const actor = log.changedBy || {}
+                                const changesList = Array.isArray(log.changes) ? log.changes : []
+                                return (
+                                    <div key={logIdx} className="relative group">
+                                        {/* Timeline dot */}
+                                        <div className="absolute -left-[31px] top-1.5 w-4 h-4 rounded-full bg-teal-600 border-4 border-white ring-2 ring-teal-200 shadow-xs" />
+
+                                        <div className="bg-slate-50/80 border border-slate-200 rounded-2xl p-4 space-y-3 text-xs hover:border-slate-300 transition-colors">
+                                            {/* Header with Actor & Time */}
+                                            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200/60 pb-2.5">
+                                                <div className="flex items-center gap-2">
+                                                    <div className="w-7 h-7 rounded-lg bg-teal-100/90 text-teal-800 flex items-center justify-center font-bold text-xs uppercase shadow-2xs">
+                                                        {(actor.name || actor.email || "S").charAt(0)}
+                                                    </div>
+                                                    <div>
+                                                        <div className="flex items-center gap-1.5">
+                                                            <span className="font-bold text-slate-900 text-xs">
+                                                                {actor.name || actor.email || "Staff / Admin"}
+                                                            </span>
+                                                            {actor.role && getActorRoleBadge(actor.role)}
+                                                        </div>
+                                                        {actor.email && actor.email !== actor.name && (
+                                                            <span className="text-[10.5px] text-slate-400">{actor.email}</span>
+                                                        )}
+                                                    </div>
+                                                </div>
+
+                                                <span className="text-[11px] text-slate-500 font-medium bg-white px-2.5 py-1 rounded-lg border border-slate-200/70 shadow-2xs">
+                                                    {log.timestamp ? formatDateTime(log.timestamp) : "—"}
+                                                </span>
+                                            </div>
+
+                                            {/* Changes Diff List */}
+                                            {changesList.length > 0 ? (
+                                                <div className="space-y-2">
+                                                    <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                                                        Field Modifications ({changesList.length}):
+                                                    </div>
+                                                    <div className="grid grid-cols-1 gap-2">
+                                                        {changesList.map((c, cIdx) => (
+                                                            <div key={cIdx} className="bg-white p-2.5 rounded-xl border border-slate-200/80 space-y-1.5 shadow-2xs">
+                                                                <div className="flex flex-wrap items-center justify-between gap-2">
+                                                                    <span className="font-semibold text-slate-800 text-[11.5px] flex items-center gap-1.5">
+                                                                        <Tag size={12} className="text-teal-600" />
+                                                                        {c.label || c.field}
+                                                                    </span>
+                                                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                                                        <span className="px-2 py-0.5 rounded-md bg-rose-50 text-rose-700 border border-rose-200 line-through font-mono text-[10.5px]">
+                                                                            {formatAuditLogText(c.oldValue) || "None"}
+                                                                        </span>
+                                                                        <ArrowRight size={12} className="text-slate-400" />
+                                                                        <span className="px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-800 border border-emerald-200 font-bold font-mono text-[10.5px]">
+                                                                            {formatAuditLogText(c.newValue) || "None"}
+                                                                        </span>
+                                                                    </div>
+                                                                </div>
+                                                                {c.description && (
+                                                                    <p className="text-[11px] text-slate-500 pl-4 border-l-2 border-teal-200">
+                                                                        {formatAuditLogText(c.description)}
+                                                                    </p>
+                                                                )}
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                Array.isArray(log.summary) && log.summary.length > 0 && (
+                                                    <ul className="list-disc list-inside space-y-1 text-slate-600 text-[11.5px]">
+                                                        {log.summary.map((s, sIdx) => (
+                                                            <li key={sIdx}>{formatAuditLogText(s)}</li>
+                                                        ))}
+                                                    </ul>
+                                                )
+                                            )}
+                                        </div>
+                                    </div>
+                                )
+                            })}
+                        </div>
+                    )}
+                </div>
+            )}
 
             {/* Confirm / Payment Waiting Modal */}
             {confirmModalTarget && (

@@ -3,10 +3,24 @@
 
 :root {
   font-family: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+  --royal-emerald: #04261f;
+  --royal-emerald-deep: #021a15;
+  --royal-gold: #c5a880;
+  --royal-gold-light: #dfc89e;
+  --royal-gold-dark: #9a7b52;
+  --royal-ivory: #fcfbf9;
 }
 
 .font-serif {
   font-family: 'Playfair Display', Georgia, Cambria, 'Times New Roman', Times, serif;
+}
+
+.font-cinzel {
+  font-family: 'Cinzel', Georgia, 'Times New Roman', serif;
+}
+
+.font-cormorant {
+  font-family: 'Cormorant Garamond', Georgia, serif;
 }
 
 /* Custom scrollbar */
@@ -15,46 +29,89 @@
   height: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: #f1f5f9;
+  background: #0b1320;
 }
 ::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
+  background: #334155;
   border-radius: 9999px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
+  background: #c5a880;
 }
 
-/* Glassmorphism helpers */
-.glass-header {
-  background: rgba(255, 255, 255, 0.85);
+/* Glassmorphism & Royal Accents */
+.glass-royal-header {
+  background: rgba(4, 38, 31, 0.88);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-bottom: 1px solid rgba(197, 168, 128, 0.18);
+}
+
+.glass-royal-card {
+  background: rgba(255, 255, 255, 0.95);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(197, 168, 128, 0.2);
 }
 
-/* ── react-datepicker: Resort Theme ── */
+.glass-dark-card {
+  background: rgba(4, 38, 31, 0.7);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(197, 168, 128, 0.22);
+}
+
+.gold-gradient-text {
+  background: linear-gradient(135deg, #f5ebd7 0%, #d4af37 45%, #c5a880 70%, #f7e6c4 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.gold-gradient-bg {
+  background: linear-gradient(135deg, #dfc89e 0%, #c5a880 50%, #ad8a57 100%);
+}
+
+.gold-border-glow {
+  box-shadow: 0 0 25px rgba(197, 168, 128, 0.18);
+}
+
+.royal-shadow {
+  box-shadow: 0 20px 50px -10px rgba(4, 38, 31, 0.15), 0 10px 20px -5px rgba(0, 0, 0, 0.04);
+}
+
+.royal-card-hover {
+  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.royal-card-hover:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 24px 48px -12px rgba(4, 38, 31, 0.18), 0 0 0 1px rgba(197, 168, 128, 0.35);
+}
+
+/* ── react-datepicker: Royal Palace Theme ── */
 .booking-calendar {
   font-family: 'Plus Jakarta Sans', sans-serif;
-  border: 1px solid #e2e8f0;
-  border-radius: 1rem;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.12);
+  border: 1px solid rgba(197, 168, 128, 0.3);
+  border-radius: 1.25rem;
+  box-shadow: 0 16px 40px rgba(4, 38, 31, 0.25);
   overflow: hidden;
-  font-size: 0.8rem;
+  font-size: 0.82rem;
+  background: #ffffff;
 }
 
-/* Header (month/year nav) */
+/* Header */
 .booking-calendar .react-datepicker__header {
-  background: #0f766e;
-  border-bottom: none;
-  padding: 12px 8px 8px;
+  background: linear-gradient(135deg, #04261f 0%, #064e3b 100%);
+  border-bottom: 1px solid rgba(197, 168, 128, 0.3);
+  padding: 14px 10px 10px;
 }
 .booking-calendar .react-datepicker__current-month,
 .booking-calendar .react-datepicker__day-name {
-  color: #ffffff;
+  color: #f5ebd7;
   font-weight: 700;
+  letter-spacing: 0.05em;
 }
 .booking-calendar .react-datepicker__navigation-icon::before {
-  border-color: #ccfbf1;
+  border-color: #dfc89e;
 }
 .booking-calendar .react-datepicker__navigation:hover .react-datepicker__navigation-icon::before {
   border-color: #ffffff;
@@ -62,44 +119,43 @@
 
 /* Day cells */
 .booking-calendar .react-datepicker__day {
-  border-radius: 0.4rem;
+  border-radius: 0.5rem;
   color: #1e293b;
   font-weight: 500;
   margin: 2px;
-  width: 2rem;
-  line-height: 2rem;
+  width: 2.1rem;
+  line-height: 2.1rem;
 }
 .booking-calendar .react-datepicker__day:hover:not(.react-datepicker__day--disabled) {
-  background-color: #ccfbf1;
-  color: #0f766e;
+  background-color: #f5ebd7;
+  color: #04261f;
+  font-weight: 700;
 }
 
 /* Selected day */
 .booking-calendar .react-datepicker__day--selected,
 .booking-calendar .react-datepicker__day--keyboard-selected {
-  background-color: #0d9488 !important;
-  color: #ffffff !important;
-  font-weight: 700;
+  background: linear-gradient(135deg, #04261f 0%, #064e3b 100%) !important;
+  color: #dfc89e !important;
+  font-weight: 800;
+  border: 1px solid #c5a880;
 }
 
 /* Today */
 .booking-calendar .react-datepicker__day--today {
-  border: 2px solid #0d9488;
-  color: #0f766e;
-  font-weight: 700;
+  border: 1.5px solid #c5a880;
+  color: #064e3b;
+  font-weight: 800;
   background: transparent;
 }
 
-/* Booked / excluded dates — show in red */
+/* Booked / excluded dates */
 .booking-calendar .react-datepicker__day--disabled,
 .booking-calendar .booked-day {
   background-color: #fee2e2 !important;
   color: #ef4444 !important;
   text-decoration: line-through;
   cursor: not-allowed !important;
-  border-radius: 0.4rem;
+  border-radius: 0.5rem;
   font-weight: 600;
-}
-.booking-calendar .react-datepicker__day--disabled:hover {
-  background-color: #fecaca !important;
 }

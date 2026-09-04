@@ -200,3 +200,42 @@ export const getEffectivePaymentHistory = (booking = {}) => {
     }
     return []
 }
+
+// Guest Bookings LocalStorage Helpers
+export const GUEST_BOOKINGS_STORAGE_KEY = "miami_guest_booking_ids"
+
+export const getGuestBookingIds = () => {
+    if (typeof window === "undefined") return []
+    try {
+        const stored = localStorage.getItem(GUEST_BOOKINGS_STORAGE_KEY)
+        if (!stored) return []
+        const parsed = JSON.parse(stored)
+        return Array.isArray(parsed) ? parsed.filter(Boolean) : []
+    } catch {
+        return []
+    }
+}
+
+export const saveGuestBookingId = (bookingId) => {
+    if (typeof window === "undefined" || !bookingId) return
+    try {
+        const cleanId = String(bookingId).trim()
+        if (!cleanId) return
+        const existing = getGuestBookingIds()
+        if (!existing.includes(cleanId)) {
+            const updated = [cleanId, ...existing].slice(0, 50)
+            localStorage.setItem(GUEST_BOOKINGS_STORAGE_KEY, JSON.stringify(updated))
+        }
+    } catch (e) {
+        console.error("Failed to save guest booking ID to localStorage:", e)
+    }
+}
+
+export const clearGuestBookingIds = () => {
+    if (typeof window === "undefined") return
+    try {
+        localStorage.removeItem(GUEST_BOOKINGS_STORAGE_KEY)
+    } catch (e) {
+        console.error("Failed to clear guest booking IDs from localStorage:", e)
+    }
+}
