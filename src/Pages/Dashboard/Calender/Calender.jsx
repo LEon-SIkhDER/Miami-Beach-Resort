@@ -42,7 +42,7 @@ const Calender = () => {
         setSelectedCategoryFilter(val);
         try {
             localStorage.setItem("calendar_selected_category", val);
-        } catch (e) {}
+        } catch (e) { }
     };
 
     // Date-wise Pricing Row Checkbox State
@@ -58,7 +58,7 @@ const Calender = () => {
         setShowPricingRow(checked);
         try {
             localStorage.setItem("calendar_show_pricing_row", String(checked));
-        } catch (e) {}
+        } catch (e) { }
     };
 
     // Room-wise Occupancy Row Checkbox State
@@ -74,7 +74,7 @@ const Calender = () => {
         setShowOccupancyRow(checked);
         try {
             localStorage.setItem("calendar_show_occupancy_row", String(checked));
-        } catch (e) {}
+        } catch (e) { }
     };
 
     // Helper: calculate effective price for a category on a specific date
@@ -92,9 +92,9 @@ const Calender = () => {
     };
 
     // 1. Fetch pending request bookings count & items
-    const { 
-        data: requestBookings = [], 
-        refetch: refetchRequestBookings 
+    const {
+        data: requestBookings = [],
+        refetch: refetchRequestBookings
     } = useQuery({
         queryKey: ["requestBookings"],
         queryFn: async () => {
@@ -104,10 +104,10 @@ const Calender = () => {
     });
 
     // 2. Fetch all real categories from database
-    const { 
-        data: dbCategories = [], 
-        isLoading: isCategoriesLoading, 
-        refetch: refetchCategories 
+    const {
+        data: dbCategories = [],
+        isLoading: isCategoriesLoading,
+        refetch: refetchCategories
     } = useQuery({
         queryKey: ["all-categories-for-calendar"],
         queryFn: async () => {
@@ -117,10 +117,10 @@ const Calender = () => {
     });
 
     // 3. Fetch all active bookings from database
-    const { 
-        data: allBookings = [], 
-        isLoading: isBookingsLoading, 
-        refetch: refetchBookings 
+    const {
+        data: allBookings = [],
+        isLoading: isBookingsLoading,
+        refetch: refetchBookings
     } = useQuery({
         queryKey: ["all-bookings-for-calendar"],
         queryFn: async () => {
@@ -152,7 +152,7 @@ const Calender = () => {
             localStorage.removeItem("calendar_endDate");
             localStorage.removeItem("startDate");
             localStorage.removeItem("endDate");
-        } catch (e) {}
+        } catch (e) { }
     }, []);
 
     const handleStartDate = (date) => {
@@ -427,11 +427,11 @@ const Calender = () => {
     return (
         <div className="flex h-[calc(100dvh-65px)] w-full min-w-0 flex-col overflow-hidden bg-slate-50">
             {/* Top Workflow Ribbon with Specified Colors */}
-            <div className="bg-white border-b border-slate-200 px-3 sm:px-5 py-2 shrink-0 flex flex-wrap items-center justify-between gap-2 text-xs">
-                <div className="flex items-center gap-1.5 font-bold text-slate-500 uppercase tracking-wider text-[10px]">
-                    <span>Workflow:</span>
-                </div>
+            <div className="bg-white border-b border-slate-200 px-3 sm:px-5 py-2 shrink-0 flex flex-wrap items-center justify-center gap-2 text-xs">
                 <div className="flex flex-wrap items-center gap-1 sm:gap-2">
+                    <div className="flex items-center gap-1.5 font-bold text-slate-500 uppercase tracking-wider text-[10px]">
+                        <span>Workflow:</span>
+                    </div>
                     {/* 1. Request Booking */}
                     <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#f59e0b]/15 border border-[#f59e0b]/40 text-[#b45309] font-bold text-[11px]">
                         <span className="w-2.5 h-2.5 rounded-full bg-[#f59e0b] ring-2 ring-white" />
@@ -465,23 +465,24 @@ const Calender = () => {
                     <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-neutral-900 text-amber-300 font-bold text-[11px] shadow-xs">
                         <Wrench size={11} className="text-amber-400" />
                         <span>Out of Order ({statistics.statusCounts.out_of_order})</span>
+                    </div>
                 </div>
             </div>
 
-            {/* Controls Header — Left tools & Right-pinned Date Navigators */}
-            <div className="flex flex-wrap lg:flex-nowrap justify-between p-3 sm:p-4 items-center gap-3 shrink-0 bg-white border-b border-slate-200">
-                {/* Left Controls: Filter, Pricing Toggle, Occupancy Toggle, Request Bookings, OOO */}
-                <div className="flex flex-wrap items-center gap-2 shrink-0">
+            {/* Controls Header — Single flex justify-between toolbar with all category tools on left and OOO/dates/refresh on right */}
+            <div className="flex flex-wrap items-center justify-between p-3 sm:p-4 gap-3 shrink-0 bg-white border-b border-slate-200">
+                {/* Left Controls: Filter, Pricing Toggle, Occupancy Toggle, Request Bookings */}
+                <div className="flex flex-wrap items-center gap-2">
                     {/* DaisyUI Category Filter Select */}
                     <select
                         value={selectedCategoryFilter}
                         onChange={(e) => handleCategoryFilterChange(e.target.value)}
-                        className="select max-w-80 w-72 h-8 select-ghost select-sm font-bold text-slate-800 text-xs focus:outline-none cursor-pointer min-h-0 truncate bg-slate-50 border border-slate-300 rounded-xl px-2.5 py-0.5 shadow-2xs"
+                        className="select w-56 sm:w-64 h-8 select-ghost select-sm font-bold text-slate-800 text-xs focus:outline-none cursor-pointer min-h-0 truncate bg-slate-50 border border-slate-300 rounded-xl px-2.5 py-0.5 shadow-2xs"
                     >
                         <option value="ALL">All Categories ({dbCategories.length})</option>
                         {dbCategories.map((c) => (
                             <option key={c._id || c.name} value={c._id || c.name}>
-                                {c.name} 
+                                {c.name}
                             </option>
                         ))}
                     </select>
@@ -512,23 +513,18 @@ const Calender = () => {
                     <button
                         type="button"
                         onClick={() => setIsRequestModalOpen(true)}
-                        className={`btn btn-sm rounded-xl transition-all duration-200 gap-1.5 font-bold h-8 ${
-                            requestBookings.length > 0
+                        className={`btn btn-sm rounded-xl transition-all duration-200 gap-1.5 font-bold h-8 ${requestBookings.length > 0
                                 ? "bg-[#f59e0b] hover:bg-amber-600 text-white border-none shadow-md shadow-amber-500/25 ring-2 ring-amber-400/40"
                                 : "btn-outline border-slate-300 text-slate-700 hover:bg-slate-100"
-                        }`}
+                            }`}
                     >
                         <Clock size={14} />
                         <span>Request Bookings ({requestBookings.length ? requestBookings.length : 0})</span>
                     </button>
                 </div>
 
-
-                </div>
-
-                {/* Right Controls: Quick Date Shifters, Date Pickers, Refresh (Always pinned to right with ml-auto) */}
-                <div className="ml-auto shrink-0 flex flex-wrap items-center justify-end gap-2.5">
-
+                {/* Right Controls: Out of Order Rooms, Date Pickers, Refresh */}
+                <div className="flex flex-wrap items-center justify-end gap-2.5">
                     {/* Out of Order Rooms Button */}
                     <button
                         type="button"
@@ -536,11 +532,10 @@ const Calender = () => {
                             setSelectedOOORoom(null);
                             setIsOutOfOrderOpen(true);
                         }}
-                        className={`btn btn-sm rounded-xl transition-all duration-200 gap-1.5 font-bold h-8 ${
-                            outOfOrderList.length > 0
+                        className={`btn btn-sm rounded-xl transition-all duration-200 gap-1.5 font-bold h-8 ${outOfOrderList.length > 0
                                 ? "bg-neutral-900 hover:bg-neutral-800 text-amber-300 border-none shadow-md ring-2 ring-amber-400/30"
                                 : "btn-outline border-slate-300 text-slate-700 hover:bg-slate-100"
-                        }`}
+                            }`}
                     >
                         <Wrench size={13} className="text-amber-400" />
                         <span>Out of Order ({outOfOrderList.length})</span>
@@ -605,7 +600,7 @@ const Calender = () => {
                     <tbody>
 
 
-                        
+
                         {isCategoriesLoading || isBookingsLoading ? (
                             <tr>
                                 <td colSpan={dateRange.length + 1} className="text-center py-16 text-slate-400">
@@ -651,13 +646,12 @@ const Calender = () => {
                                             return (
                                                 <td
                                                     key={`overall-occupancy-${dateObj.iso}`}
-                                                    className={`px-1 py-1 border border-gray-300 text-center font-mono text-[10px] font-bold whitespace-nowrap ${
-                                                        percent === 100
+                                                    className={`px-1 py-1 border border-gray-300 text-center font-mono text-[10px] font-bold whitespace-nowrap ${percent === 100
                                                             ? "bg-rose-100/80 text-rose-900 font-black"
                                                             : percent > 0
                                                                 ? "bg-teal-100/70 text-teal-900"
                                                                 : "bg-slate-50/70 text-slate-500 font-normal"
-                                                    }`}
+                                                        }`}
                                                     title={`Overall Occupancy\nDate: ${dateObj.display}\nOccupied: ${occupiedCount}/${totalRoomsCount} rooms (${percent}%)\nAvailable: ${availableCount} rooms${oooCount > 0 ? `\nOut of Order: ${oooCount} rooms` : ''}`}
                                                 >
                                                     <span className={`text-[10px] font-bold ${percent === 100 ? 'text-rose-800 font-extrabold' : percent > 0 ? 'text-teal-900' : 'text-slate-500'}`}>
@@ -672,179 +666,176 @@ const Calender = () => {
                                 {displayCategories.map((category) => (
                                     <React.Fragment key={category._id || category.category}>
 
-                                    {/* CATEGORY ROW HEADER — z-40 sticky */}
-                                    <tr>
-                                        <th className="sticky left-0 z-40 border border-gray-300 bg-slate-800 text-xs font-bold px-2.5 py-1.5 text-white shadow-md whitespace-nowrap text-left">
-                                            <div className="flex items-center justify-between gap-3">
-                                                <span className="text-[10px]">{category.category}</span>
-                                            </div>
-                                        </th>
-                                        {dateRange.map((dateObj) => (
-                                            <td
-                                                key={`${category.category}-${dateObj.iso}`}
-                                                className={`px-0.5 py-1 border border-gray-300 text-center text-[11px] font-bold whitespace-nowrap ${
-                                                    dateObj.isToday ? "bg-amber-100 text-amber-900 font-bold" : "bg-slate-100 text-slate-700"
-                                                }`}
-                                            >
-                                                <span>{dateObj.display}</span>
-                                                <span className="text-[9px] text-slate-400 block font-normal uppercase">
-                                                    {dateObj.dayName}
-                                                </span>
-                                            </td>
-                                        ))}
-                                    </tr>
-
-                                    {/* Optional Date-wise Pricing Row — z-40 sticky */}
-                                    {showPricingRow && (
-                                        <tr className="bg-amber-50/40">
-                                            <th className="sticky left-0 z-40 border border-gray-300 bg-amber-50 text-[11px] font-bold px-2 py-1 text-amber-900 shadow-md whitespace-nowrap text-left">
-                                                <span className="flex items-center gap-1">
-                                                    🏷️ Pricing / Night
-                                                </span>
+                                        {/* CATEGORY ROW HEADER — z-40 sticky */}
+                                        <tr>
+                                            <th className="sticky left-0 z-40 border border-gray-300 bg-slate-800 text-xs font-bold px-2.5 py-1.5 text-white shadow-md whitespace-nowrap text-left">
+                                                <div className="flex items-center justify-between gap-3">
+                                                    <span className="text-[10px]">{category.category}</span>
+                                                </div>
                                             </th>
-                                            {dateRange.map((dateObj) => {
-                                                const effectivePrice = getEffectiveCategoryPrice(category, dateObj.iso);
-                                                const isCustomScheduled = category.scheduledPrices?.some(sp => sp.effectiveDate <= dateObj.iso);
-                                                return (
-                                                    <td
-                                                        key={`price-${category.category}-${dateObj.iso}`}
-                                                        className={`px-1.5 py-1 border border-gray-300 text-center font-mono text-[10px] font-bold whitespace-nowrap ${
-                                                            isCustomScheduled ? "bg-amber-100/60 text-teal-800" : "bg-slate-50/80 text-slate-600"
+                                            {dateRange.map((dateObj) => (
+                                                <td
+                                                    key={`${category.category}-${dateObj.iso}`}
+                                                    className={`px-0.5 py-1 border border-gray-300 text-center text-[11px] font-bold whitespace-nowrap ${dateObj.isToday ? "bg-amber-100 text-amber-900 font-bold" : "bg-slate-100 text-slate-700"
                                                         }`}
-                                                        title={`Category: ${category.category}\nDate: ${dateObj.display}\nPrice: ৳${effectivePrice.toLocaleString()}`}
-                                                    >
-                                                        ৳{effectivePrice.toLocaleString()}
-                                                    </td>
-                                                );
-                                            })}
+                                                >
+                                                    <span>{dateObj.display}</span>
+                                                    <span className="text-[9px] text-slate-400 block font-normal uppercase">
+                                                        {dateObj.dayName}
+                                                    </span>
+                                                </td>
+                                            ))}
                                         </tr>
-                                    )}
 
-                                    {/* ROOM NUMBER ROWS — z-30 sticky with 0-risk dynamic colSpan */}
-                                    {category.roomNumbers.map((roomNo) => {
-                                        const rowCells = [];
-                                        let dateIndex = 0;
-
-                                        while (dateIndex < dateRange.length) {
-                                            const dateObj = dateRange[dateIndex];
-                                            const cellKey = `${String(roomNo).trim()}_${dateObj.iso}`;
-                                            const bookingInfo = bookingCellMap.get(cellKey);
-                                            const oooInfo = outOfOrderCellMap.get(cellKey);
-
-                                            if (oooInfo) {
-                                                // Calculate consecutive OOO days in visible range
-                                                const currentOOOId = String(oooInfo._id || oooInfo.reason);
-                                                let oooSpan = 1;
-                                                while (
-                                                    dateIndex + oooSpan < dateRange.length &&
-                                                    String(outOfOrderCellMap.get(`${String(roomNo).trim()}_${dateRange[dateIndex + oooSpan].iso}`)?._id || 
-                                                           outOfOrderCellMap.get(`${String(roomNo).trim()}_${dateRange[dateIndex + oooSpan].iso}`)?.reason) === currentOOOId
-                                                ) {
-                                                    oooSpan++;
-                                                }
-
-                                                rowCells.push(
-                                                    <td
-                                                        key={`ooo-${roomNo}-${dateObj.iso}`}
-                                                        colSpan={oooSpan}
-                                                        onClick={() => handleCellClick(null, oooInfo, category, roomNo, dateObj)}
-                                                        title={`Room ${roomNo} is OUT OF ORDER\nReason: ${oooInfo.reason}\nPeriod: ${oooInfo.startDate} → ${oooInfo.endDate}\nClick to view maintenance details or resolve.`}
-                                                        className="px-1 py-1 text-center text-xs whitespace-nowrap bg-[#171717] text-amber-300 font-bold border-2 border-dashed border-amber-500 hover:bg-neutral-800 cursor-pointer select-none shadow-xs"
-                                                    >
-                                                        <span className="truncate block text-[10px] leading-tight">
-                                                            🛠️ Out of Order
-                                                        </span>
-                                                    </td>
-                                                );
-
-                                                dateIndex += oooSpan;
-                                            } else if (bookingInfo) {
-                                                // Calculate consecutive booking days in visible range
-                                                const currentBookingId = String(bookingInfo._id || bookingInfo.bookingId);
-                                                let bookingSpan = 1;
-                                                while (
-                                                    dateIndex + bookingSpan < dateRange.length &&
-                                                    String(bookingCellMap.get(`${String(roomNo).trim()}_${dateRange[dateIndex + bookingSpan].iso}`)?._id || 
-                                                           bookingCellMap.get(`${String(roomNo).trim()}_${dateRange[dateIndex + bookingSpan].iso}`)?.bookingId) === currentBookingId
-                                                ) {
-                                                    bookingSpan++;
-                                                }
-
-                                                const dueAmount = bookingInfo.dueAmount !== undefined 
-                                                    ? Number(bookingInfo.dueAmount || 0) 
-                                                    : Math.max(0, Number(bookingInfo.totalAmount || 0) - Number(bookingInfo.paidAmount || 0));
-                                                const hasDue = bookingInfo.status !== "cancel" && dueAmount > 0;
-
-                                                const tableStartIso = startDate ? format(startDate, "yyyy-MM-dd") : (dateRange[0]?.iso || "");
-                                                const tableEndIso = endDate ? format(endDate, "yyyy-MM-dd") : (dateRange[dateRange.length - 1]?.iso || "");
-                                                const checkInIso = String(bookingInfo.checkIn || "").slice(0, 10);
-                                                const checkOutIso = String(bookingInfo.checkOut || "").slice(0, 10);
-
-                                                const roundedTlClass = checkInIso && tableStartIso && checkInIso >= tableStartIso ? "rounded-tl-full" : "";
-                                                const roundedBrClass = checkOutIso && tableEndIso && checkOutIso <= tableEndIso ? "rounded-br-full" : "";
-
-                                                rowCells.push(
-                                                    <td
-                                                        key={`booking-${roomNo}-${dateObj.iso}`}
-                                                        colSpan={bookingSpan}
-                                                        onClick={() => handleCellClick(bookingInfo, null, category, roomNo, dateObj)}
-                                                        title={`${bookingInfo.guestName} (${bookingInfo.phone})\nStatus: ${bookingInfo.status}\nStay: ${bookingInfo.checkIn} → ${bookingInfo.checkOut}\nBooking ID: ${bookingInfo.bookingId}${hasDue ? `\n⚠️ PAYMENT DUE: ৳${dueAmount.toLocaleString()}` : '\n✅ Fully Paid'}\nClick to view or manage.`}
-                                                        className={`px-1 py-1 text-center text-xs whitespace-nowrap transition-all select-none border-2 border-white cursor-pointer ${roundedTlClass} ${roundedBrClass} ${getStatusCellClass(bookingInfo.status)}`}
-                                                    >
-                                                        <div className="flex items-center justify-center gap-1.5 min-w-0 max-w-full px-1">
-                                                            <span className="truncate block font-semibold text-[11px] leading-tight">
-                                                                {bookingInfo.guestName}
-                                                            </span>
-                                                            {hasDue && (
-                                                                <span 
-                                                                    className="shrink-0 w-2 h-2 rounded-full bg-orange-400 ring-1 ring-white animate-pulse" 
-                                                                    title={`Payment Due: ৳${dueAmount.toLocaleString()}`}
-                                                                />
-                                                            )}
-                                                        </div>
-                                                    </td>
-                                                );
-
-                                                dateIndex += bookingSpan;
-                                            } else {
-                                                // Empty single cell
-                                                rowCells.push(
-                                                    <td
-                                                        key={`empty-${roomNo}-${dateObj.iso}`}
-                                                        colSpan={1}
-                                                        onClick={() => handleCellClick(null, null, category, roomNo, dateObj)}
-                                                        title={
-                                                            dateObj.isPast
-                                                                ? `Room ${roomNo} - ${dateObj.display} (Past Date)`
-                                                                : `Room ${roomNo} available on ${dateObj.display}\nClick to create a new reservation.`
-                                                        }
-                                                        className={`px-1 py-1 text-center text-xs whitespace-nowrap transition-all select-none border border-gray-300 max-w-[125px] ${
-                                                            dateObj.isPast
-                                                                ? "bg-slate-100/70 text-slate-300 cursor-not-allowed"
-                                                                : dateObj.isToday
-                                                                ? "bg-amber-50/40 hover:bg-teal-50 cursor-pointer hover:outline-teal-500"
-                                                                : "hover:bg-teal-50/50 cursor-pointer hover:outline-teal-500"
-                                                        }`}
-                                                    />
-                                                );
-
-                                                dateIndex += 1;
-                                            }
-                                        }
-
-                                        return (
-                                            <tr key={`${category.category}-${roomNo}`}>
-                                                {/* ROOM NUMBER STICKY COLUMN */}
-                                                <th className="px-2 py-1 sticky left-0 z-30 bg-[#edfdf7] text-xs font-bold text-slate-800 border border-gray-300 shadow-md whitespace-nowrap">
-                                                    {roomNo}
+                                        {/* Optional Date-wise Pricing Row — z-40 sticky */}
+                                        {showPricingRow && (
+                                            <tr className="bg-amber-50/40">
+                                                <th className="sticky left-0 z-40 border border-gray-300 bg-amber-50 text-[11px] font-bold px-2 py-1 text-amber-900 shadow-md whitespace-nowrap text-left">
+                                                    <span className="flex items-center gap-1">
+                                                        🏷️ Pricing / Night
+                                                    </span>
                                                 </th>
-                                                {rowCells}
+                                                {dateRange.map((dateObj) => {
+                                                    const effectivePrice = getEffectiveCategoryPrice(category, dateObj.iso);
+                                                    const isCustomScheduled = category.scheduledPrices?.some(sp => sp.effectiveDate <= dateObj.iso);
+                                                    return (
+                                                        <td
+                                                            key={`price-${category.category}-${dateObj.iso}`}
+                                                            className={`px-1.5 py-1 border border-gray-300 text-center font-mono text-[10px] font-bold whitespace-nowrap ${isCustomScheduled ? "bg-amber-100/60 text-teal-800" : "bg-slate-50/80 text-slate-600"
+                                                                }`}
+                                                            title={`Category: ${category.category}\nDate: ${dateObj.display}\nPrice: ৳${effectivePrice.toLocaleString()}`}
+                                                        >
+                                                            ৳{effectivePrice.toLocaleString()}
+                                                        </td>
+                                                    );
+                                                })}
                                             </tr>
-                                        );
-                                    })}
-                                </React.Fragment>
-                            ))}
-                        </>
+                                        )}
+
+                                        {/* ROOM NUMBER ROWS — z-30 sticky with 0-risk dynamic colSpan */}
+                                        {category.roomNumbers.map((roomNo) => {
+                                            const rowCells = [];
+                                            let dateIndex = 0;
+
+                                            while (dateIndex < dateRange.length) {
+                                                const dateObj = dateRange[dateIndex];
+                                                const cellKey = `${String(roomNo).trim()}_${dateObj.iso}`;
+                                                const bookingInfo = bookingCellMap.get(cellKey);
+                                                const oooInfo = outOfOrderCellMap.get(cellKey);
+
+                                                if (oooInfo) {
+                                                    // Calculate consecutive OOO days in visible range
+                                                    const currentOOOId = String(oooInfo._id || oooInfo.reason);
+                                                    let oooSpan = 1;
+                                                    while (
+                                                        dateIndex + oooSpan < dateRange.length &&
+                                                        String(outOfOrderCellMap.get(`${String(roomNo).trim()}_${dateRange[dateIndex + oooSpan].iso}`)?._id ||
+                                                            outOfOrderCellMap.get(`${String(roomNo).trim()}_${dateRange[dateIndex + oooSpan].iso}`)?.reason) === currentOOOId
+                                                    ) {
+                                                        oooSpan++;
+                                                    }
+
+                                                    rowCells.push(
+                                                        <td
+                                                            key={`ooo-${roomNo}-${dateObj.iso}`}
+                                                            colSpan={oooSpan}
+                                                            onClick={() => handleCellClick(null, oooInfo, category, roomNo, dateObj)}
+                                                            title={`Room ${roomNo} is OUT OF ORDER\nReason: ${oooInfo.reason}\nPeriod: ${oooInfo.startDate} → ${oooInfo.endDate}\nClick to view maintenance details or resolve.`}
+                                                            className="px-1 py-1 text-center text-xs whitespace-nowrap bg-[#171717] text-amber-300 font-bold border-2 border-dashed border-amber-500 hover:bg-neutral-800 cursor-pointer select-none shadow-xs"
+                                                        >
+                                                            <span className="truncate block text-[10px] leading-tight">
+                                                                🛠️ Out of Order
+                                                            </span>
+                                                        </td>
+                                                    );
+
+                                                    dateIndex += oooSpan;
+                                                } else if (bookingInfo) {
+                                                    // Calculate consecutive booking days in visible range
+                                                    const currentBookingId = String(bookingInfo._id || bookingInfo.bookingId);
+                                                    let bookingSpan = 1;
+                                                    while (
+                                                        dateIndex + bookingSpan < dateRange.length &&
+                                                        String(bookingCellMap.get(`${String(roomNo).trim()}_${dateRange[dateIndex + bookingSpan].iso}`)?._id ||
+                                                            bookingCellMap.get(`${String(roomNo).trim()}_${dateRange[dateIndex + bookingSpan].iso}`)?.bookingId) === currentBookingId
+                                                    ) {
+                                                        bookingSpan++;
+                                                    }
+
+                                                    const dueAmount = bookingInfo.dueAmount !== undefined
+                                                        ? Number(bookingInfo.dueAmount || 0)
+                                                        : Math.max(0, Number(bookingInfo.totalAmount || 0) - Number(bookingInfo.paidAmount || 0));
+                                                    const hasDue = bookingInfo.status !== "cancel" && dueAmount > 0;
+
+                                                    const tableStartIso = startDate ? format(startDate, "yyyy-MM-dd") : (dateRange[0]?.iso || "");
+                                                    const tableEndIso = endDate ? format(endDate, "yyyy-MM-dd") : (dateRange[dateRange.length - 1]?.iso || "");
+                                                    const checkInIso = String(bookingInfo.checkIn || "").slice(0, 10);
+                                                    const checkOutIso = String(bookingInfo.checkOut || "").slice(0, 10);
+
+                                                    const roundedTlClass = checkInIso && tableStartIso && checkInIso >= tableStartIso ? "rounded-tl-full" : "";
+                                                    const roundedBrClass = checkOutIso && tableEndIso && checkOutIso <= tableEndIso ? "rounded-br-full" : "";
+
+                                                    rowCells.push(
+                                                        <td
+                                                            key={`booking-${roomNo}-${dateObj.iso}`}
+                                                            colSpan={bookingSpan}
+                                                            onClick={() => handleCellClick(bookingInfo, null, category, roomNo, dateObj)}
+                                                            title={`${bookingInfo.guestName} (${bookingInfo.phone})\nStatus: ${bookingInfo.status}\nStay: ${bookingInfo.checkIn} → ${bookingInfo.checkOut}\nBooking ID: ${bookingInfo.bookingId}${hasDue ? `\n⚠️ PAYMENT DUE: ৳${dueAmount.toLocaleString()}` : '\n✅ Fully Paid'}\nClick to view or manage.`}
+                                                            className={`px-1 py-1 text-center text-xs whitespace-nowrap transition-all select-none border-2 border-white cursor-pointer ${roundedTlClass} ${roundedBrClass} ${getStatusCellClass(bookingInfo.status)}`}
+                                                        >
+                                                            <div className="flex items-center justify-center gap-1.5 min-w-0 max-w-full px-1">
+                                                                <span className="truncate block font-semibold text-[11px] leading-tight">
+                                                                    {bookingInfo.guestName}
+                                                                </span>
+                                                                {hasDue && (
+                                                                    <span
+                                                                        className="shrink-0 w-2 h-2 rounded-full bg-orange-400 ring-1 ring-white animate-pulse"
+                                                                        title={`Payment Due: ৳${dueAmount.toLocaleString()}`}
+                                                                    />
+                                                                )}
+                                                            </div>
+                                                        </td>
+                                                    );
+
+                                                    dateIndex += bookingSpan;
+                                                } else {
+                                                    // Empty single cell
+                                                    rowCells.push(
+                                                        <td
+                                                            key={`empty-${roomNo}-${dateObj.iso}`}
+                                                            colSpan={1}
+                                                            onClick={() => handleCellClick(null, null, category, roomNo, dateObj)}
+                                                            title={
+                                                                dateObj.isPast
+                                                                    ? `Room ${roomNo} - ${dateObj.display} (Past Date)`
+                                                                    : `Room ${roomNo} available on ${dateObj.display}\nClick to create a new reservation.`
+                                                            }
+                                                            className={`px-1 py-1 text-center text-xs whitespace-nowrap transition-all select-none border border-gray-300 max-w-[125px] ${dateObj.isPast
+                                                                    ? "bg-slate-100/70 text-slate-300 cursor-not-allowed"
+                                                                    : dateObj.isToday
+                                                                        ? "bg-amber-50/40 hover:bg-teal-50 cursor-pointer hover:outline-teal-500"
+                                                                        : "hover:bg-teal-50/50 cursor-pointer hover:outline-teal-500"
+                                                                }`}
+                                                        />
+                                                    );
+
+                                                    dateIndex += 1;
+                                                }
+                                            }
+
+                                            return (
+                                                <tr key={`${category.category}-${roomNo}`}>
+                                                    {/* ROOM NUMBER STICKY COLUMN */}
+                                                    <th className="px-2 py-1 sticky left-0 z-30 bg-[#edfdf7] text-xs font-bold text-slate-800 border border-gray-300 shadow-md whitespace-nowrap">
+                                                        {roomNo}
+                                                    </th>
+                                                    {rowCells}
+                                                </tr>
+                                            );
+                                        })}
+                                    </React.Fragment>
+                                ))}
+                            </>
                         )}
                     </tbody>
                 </table>
