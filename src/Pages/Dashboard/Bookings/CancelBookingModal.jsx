@@ -3,26 +3,45 @@ import { createPortal } from 'react-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import useAxiosSecure from '../../../hooks/useAxiosSecure'
 import toast from 'react-hot-toast'
-import { XCircle, X, AlertTriangle, FileText } from 'lucide-react'
-import { getBookingDateSummary } from '../../../utils/bookingUtils'
+import { XCircle, X, AlertTriangle, FileText, Wallet } from 'lucide-react'
+import { getBookingDateSummary, getBookingPaidAmount, getBookingTotal } from '../../../utils/bookingUtils'
 
 const CancelBookingModal = ({ booking, isOpen, onClose, onSuccess, currentUser, role }) => {
     const axiosSecure = useAxiosSecure()
     const queryClient = useQueryClient()
     const [cancelReason, setCancelReason] = useState('')
+    const [refundAmount, setRefundAmount] = useState('')
     const [isSubmitting, setIsSubmitting] = useState(false)
 
     if (!isOpen || !booking) return null
 
+    const currentPaid = getBookingPaidAmount(booking)
+    const totalBill = getBookingTotal(booking)
+
     const handleCancelSubmit = async (e) => {
         e.preventDefault()
+        
+        const refundNum = Number(refundAmount || 0)
+        if (isNaN(refundNum) || refundNum < 0) {
+            toast.error("Please enter a valid refund amount (0 or more).")
+            return
+        }
+
+        if (refundNum > currentPaid) {
+            toast.error(`Refund amount cannot exceed total paid amount (৳${currentPaid.toLocaleString()}).`)
+            return
+        }
+
         setIsSubmitting(true)
         const toastId = toast.loading("Cancelling reservation...")
 
         try {
+            const newPaidAmount = Math.max(0, currentPaid - refundNum)
             const payload = {
                 status: "cancel",
                 cancelReason: cancelReason.trim() || "No reason provided",
+                refundAmount: refundNum,
+                paidAmount: newPaidAmount,
                 changedBy: {
                     name: currentUser?.displayName || "Admin / Staff",
                     email: currentUser?.email || "",
@@ -32,6 +51,13 @@ const CancelBookingModal = ({ booking, isOpen, onClose, onSuccess, currentUser, 
 
             const res = await axiosSecure.patch(`/booking/${booking._id}`, payload)
             if (res.data) {
+                onClose()
+                toast.success(
+                    refundNum > 0 
+                        ? `Reservation cancelled & refund of ৳${refundNum.toLocaleString()} processed.` 
+                        : "Reservation cancelled.", 
+                    { id: toastId }
+                )
                 await Promise.all([
                     queryClient.invalidateQueries({ queryKey: ["requestBookings"] }),
                     queryClient.invalidateQueries({ queryKey: ["all-bookings-for-calendar"] }),
@@ -40,9 +66,13 @@ const CancelBookingModal = ({ booking, isOpen, onClose, onSuccess, currentUser, 
                     queryClient.invalidateQueries({ queryKey: ["admin-overview"] }),
                     queryClient.invalidateQueries({ queryKey: ["booking", booking._id] })
                 ])
-                if (onSuccess) await onSuccess()
-                toast.success("Reservation cancelled.", { id: toastId })
-                onClose()
+                if (onSuccess) {
+                    try {
+                        await onSuccess()
+                    } catch (e) {
+                        console.error("onSuccess callback error:", e)
+                    }
+                }
             }
         } catch (err) {
             console.error(err)
@@ -89,6 +119,48 @@ const CancelBookingModal = ({ booking, isOpen, onClose, onSuccess, currentUser, 
                         </div>
                     </div>
 
+                    {/* Financial Summary */}
+                    <div className="p-3 bg-slate-50 border border-slate-200 rounded-2xl space-y-2">
+                        <div className="flex items-center justify-between text-xs">
+                            <span className="text-slate-600 font-medium">Total Bill:</span>
+                            <span className="font-mono font-bold text-slate-800">৳{totalBill.toLocaleString()}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-xs">
+                            <span className="text-slate-600 font-medium">Total Paid / Advance:</span>
+                            <span className="font-mono font-bold text-emerald-700">৳{currentPaid.toLocaleString()}</span>
+                        </div>
+                    </div>
+
+                    {/* Refund Amount Input */}
+                    <div className="form-control">
+                        <label className="label py-1">
+                            <span className="label-text font-semibold text-slate-700 text-xs flex items-center justify-between w-full">
+                                <span className="flex items-center gap-1">
+                                    <Wallet size={13} className="text-emerald-600" /> Refund Amount (৳)
+                                </span>
+                                <span className="text-[11px] text-slate-500 font-normal">
+                                    Max: <strong className="text-emerald-700 font-mono font-bold">৳{currentPaid.toLocaleString()}</strong>
+                                </span>
+                            </span>
+                        </label>
+                        <input
+                            type="number"
+                            min="0"
+                            max={currentPaid}
+                            step="any"
+                            value={refundAmount}
+                            onChange={e => setRefundAmount(e.target.value)}
+                            placeholder="0"
+                            className="input input-bordered input-sm w-full rounded-xl bg-white text-xs font-mono font-bold text-slate-800"
+                        />
+                        {Number(refundAmount || 0) > 0 && (
+                            <p className="text-[11px] text-slate-500 mt-1">
+                                Remaining Net Paid after refund: <strong className="font-mono text-slate-800">৳{Math.max(0, currentPaid - Number(refundAmount || 0)).toLocaleString()}</strong>
+                            </p>
+                        )}
+                    </div>
+
+                    {/* Cancellation Reason */}
                     <div className="form-control">
                         <label className="label py-1">
                             <span className="label-text font-semibold text-slate-700 text-xs flex items-center gap-1">

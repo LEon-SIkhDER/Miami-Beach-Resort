@@ -60,11 +60,17 @@ const AddCategory = ({ children, className, refetch }) => {
             if (!result.insertedId) {
                 throw new Error("Failed to add category")
             }
-            await refetch()
-            toast.success("Category added successfully!", { id: toastId })
+            modalRef.current?.close()
             formRef.current?.reset()
             setUploadedImages([])
-            modalRef.current?.close()
+            toast.success("Category added successfully!", { id: toastId })
+            if (refetch) {
+                try {
+                    await refetch()
+                } catch (e) {
+                    console.error("Refetch error after adding category:", e)
+                }
+            }
         } catch (error) {
             toast.error(error.message || "Something went wrong", { id: toastId })
         } finally {

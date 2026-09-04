@@ -65,9 +65,15 @@ const EditCategory = ({ children, className, refetch, category }) => {
             if (result.modifiedCount !== 1) {
                 throw new Error("Failed to update category")
             }
-            await refetch()
-            toast.success("Category updated!", { id: toastId })
             modalRef.current?.close()
+            toast.success("Category updated!", { id: toastId })
+            if (refetch) {
+                try {
+                    await refetch()
+                } catch (e) {
+                    console.error("Refetch error after editing category:", e)
+                }
+            }
         } catch (error) {
             toast.error(error.message || "Something went wrong", { id: toastId })
         } finally {

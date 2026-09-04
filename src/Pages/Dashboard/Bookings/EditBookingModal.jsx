@@ -306,8 +306,9 @@ const EditBookingModal = ({ booking, isOpen, onClose, onSuccess }) => {
                 return
             }
 
-            if (effectivePaid <= 0 && status !== "request_booking") {
-                toast.error("Payment Done amount is required for confirmed bookings.")
+            const paidNum = Number(paidAmount)
+            if (paidAmount === '' || isNaN(paidNum) || paidNum <= 0) {
+                toast.error("Payment Done (৳) amount must be greater than 0 for confirmed bookings.")
                 return
             }
 
@@ -372,6 +373,8 @@ const EditBookingModal = ({ booking, isOpen, onClose, onSuccess }) => {
 
             const res = await axiosSecure.patch(`/booking/${booking._id}`, payload)
             if (res.data) {
+                onClose()
+                toast.success("Reservation updated successfully! 🎉", { id: toastId })
                 await Promise.all([
                     queryClient.invalidateQueries({ queryKey: ["requestBookings"] }),
                     queryClient.invalidateQueries({ queryKey: ["all-bookings-for-calendar"] }),
@@ -379,9 +382,13 @@ const EditBookingModal = ({ booking, isOpen, onClose, onSuccess }) => {
                     queryClient.invalidateQueries({ queryKey: ["admin-overview"] }),
                     queryClient.invalidateQueries({ queryKey: ["booking", booking._id] })
                 ])
-                if (onSuccess) await onSuccess()
-                toast.success("Reservation updated successfully! 🎉", { id: toastId })
-                onClose()
+                if (onSuccess) {
+                    try {
+                        await onSuccess()
+                    } catch (e) {
+                        console.error("onSuccess callback error:", e)
+                    }
+                }
             }
         } catch (err) {
             console.error(err)

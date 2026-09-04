@@ -91,6 +91,16 @@ const AddPaymentModal = ({
             return
         }
 
+        if (dueBalance <= 0) {
+            toast.error("This booking has no outstanding due balance.")
+            return
+        }
+
+        if (payAmount > dueBalance) {
+            toast.error(`Payment amount (৳${payAmount.toLocaleString()}) cannot be greater than current due balance (৳${dueBalance.toLocaleString()}).`)
+            return
+        }
+
         if (!paymentMethod) {
             toast.error("Please select a payment method.")
             return
@@ -121,6 +131,8 @@ const AddPaymentModal = ({
 
             const res = await axiosSecure.post(`/booking/${booking._id}/add-payment`, payload)
             if (res.data) {
+                onClose()
+                toast.success(`Payment of ৳${payAmount.toLocaleString()} recorded successfully! 🎉`, { id: toastId })
                 await Promise.all([
                     queryClient.invalidateQueries({ queryKey: ["requestBookings"] }),
                     queryClient.invalidateQueries({ queryKey: ["all-bookings-for-calendar"] }),
@@ -129,9 +141,13 @@ const AddPaymentModal = ({
                     queryClient.invalidateQueries({ queryKey: ["calendar-booking-detail", booking._id] }),
                     queryClient.invalidateQueries({ queryKey: ["booking", booking._id] })
                 ])
-                if (onSuccess) await onSuccess()
-                toast.success(`Payment of ৳${payAmount.toLocaleString()} recorded successfully! 🎉`, { id: toastId })
-                onClose()
+                if (onSuccess) {
+                    try {
+                        await onSuccess()
+                    } catch (e) {
+                        console.error("onSuccess callback error:", e)
+                    }
+                }
             }
         } catch (err) {
             console.error("Add payment error:", err)
@@ -210,12 +226,20 @@ const AddPaymentModal = ({
                             type="number"
                             required
                             min="1"
-                            max={payableTotal > 0 ? payableTotal * 2 : 1000000}
+                            max={dueBalance > 0 ? dueBalance : 0}
                             value={amount}
                             onChange={e => setAmount(e.target.value)}
-                            placeholder="Enter amount in BDT"
-                            className="input input-sm input-bordered rounded-xl bg-white text-xs font-bold text-teal-800"
+                            placeholder={dueBalance > 0 ? `Max ৳${dueBalance.toLocaleString()}` : "0"}
+                            disabled={dueBalance <= 0}
+                            className={`input input-sm input-bordered rounded-xl bg-white text-xs font-bold ${
+                                Number(amount) > dueBalance ? 'border-red-500 text-red-700' : 'text-teal-800'
+                            }`}
                         />
+                        {Number(amount) > dueBalance && (
+                            <span className="text-[11px] text-red-600 font-bold mt-1 block">
+                                ⚠️ Amount cannot exceed current due balance of ৳{dueBalance.toLocaleString()}
+                            </span>
+                        )}
                         {dueBalance > 0 && (
                             <div className="flex gap-2 mt-1.5">
                                 <button
@@ -336,8 +360,8 @@ const AddPaymentModal = ({
                         </button>
                         <button
                             type="submit"
-                            disabled={isSubmitting}
-                            className="btn btn-sm bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl px-5 shadow-xs border-none"
+                            disabled={isSubmitting || dueBalance <= 0 || (amount !== '' && Number(amount) > dueBalance)}
+                            className="btn btn-sm bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl px-5 shadow-xs border-none disabled:opacity-50"
                         >
                             {isSubmitting ? <span className="loading loading-spinner loading-xs" /> : <CheckCircle2 size={15} />}
                             <span>Confirm Payment</span>

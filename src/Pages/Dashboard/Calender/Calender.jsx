@@ -61,6 +61,22 @@ const Calender = () => {
         } catch (e) {}
     };
 
+    // Room-wise Occupancy Row Checkbox State
+    const [showOccupancyRow, setShowOccupancyRow] = useState(() => {
+        try {
+            return localStorage.getItem("calendar_show_occupancy_row") === "true";
+        } catch (e) {
+            return false;
+        }
+    });
+
+    const handleToggleOccupancyRow = (checked) => {
+        setShowOccupancyRow(checked);
+        try {
+            localStorage.setItem("calendar_show_occupancy_row", String(checked));
+        } catch (e) {}
+    };
+
     // Helper: calculate effective price for a category on a specific date
     const getEffectiveCategoryPrice = (cat, isoDate) => {
         if (!cat) return 0;
@@ -449,49 +465,26 @@ const Calender = () => {
                     <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-neutral-900 text-amber-300 font-bold text-[11px] shadow-xs">
                         <Wrench size={11} className="text-amber-400" />
                         <span>Out of Order ({statistics.statusCounts.out_of_order})</span>
-                    </div>
-                </div>
-
-                {/* Today Occupancy Percentage Metric Badge (Calculated according to total physical rooms) */}
-                <div className="flex items-center gap-2 bg-gradient-to-r from-teal-50 to-emerald-50 border border-teal-200/80 px-3 py-1 rounded-xl shadow-2xs">
-                    <div className="flex items-center gap-1">
-                        <BedDouble size={14} className="text-teal-700" />
-                        <span className="text-[11px] font-bold text-slate-700">Today's Occupancy:</span>
-                        <span className="text-xs font-black text-teal-800 bg-white px-2 py-0.5 rounded-md border border-teal-200">
-                            {statistics.todayOccupancyRate}%
-                        </span>
-                    </div>
-                    <div className="w-16 sm:w-20 bg-slate-200 h-2 rounded-full overflow-hidden hidden md:block">
-                        <div 
-                            className="bg-teal-600 h-full rounded-full transition-all duration-500" 
-                            style={{ width: `${Math.min(100, statistics.todayOccupancyRate)}%` }} 
-                        />
-                    </div>
-                    <span className="text-[10px] text-slate-500 font-semibold hidden lg:inline">
-                        ({statistics.todayOccupied}/{statistics.totalPhysicalRooms} Rooms Booked Today)
-                    </span>
                 </div>
             </div>
 
             {/* Controls Header — Left tools & Right-pinned Date Navigators */}
             <div className="flex flex-wrap lg:flex-nowrap justify-between p-3 sm:p-4 items-center gap-3 shrink-0 bg-white border-b border-slate-200">
-                {/* Left Controls: Filter, Pricing Toggle, Request Bookings, OOO */}
+                {/* Left Controls: Filter, Pricing Toggle, Occupancy Toggle, Request Bookings, OOO */}
                 <div className="flex flex-wrap items-center gap-2 shrink-0">
                     {/* DaisyUI Category Filter Select */}
-                    {/* <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-300 rounded-xl px-2.5 py-0.5 shadow-2xs h-8"> */}
-                        <select
-                            value={selectedCategoryFilter}
-                            onChange={(e) => handleCategoryFilterChange(e.target.value)}
-                            className="select max-w-80 w-72 h-8 select-ghost select-sm font-bold text-slate-800 text-xs focus:outline-none cursor-pointer min-h-0    truncate bg-slate-50 border border-slate-300 rounded-xl px-2.5 py-0.5 shadow-2xs "
-                        >
-                            <option value="ALL">All Categories ({dbCategories.length})</option>
-                            {dbCategories.map((c) => (
-                                <option key={c._id || c.name} value={c._id || c.name}>
-                                    {c.name} 
-                                </option>
-                            ))}
-                        </select>
-                    {/* </div> */}
+                    <select
+                        value={selectedCategoryFilter}
+                        onChange={(e) => handleCategoryFilterChange(e.target.value)}
+                        className="select max-w-80 w-72 h-8 select-ghost select-sm font-bold text-slate-800 text-xs focus:outline-none cursor-pointer min-h-0 truncate bg-slate-50 border border-slate-300 rounded-xl px-2.5 py-0.5 shadow-2xs"
+                    >
+                        <option value="ALL">All Categories ({dbCategories.length})</option>
+                        {dbCategories.map((c) => (
+                            <option key={c._id || c.name} value={c._id || c.name}>
+                                {c.name} 
+                            </option>
+                        ))}
+                    </select>
 
                     {/* Date-wise Pricing Checkbox Toggle */}
                     <label className="flex items-center gap-2 bg-slate-50 hover:bg-teal-50/70 border border-slate-300 hover:border-teal-400 rounded-xl px-3 py-1 h-8 cursor-pointer transition select-none">
@@ -502,6 +495,17 @@ const Calender = () => {
                             className="checkbox checkbox-xs checkbox-primary rounded"
                         />
                         <span className="text-xs font-bold text-slate-700">Show Date-wise Pricing Row</span>
+                    </label>
+
+                    {/* Occupancy Checkbox Toggle */}
+                    <label className="flex items-center gap-2 bg-slate-50 hover:bg-teal-50/70 border border-slate-300 hover:border-teal-400 rounded-xl px-3 py-1 h-8 cursor-pointer transition select-none">
+                        <input
+                            type="checkbox"
+                            checked={showOccupancyRow}
+                            onChange={(e) => handleToggleOccupancyRow(e.target.checked)}
+                            className="checkbox checkbox-xs checkbox-primary rounded"
+                        />
+                        <span className="text-xs font-bold text-slate-700">Show Occupancy</span>
                     </label>
 
                     {/* Request Bookings Button */}
@@ -517,6 +521,7 @@ const Calender = () => {
                         <Clock size={14} />
                         <span>Request Bookings ({requestBookings.length ? requestBookings.length : 0})</span>
                     </button>
+                </div>
 
 
                 </div>
@@ -598,6 +603,9 @@ const Calender = () => {
             <div className="min-h-0 min-w-0 flex-1 overflow-auto border-t border-gray-300 bg-white">
                 <table className="min-w-max border-separate border-spacing-0 text-xs">
                     <tbody>
+
+
+                        
                         {isCategoriesLoading || isBookingsLoading ? (
                             <tr>
                                 <td colSpan={dateRange.length + 1} className="text-center py-16 text-slate-400">
@@ -613,8 +621,57 @@ const Calender = () => {
                                 </td>
                             </tr>
                         ) : (
-                            displayCategories.map((category) => (
-                                <React.Fragment key={category._id || category.category}>
+                            <>
+                                {/* Single Overall Occupancy Row for All Rooms */}
+                                {showOccupancyRow && displayCategories.length > 0 && (
+                                    <tr className="bg-teal-50/50">
+                                        <th className="sticky left-0 z-40 border border-gray-300 bg-teal-100 text-[11px] font-bold px-2 py-1 text-teal-950 shadow-md whitespace-nowrap text-left">
+                                            <span className="flex items-center gap-1">
+                                                📊 Occupancy
+                                            </span>
+                                        </th>
+                                        {dateRange.map((dateObj) => {
+                                            const allPhysicalRooms = displayCategories.flatMap((c) => (Array.isArray(c.roomNumbers) ? c.roomNumbers : [])).map((r) => String(r).trim()).filter(Boolean);
+                                            const totalRoomsCount = allPhysicalRooms.length;
+                                            let occupiedCount = 0;
+                                            let oooCount = 0;
+
+                                            allPhysicalRooms.forEach((rNo) => {
+                                                const cellKey = `${rNo}_${dateObj.iso}`;
+                                                if (bookingCellMap.has(cellKey)) {
+                                                    occupiedCount++;
+                                                } else if (outOfOrderCellMap.has(cellKey)) {
+                                                    oooCount++;
+                                                }
+                                            });
+
+                                            const percent = totalRoomsCount > 0 ? Math.round((occupiedCount / totalRoomsCount) * 100) : 0;
+                                            const availableCount = Math.max(0, totalRoomsCount - occupiedCount - oooCount);
+
+                                            return (
+                                                <td
+                                                    key={`overall-occupancy-${dateObj.iso}`}
+                                                    className={`px-1 py-1 border border-gray-300 text-center font-mono text-[10px] font-bold whitespace-nowrap ${
+                                                        percent === 100
+                                                            ? "bg-rose-100/80 text-rose-900 font-black"
+                                                            : percent > 0
+                                                                ? "bg-teal-100/70 text-teal-900"
+                                                                : "bg-slate-50/70 text-slate-500 font-normal"
+                                                    }`}
+                                                    title={`Overall Occupancy\nDate: ${dateObj.display}\nOccupied: ${occupiedCount}/${totalRoomsCount} rooms (${percent}%)\nAvailable: ${availableCount} rooms${oooCount > 0 ? `\nOut of Order: ${oooCount} rooms` : ''}`}
+                                                >
+                                                    <span className={`text-[10px] font-bold ${percent === 100 ? 'text-rose-800 font-extrabold' : percent > 0 ? 'text-teal-900' : 'text-slate-500'}`}>
+                                                        {percent}%
+                                                    </span>
+                                                </td>
+                                            );
+                                        })}
+                                    </tr>
+                                )}
+
+                                {displayCategories.map((category) => (
+                                    <React.Fragment key={category._id || category.category}>
+
                                     {/* CATEGORY ROW HEADER — z-40 sticky */}
                                     <tr>
                                         <th className="sticky left-0 z-40 border border-gray-300 bg-slate-800 text-xs font-bold px-2.5 py-1.5 text-white shadow-md whitespace-nowrap text-left">
@@ -718,13 +775,21 @@ const Calender = () => {
                                                     : Math.max(0, Number(bookingInfo.totalAmount || 0) - Number(bookingInfo.paidAmount || 0));
                                                 const hasDue = bookingInfo.status !== "cancel" && dueAmount > 0;
 
+                                                const tableStartIso = startDate ? format(startDate, "yyyy-MM-dd") : (dateRange[0]?.iso || "");
+                                                const tableEndIso = endDate ? format(endDate, "yyyy-MM-dd") : (dateRange[dateRange.length - 1]?.iso || "");
+                                                const checkInIso = String(bookingInfo.checkIn || "").slice(0, 10);
+                                                const checkOutIso = String(bookingInfo.checkOut || "").slice(0, 10);
+
+                                                const roundedTlClass = checkInIso && tableStartIso && checkInIso >= tableStartIso ? "rounded-tl-full" : "";
+                                                const roundedBrClass = checkOutIso && tableEndIso && checkOutIso <= tableEndIso ? "rounded-br-full" : "";
+
                                                 rowCells.push(
                                                     <td
                                                         key={`booking-${roomNo}-${dateObj.iso}`}
                                                         colSpan={bookingSpan}
                                                         onClick={() => handleCellClick(bookingInfo, null, category, roomNo, dateObj)}
                                                         title={`${bookingInfo.guestName} (${bookingInfo.phone})\nStatus: ${bookingInfo.status}\nStay: ${bookingInfo.checkIn} → ${bookingInfo.checkOut}\nBooking ID: ${bookingInfo.bookingId}${hasDue ? `\n⚠️ PAYMENT DUE: ৳${dueAmount.toLocaleString()}` : '\n✅ Fully Paid'}\nClick to view or manage.`}
-                                                        className={`px-1 py-1 text-center text-xs whitespace-nowrap transition-all select-none border-2 border-white cursor-pointer rounded-tl-full  rounded-br-full  ${getStatusCellClass(bookingInfo.status)}`}
+                                                        className={`px-1 py-1 text-center text-xs whitespace-nowrap transition-all select-none border-2 border-white cursor-pointer ${roundedTlClass} ${roundedBrClass} ${getStatusCellClass(bookingInfo.status)}`}
                                                     >
                                                         <div className="flex items-center justify-center gap-1.5 min-w-0 max-w-full px-1">
                                                             <span className="truncate block font-semibold text-[11px] leading-tight">
@@ -778,7 +843,8 @@ const Calender = () => {
                                         );
                                     })}
                                 </React.Fragment>
-                            ))
+                            ))}
+                        </>
                         )}
                     </tbody>
                 </table>

@@ -22,7 +22,9 @@ import {
     RotateCcw,
     Users,
     Briefcase,
-    CreditCard
+    CreditCard,
+    Wallet,
+    Clock
 } from 'lucide-react'
 import { formatDate } from '../../../utils/bookingUtils'
 
@@ -526,18 +528,37 @@ const IncomeAnalytics = () => {
                 <div className="p-5 rounded-2xl bg-white border border-emerald-100 shadow-xs flex flex-col justify-between space-y-3">
                     <div className="flex items-center justify-between">
                         <span className="text-xs uppercase font-bold tracking-wider text-emerald-700">
-                            {isAnyFilterActive ? "Collected (Paid)" : "Monthly Revenue"}
+                            Collected (Paid)
                         </span>
                         <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
-                            <Calendar size={18} />
+                            <Wallet size={18} />
                         </div>
                     </div>
                     <div>
                         <p className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
-                            ৳{Number(isAnyFilterActive ? (totalFilteredPaid || 0) : (overview.monthlyRevenue || 0)).toLocaleString()}
+                            ৳{Number(totalFilteredPaid || 0).toLocaleString()}
                         </p>
                         <p className="text-[11px] text-slate-500 mt-0.5">
-                            {isAnyFilterActive ? "Total payment collected in filter" : (overview.currentMonthName || "Current Month")}
+                            {isAnyFilterActive ? "Total payment collected in filter" : "Total received payment"}
+                        </p>
+                    </div>
+                </div>
+
+                <div className="p-5 rounded-2xl bg-white border border-orange-100 shadow-xs flex flex-col justify-between space-y-3">
+                    <div className="flex items-center justify-between">
+                        <span className="text-xs uppercase font-bold tracking-wider text-orange-700">
+                            Due Revenue
+                        </span>
+                        <div className="w-8 h-8 rounded-lg bg-orange-50 text-orange-600 flex items-center justify-center">
+                            <Clock size={18} />
+                        </div>
+                    </div>
+                    <div>
+                        <p className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
+                            ৳{Number(totalFilteredDue || 0).toLocaleString()}
+                        </p>
+                        <p className="text-[11px] text-slate-500 mt-0.5">
+                            {isAnyFilterActive ? "Outstanding balance in filter" : "Total pending due balance"}
                         </p>
                     </div>
                 </div>
@@ -557,25 +578,6 @@ const IncomeAnalytics = () => {
                         </p>
                         <p className="text-[11px] text-slate-500 mt-0.5">
                             {isAnyFilterActive ? "Reservations in active filter" : "Active & Completed Stays"}
-                        </p>
-                    </div>
-                </div>
-
-                <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-xs flex flex-col justify-between space-y-3">
-                    <div className="flex items-center justify-between">
-                        <span className="text-xs uppercase font-bold tracking-wider text-slate-500">
-                            {isAnyFilterActive ? "Active Filtered Suites" : "Suite Categories"}
-                        </span>
-                        <div className="w-8 h-8 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center">
-                            <BedDouble size={18} />
-                        </div>
-                    </div>
-                    <div>
-                        <p className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
-                            {filteredRoomBreakdown.length}
-                        </p>
-                        <p className="text-[11px] text-slate-500 mt-0.5">
-                            {isAnyFilterActive ? "Categories matching filter" : "Active Room Types with Sales"}
                         </p>
                     </div>
                 </div>
@@ -700,10 +702,19 @@ const IncomeAnalytics = () => {
                                         <td className="whitespace-nowrap">
                                             <Link
                                                 to={`/dashboard/bookings/${item._id}`}
-                                                className="font-mono text-xs font-bold text-teal-700 bg-teal-50 hover:bg-teal-100 px-2.5 py-1 rounded-lg border border-teal-200/60 inline-flex items-center gap-1"
+                                                className={`font-mono text-xs font-bold px-2.5 py-1 rounded-lg border inline-flex items-center gap-1 ${
+                                                    ["cancel", "cancelled"].includes(item.status)
+                                                        ? "text-rose-700 bg-rose-50 hover:bg-rose-100 border-rose-200/60"
+                                                        : "text-teal-700 bg-teal-50 hover:bg-teal-100 border-teal-200/60"
+                                                }`}
                                             >
                                                 {item.bookingId}
                                             </Link>
+                                            {["cancel", "cancelled"].includes(item.status) && (
+                                                <span className="badge badge-xs bg-rose-50 text-rose-700 border-rose-200 block w-fit mt-1 text-[9px] font-bold">
+                                                    Cancelled (Retained)
+                                                </span>
+                                            )}
                                         </td>
                                         <td className="whitespace-nowrap">
                                             <p className="font-bold text-slate-900">{item.guestName}</p>
@@ -755,7 +766,11 @@ const IncomeAnalytics = () => {
                                             <div className="font-extrabold text-teal-900 text-sm">
                                                 ৳{Number(item.amount || 0).toLocaleString()}
                                             </div>
-                                            {Number(item.dueAmount || 0) > 0 ? (
+                                            {["cancel", "cancelled"].includes(item.status) ? (
+                                                <span className="text-[10px] font-semibold text-rose-600 block mt-0.5 font-sans">
+                                                    Retained Income
+                                                </span>
+                                            ) : Number(item.dueAmount || 0) > 0 ? (
                                                 <span className="inline-block text-[10px] font-bold text-orange-600 bg-orange-50 px-1.5 py-0.2 rounded border border-orange-200/70 mt-0.5 font-sans">
                                                     Due: ৳{Number(item.dueAmount).toLocaleString()}
                                                 </span>

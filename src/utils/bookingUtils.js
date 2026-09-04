@@ -120,9 +120,41 @@ export const getBookingPaidAmount = (booking = {}) => {
 }
 
 export const getBookingDueAmount = (booking = {}) => {
+    const isCancelled = ["cancel", "cancelled"].includes(booking.status)
+    if (isCancelled) return 0
     const payableTotal = getBookingTotal(booking)
     const paid = getBookingPaidAmount(booking)
     return Math.max(0, payableTotal - paid)
+}
+
+export const isRevenueBooking = (booking = {}) => {
+    const isConfirmed = [
+        "booking_confirmed",
+        "checked_id",
+        "checked_in",
+        "checked_out",
+        "confirmed"
+    ].includes(booking.status)
+    if (isConfirmed) return true
+    if (["cancel", "cancelled"].includes(booking.status) && Number(booking.paidAmount || 0) > 0) return true
+    return false
+}
+
+export const getBookingRevenue = (booking = {}) => {
+    if (["cancel", "cancelled"].includes(booking.status)) {
+        return Number(booking.paidAmount || 0)
+    }
+    const isConfirmed = [
+        "booking_confirmed",
+        "checked_id",
+        "checked_in",
+        "checked_out",
+        "confirmed"
+    ].includes(booking.status)
+    if (isConfirmed) {
+        return getBookingTotal(booking)
+    }
+    return 0
 }
 
 export const getBookingGuestTotals = (booking = {}) => {

@@ -370,7 +370,7 @@ const CalendarBookingModal = ({
         }
 
         // Strict validation for Confirm Booking (booking_confirmed)
-        if (!isB2B && targetStatus === "booking_confirmed") {
+        if (targetStatus === "booking_confirmed") {
             // 1. Adult value required for each booked room / category block
             const missingAdults = flatBookedRooms.find(r => !r.adults || Number(r.adults) <= 0)
             if (missingAdults) {
@@ -378,9 +378,10 @@ const CalendarBookingModal = ({
                 return
             }
 
-            // 2. Payment Done (৳) required
-            if (effectivePaid <= 0) {
-                toast.error("Payment Done (৳) amount is required to confirm booking.")
+            // 2. Payment Done (৳) required and must be greater than 0
+            const paidNum = Number(paidAmount)
+            if (paidAmount === '' || isNaN(paidNum) || paidNum < 0) {
+                toast.error("Payment Done (৳) amount must be greater than 0 to confirm booking.")
                 return
             }
 
