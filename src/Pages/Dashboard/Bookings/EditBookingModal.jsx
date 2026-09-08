@@ -338,6 +338,11 @@ const EditBookingModal = ({ booking, isOpen, onClose, onSuccess }) => {
             return
         }
 
+        if (effectivePaid > standardTotal + 0.01) {
+            toast.error(`Paid amount (৳${effectivePaid.toLocaleString()}) cannot exceed the booking total (৳${standardTotal.toLocaleString()}). Please adjust the paid amount or the room price.`)
+            return
+        }
+
         setIsSubmitting(true)
         const toastId = toast.loading("Updating reservation...")
 

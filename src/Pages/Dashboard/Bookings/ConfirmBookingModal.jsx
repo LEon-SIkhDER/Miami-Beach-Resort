@@ -223,6 +223,11 @@ const ConfirmBookingModal = ({ booking, isOpen, onClose, onSuccess, targetStatus
             }
         }
 
+        if (effectivePaid > finalTotal + 0.01) {
+            toast.error(`Paid amount (৳${effectivePaid.toLocaleString()}) cannot exceed the booking total (৳${finalTotal.toLocaleString()}). Please adjust the paid amount or the room price.`)
+            return
+        }
+
         setIsSubmitting(true)
         const toastId = toast.loading(isPaymentWaiting ? "Setting status to Payment Waiting..." : "Confirming booking...")
 

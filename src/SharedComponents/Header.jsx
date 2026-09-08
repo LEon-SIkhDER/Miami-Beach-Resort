@@ -191,7 +191,7 @@ const Header = () => {
                             <button
                                 type="button"
                                 onClick={() => setDropdownOpen(prev => !prev)}
-                                className={`flex items-center gap-2 p-1 pl-1.5 pr-2.5 rounded-full border transition-all duration-200 select-none bg-[#03221b] ${
+                                className={`flex items-center gap-2 cursor-pointer p-1 pl-1.5 pr-2.5 rounded-full border transition-all duration-200 select-none bg-[#03221b] ${
                                     dropdownOpen 
                                         ? "border-[#c5a880] ring-2 ring-[#c5a880]/30 shadow-lg" 
                                         : "border-[#c5a880]/30 hover:border-[#c5a880] shadow-xs"

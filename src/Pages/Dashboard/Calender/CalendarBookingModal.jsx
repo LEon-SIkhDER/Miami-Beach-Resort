@@ -369,16 +369,18 @@ const CalendarBookingModal = ({
             }
         }
 
-        // Strict validation for Confirm Booking (booking_confirmed)
-        if (targetStatus === "booking_confirmed") {
-            // 1. Adult value required for each booked room / category block
+        // Adult value required for payment_waiting and booking_confirmed
+        if (targetStatus === "payment_waiting" || targetStatus === "booking_confirmed") {
             const missingAdults = flatBookedRooms.find(r => !r.adults || Number(r.adults) <= 0)
             if (missingAdults) {
-                toast.error(`Adult guest count is required for Room ${missingAdults.roomNo || ''} to confirm booking.`)
+                toast.error(`Adult guest count is required for Room ${missingAdults.roomNo || ''}.`)
                 return
             }
+        }
 
-            // 2. Payment Done (৳) required and must be greater than 0
+        // Strict validation for Confirm Booking (booking_confirmed)
+        if (targetStatus === "booking_confirmed") {
+            // 1. Payment Done (৳) required and must be greater than 0
             const paidNum = Number(paidAmount)
             if (paidAmount === '' || isNaN(paidNum) || paidNum < 0) {
                 toast.error("Payment Done (৳) amount must be greater than 0 to confirm booking.")
@@ -403,6 +405,11 @@ const CalendarBookingModal = ({
                 toast.error("Staff / Admin Reference is required to confirm booking.")
                 return
             }
+        }
+
+        if (!isB2B && effectivePaid > finalTotal + 0.01) {
+            toast.error(`Paid amount (৳${effectivePaid.toLocaleString()}) cannot exceed the booking total (৳${finalTotal.toLocaleString()}). Please adjust the paid amount or the room price.`)
+            return
         }
 
         setSubmittingStatus(targetStatus)
