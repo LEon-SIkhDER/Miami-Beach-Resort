@@ -9,15 +9,15 @@ import toast from 'react-hot-toast'
 import { showSuccessAlert, showErrorAlert } from '../../utils/customSwal'
 import { saveGuestBookingId } from '../../utils/bookingUtils'
 import logo from '../../assets/logo.png'
-import { 
-    BedDouble, 
-    Calendar, 
-    Users, 
-    ShieldCheck, 
-    Phone, 
-    Clock, 
-    Sparkles, 
-    MapPin, 
+import {
+    BedDouble,
+    Calendar,
+    Users,
+    ShieldCheck,
+    Phone,
+    Clock,
+    Sparkles,
+    MapPin,
     ArrowRight,
     X,
     ChevronLeft,
@@ -122,8 +122,8 @@ const Home = () => {
         if (searchQuery) {
             const q = searchQuery.toLowerCase()
             return cat.name?.toLowerCase().includes(q) ||
-                   cat.amenities?.toLowerCase().includes(q) ||
-                   cat.description?.toLowerCase().includes(q)
+                cat.amenities?.toLowerCase().includes(q) ||
+                cat.description?.toLowerCase().includes(q)
         }
         return true
     })
@@ -148,7 +148,7 @@ const Home = () => {
     const handleOpenBookingModal = (category, prefilledDates = null) => {
         const cat = category || categories[0] || null
         setSelectedCategory(cat)
-        
+
         const initialCheckIn = prefilledDates?.checkIn || heroCheckIn || null
         const initialCheckOut = prefilledDates?.checkOut || heroCheckOut || (initialCheckIn ? addDays(initialCheckIn, 1) : null)
         const initialAdults = prefilledDates?.adults !== undefined ? prefilledDates.adults : (heroAdults || '2')
@@ -181,10 +181,10 @@ const Home = () => {
         const defaultCatId = selectedCategory?._id || categories[0]?._id || ""
         const firstRoom = bookingRooms[0]
         setBookingRooms(prev => [...prev, createRoomEntry(
-            defaultCatId, 
-            true, 
-            firstRoom?.checkInDate || null, 
-            firstRoom?.checkOutDate || null, 
+            defaultCatId,
+            true,
+            firstRoom?.checkInDate || null,
+            firstRoom?.checkOutDate || null,
             firstRoom?.adults || '2'
         )])
     }
@@ -263,9 +263,9 @@ const Home = () => {
                     params: { categoryId: item.categoryId, checkIn, checkOut }
                 })
                 if (!availRes.data.available) {
-                    setAvailabilityMsg({ 
-                        ok: false, 
-                        text: `Room ${i + 1} (${cat?.name || "Category"}): ${availRes.data.message}` 
+                    setAvailabilityMsg({
+                        ok: false,
+                        text: `Room ${i + 1} (${cat?.name || "Category"}): ${availRes.data.message}`
                     })
                     setIsSubmitting(false)
                     return
@@ -364,16 +364,16 @@ const Home = () => {
 
     return (
         <div className="min-h-screen bg-[#fcfbf9] text-slate-800 overflow-x-hidden selection:bg-[#c5a880]/30 selection:text-[#03221b]">
-            
+
             {/* ══════════════════════════════════════════════════════
                 1. HERO / BANNER SECTION
             ══════════════════════════════════════════════════════ */}
             <section className="relative bg-[#021813] text-white pt-20 pb-24 sm:pt-28 sm:pb-32 px-4 sm:px-6 lg:px-8 border-b border-[#c5a880]/20 overflow-hidden">
                 {/* Background Hero Image */}
-                <div 
+                <div
                     className="absolute inset-0 bg-cover bg-center bg-no-repeat scale-105"
-                    style={{ 
-                        backgroundImage: `url(${HERO_BANNER_IMG})` 
+                    style={{
+                        backgroundImage: `url(${HERO_BANNER_IMG})`
                     }}
                 />
 
@@ -385,7 +385,7 @@ const Home = () => {
                 <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[700px] bg-[#04261f]/50 rounded-full blur-3xl pointer-events-none"></div>
 
                 <div className="relative z-10 max-w-5xl mx-auto text-center space-y-6">
-                    
+
                     {/* Royal Badge */}
                     <div className="inline-flex items-center gap-2.5 px-4 py-1.5 rounded-full bg-[#03221b]/80 border border-[#c5a880]/40 text-[#dfc89e] text-xs font-semibold uppercase tracking-[0.25em] backdrop-blur-md shadow-lg">
                         <Sparkles size={14} className="text-[#c5a880]" />
@@ -394,10 +394,10 @@ const Home = () => {
 
                     {/* Logo & Headline */}
                     <div className="flex flex-col items-center justify-center gap-4">
-                        <img 
-                            src={logo} 
-                            alt="Miami Beach Resort" 
-                            className="h-16 sm:h-20 w-auto object-contain drop-shadow-[0_4px_20px_rgba(0,0,0,0.8)]" 
+                        <img
+                            src={logo}
+                            alt="Miami Beach Resort"
+                            className="h-16 sm:h-20 w-auto object-contain drop-shadow-[0_4px_20px_rgba(0,0,0,0.8)]"
                         />
                         <h1 className="text-3xl sm:text-5xl lg:text-6xl font-serif font-extrabold tracking-tight text-white leading-tight drop-shadow-[0_4px_12px_rgba(0,0,0,0.6)]">
                             Miami Beach Resort
@@ -410,7 +410,7 @@ const Home = () => {
 
                     {/* Key Resort Contact Badges */}
                     <div className="flex flex-wrap items-center justify-center gap-2.5 sm:gap-4 pt-1 text-xs text-slate-200">
-                        <a 
+                        <a
                             href="https://maps.google.com/?q=Miami+Beach+Resort+Cox's+Bazar"
                             target="_blank"
                             rel="noopener noreferrer"
@@ -423,7 +423,7 @@ const Home = () => {
                         <span className="flex items-center gap-1.5 bg-[#03221b]/80 px-3.5 py-1.5 rounded-xl border border-[#c5a880]/40 backdrop-blur-md shadow-md">
                             <Clock size={14} className="text-[#dfc89e] shrink-0" /> Check-in 1:00 PM | Out 11:00 AM
                         </span>
-                        <a 
+                        {/* <a 
                             href="https://wa.me/8801616472282?text=Hello%20Miami%20Beach%20Resort%2C%20I%20would%20like%20to%20inquire%20about%20room%20availability."
                             target="_blank"
                             rel="noopener noreferrer"
@@ -431,6 +431,17 @@ const Home = () => {
                             title="Chat on WhatsApp"
                         >
                             <Phone size={14} className="text-[#dfc89e] shrink-0 group-hover:scale-110 transition-transform" />
+                            <span className="group-hover:text-white">+8801616472282</span>
+                        </a> */}
+                        <a
+                            href="tel:+8801616472282"
+                            className="flex items-center gap-1.5 bg-[#03221b]/80 hover:bg-[#042e25] px-3.5 py-1.5 rounded-xl border border-[#c5a880]/40 hover:border-[#dfc89e] backdrop-blur-md shadow-md transition-all cursor-pointer group"
+                            title="Call Miami Beach Resort"
+                        >
+                            <Phone
+                                size={14}
+                                className="text-[#dfc89e] shrink-0 group-hover:scale-110 transition-transform"
+                            />
                             <span className="group-hover:text-white">+8801616472282</span>
                         </a>
                     </div>
@@ -444,12 +455,12 @@ const Home = () => {
                             <span>Book Your Stay</span>
                             <ArrowRight size={15} />
                         </button>
-                        <a
-                            href="#rooms"
+                        <Link
+                            to="/rooms"
                             className="inline-flex items-center gap-2 px-7 py-3 rounded-full bg-[#03221b]/70 hover:bg-[#03221b]/90 text-[#f5ebd7] font-semibold text-xs tracking-wider uppercase border border-[#c5a880]/40 backdrop-blur-md transition-all cursor-pointer shadow-lg"
                         >
                             <span>Explore Rooms</span>
-                        </a>
+                        </Link>
                     </div>
                 </div>
             </section>
@@ -458,7 +469,7 @@ const Home = () => {
             <div className="relative z-30 max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 -mt-12 sm:-mt-16">
                 <div className="bg-[#03221b] border border-[#c5a880]/50 rounded-3xl p-4 sm:p-6 shadow-[0_20px_50px_rgba(0,0,0,0.35)]">
                     <form onSubmit={handleHeroBookingSubmit} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-3.5 items-end text-xs">
-                        
+
                         {/* Check-In */}
                         <div className="lg:col-span-3 space-y-1">
                             <label className="block text-[11px] font-semibold uppercase tracking-wider text-[#dfc89e]">
@@ -536,7 +547,7 @@ const Home = () => {
                 2. ROOM / CATEGORY SECTION (#rooms)
             ══════════════════════════════════════════════════════ */}
             <section id="rooms" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-12 pb-16 sm:pt-16 sm:pb-24">
-                
+
                 {/* Header */}
                 <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-10">
                     <div>
@@ -603,7 +614,7 @@ const Home = () => {
                     </div>
                 ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
-                        {filteredCategories.map(cat => {
+                        {filteredCategories.slice(0, 6).map(cat => {
                             const photos = cat.images?.length
                                 ? cat.images.map(img => typeof img === 'string' ? img : img.url)
                                 : cat.imageUrl ? [cat.imageUrl] : []
@@ -613,18 +624,18 @@ const Home = () => {
                             const roomNums = parseRoomNumbers(cat.roomNumbers || [])
 
                             return (
-                                <div 
-                                    key={cat._id} 
+                                <div
+                                    key={cat._id}
                                     className="group bg-white rounded-3xl overflow-hidden border border-slate-200 shadow-sm hover:shadow-xl royal-card-hover flex flex-col justify-between"
                                 >
                                     <div>
                                         {/* Photo & Click to details */}
                                         <Link to={`/room/${cat._id}`} className="relative h-60 sm:h-64 bg-slate-100 overflow-hidden select-none block">
                                             {currentImgSrc ? (
-                                                <img 
-                                                    src={currentImgSrc} 
-                                                    alt={cat.name} 
-                                                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
+                                                <img
+                                                    src={currentImgSrc}
+                                                    alt={cat.name}
+                                                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                                                 />
                                             ) : (
                                                 <div className="w-full h-full flex flex-col items-center justify-center text-slate-400 bg-slate-100">
@@ -653,14 +664,14 @@ const Home = () => {
                                             {/* Carousel nav */}
                                             {photos.length > 1 && (
                                                 <>
-                                                    <button 
-                                                        onClick={e => handlePrevImage(e, cat._id, photos.length)} 
+                                                    <button
+                                                        onClick={e => handlePrevImage(e, cat._id, photos.length)}
                                                         className="absolute left-2 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-[#021813]/70 text-white flex items-center justify-center hover:bg-[#04261f] transition-colors z-10 cursor-pointer"
                                                     >
                                                         <ChevronLeft size={16} />
                                                     </button>
-                                                    <button 
-                                                        onClick={e => handleNextImage(e, cat._id, photos.length)} 
+                                                    <button
+                                                        onClick={e => handleNextImage(e, cat._id, photos.length)}
                                                         className="absolute right-2 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-[#021813]/70 text-white flex items-center justify-center hover:bg-[#04261f] transition-colors z-10 cursor-pointer"
                                                     >
                                                         <ChevronRight size={16} />
@@ -728,6 +739,17 @@ const Home = () => {
                     </div>
                 )}
 
+                {/* View All Button */}
+                <div className="text-center mt-12">
+                    <Link
+                        to="/rooms"
+                        className="inline-flex items-center gap-2.5 px-8 py-3.5 rounded-full font-serif font-bold text-xs sm:text-sm uppercase tracking-wider bg-gradient-to-r from-[#dfc89e] via-[#c5a880] to-[#ad8a57] text-[#03221b] hover:brightness-110 shadow-lg hover:shadow-xl transition-all cursor-pointer"
+                    >
+                        <span>View All</span>
+                        <ArrowRight size={16} />
+                    </Link>
+                </div>
+
             </section>
 
 
@@ -737,7 +759,7 @@ const Home = () => {
             ══════════════════════════════════════════════════════ */}
             <section id="services" className="bg-[#f5f1e8]/50 py-16 sm:py-20 border-t border-[#c5a880]/20">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                    
+
                     {/* Header */}
                     <div className="text-center max-w-2xl mx-auto space-y-2 mb-10">
                         <div className="inline-flex items-center gap-2 text-[#04261f] text-xs font-bold uppercase tracking-[0.25em] bg-[#c5a880]/20 px-3.5 py-1.5 rounded-full border border-[#c5a880]/40">
@@ -751,7 +773,7 @@ const Home = () => {
                     {/* 10 Services: Clean Icon & Service Name Only */}
                     <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3.5 sm:gap-5">
                         {resortServices.map((srv) => (
-                            <div 
+                            <div
                                 key={srv.id}
                                 className="bg-white rounded-2xl p-4 sm:p-5 border border-[#c5a880]/30 shadow-xs hover:shadow-md royal-card-hover flex flex-col items-center justify-center text-center space-y-3 group"
                             >
@@ -777,7 +799,7 @@ const Home = () => {
                 <div className="absolute inset-0 opacity-40 bg-[radial-gradient(#c5a880_1px,transparent_1px)] [background-size:24px_24px] pointer-events-none"></div>
 
                 <div className="relative z-10 max-w-7xl mx-auto">
-                    
+
                     {/* Section Header */}
                     <div className="text-center max-w-2xl mx-auto mb-10 sm:mb-14 space-y-3">
                         <div className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-[#c5a880]/20 border border-[#c5a880]/50 text-[#04261f] text-xs font-bold uppercase tracking-[0.25em] shadow-xs">
@@ -794,10 +816,10 @@ const Home = () => {
 
                     {/* Content Grid: Contact Details & Direct Actions (Left) + Interactive Map (Right) */}
                     <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-stretch">
-                        
+
                         {/* LEFT COLUMN: Resort Details & Action Buttons */}
                         <div className="lg:col-span-5 flex flex-col justify-between space-y-6 bg-white border border-[#c5a880]/40 rounded-3xl p-6 sm:p-8 shadow-xl">
-                            
+
                             <div className="space-y-5">
                                 <div>
                                     <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#9a7b52]">
@@ -834,7 +856,7 @@ const Home = () => {
 
                             {/* Direct Action Buttons */}
                             <div className="space-y-3 pt-4 border-t border-[#c5a880]/20">
-                                
+
                                 {/* 1. WhatsApp Button */}
                                 <a
                                     href="https://wa.me/8801616472282?text=Hello%20Miami%20Beach%20Resort%2C%20I%20would%20like%20to%20inquire%20about%20room%20booking%20and%20directions."
@@ -843,7 +865,7 @@ const Home = () => {
                                     className="w-full py-3.5 px-5 rounded-2xl bg-[#25D366] hover:bg-[#20bd5a] text-white font-bold text-xs uppercase tracking-wider shadow-lg flex items-center justify-center gap-2.5 transition-all cursor-pointer"
                                 >
                                     <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24">
-                                        <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448l-5.805 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-.297-.149-1.255-.462-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.297-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.372-.025-.521-.075-.148-.669-1.611-.916-2.206-.242-.579-.487-.501-.669-.51l-.57-.01c-.198 0-.52.074-.792.372s-1.04 1.016-1.04 2.479 1.065 2.876 1.213 3.074c.149.198 2.095 3.2 5.076 4.487.709.306 1.263.489 1.694.626.712.226 1.36.194 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.695.248-1.29.173-1.414z"/>
+                                        <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448l-5.805 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-.297-.149-1.255-.462-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.297-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.372-.025-.521-.075-.148-.669-1.611-.916-2.206-.242-.579-.487-.501-.669-.51l-.57-.01c-.198 0-.52.074-.792.372s-1.04 1.016-1.04 2.479 1.065 2.876 1.213 3.074c.149.198 2.095 3.2 5.076 4.487.709.306 1.263.489 1.694.626.712.226 1.36.194 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.695.248-1.29.173-1.414z" />
                                     </svg>
                                     <span>Chat on WhatsApp</span>
                                 </a>
@@ -872,13 +894,13 @@ const Home = () => {
 
                         {/* RIGHT COLUMN: Interactive Embedded Google Map */}
                         <div className="lg:col-span-7 bg-white border border-[#c5a880]/40 rounded-3xl p-2.5 sm:p-3.5 shadow-xl overflow-hidden flex flex-col min-h-[380px] sm:min-h-[460px]">
-                            <iframe 
-                                src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3714.4308825401695!2d91.98431847587973!3d21.412302374493578!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x30adc90032b7a657%3A0x6493225bdfeb17a9!2sMiami%20Beach%20Resort%2C%20Cox%E2%80%99s%20Bazar!5e0!3m2!1sen!2sbd!4v1788533913946!5m2!1sen!2sbd" 
-                                width="100%" 
-                                height="100%" 
-                                style={{ border: 0, minHeight: '360px' }} 
-                                allowFullScreen="" 
-                                loading="lazy" 
+                            <iframe
+                                src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3714.4308825401695!2d91.98431847587973!3d21.412302374493578!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x30adc90032b7a657%3A0x6493225bdfeb17a9!2sMiami%20Beach%20Resort%2C%20Cox%E2%80%99s%20Bazar!5e0!3m2!1sen!2sbd!4v1788533913946!5m2!1sen!2sbd"
+                                width="100%"
+                                height="100%"
+                                style={{ border: 0, minHeight: '360px' }}
+                                allowFullScreen=""
+                                loading="lazy"
                                 referrerPolicy="strict-origin-when-cross-origin"
                                 className="w-full h-full rounded-2xl flex-1 border border-slate-200"
                                 title="Miami Beach Resort Location Map"
@@ -897,7 +919,7 @@ const Home = () => {
             {bookingModalOpen && (
                 <dialog open className="modal modal-open z-50">
                     <div className="modal-box w-full max-w-2xl max-h-[92vh] overflow-y-auto bg-white rounded-3xl p-5 sm:p-8 shadow-2xl border border-[#c5a880]/40 text-slate-800">
-                        
+
                         {/* Modal Header */}
                         <div className="flex items-center justify-between pb-4 border-b border-[#c5a880]/20 mb-5">
                             <div className="min-w-0 pr-2">
@@ -942,7 +964,7 @@ const Home = () => {
                         )}
 
                         <form onSubmit={onSubmit} className="space-y-5 text-xs sm:text-sm">
-                            
+
                             {/* Guest Details */}
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-[#fcfbf9] p-4 sm:p-5 rounded-2xl border border-[#c5a880]/30">
                                 <div className="form-control">
@@ -952,10 +974,10 @@ const Home = () => {
                                         </span>
                                     </label>
                                     <input
-                                        name="name" 
-                                        value={formData.name} 
+                                        name="name"
+                                        value={formData.name}
                                         onChange={handleInput}
-                                        type="text" 
+                                        type="text"
                                         placeholder="Your full name"
                                         className={`input input-sm sm:input-md input-bordered w-full rounded-xl bg-white text-xs sm:text-sm ${formErrors.name ? "input-error" : "border-slate-300"}`}
                                     />
@@ -969,10 +991,10 @@ const Home = () => {
                                         </span>
                                     </label>
                                     <input
-                                        name="mobile" 
-                                        value={formData.mobile} 
+                                        name="mobile"
+                                        value={formData.mobile}
                                         onChange={handleInput}
-                                        type="tel" 
+                                        type="tel"
                                         placeholder="+88017..."
                                         className={`input input-sm sm:input-md input-bordered w-full rounded-xl bg-white text-xs sm:text-sm ${formErrors.mobile ? "input-error" : "border-slate-300"}`}
                                     />
@@ -1048,9 +1070,9 @@ const Home = () => {
                                                                 className="select select-sm select-bordered w-full rounded-xl bg-white text-xs font-medium border-slate-300"
                                                             >
                                                                 {categories.map(c => (
-                                                                  <option key={c._id} value={c._id}>
-                                                                      {c.name} — ৳{Number(c.price).toLocaleString()}/night
-                                                                  </option>
+                                                                    <option key={c._id} value={c._id}>
+                                                                        {c.name} — ৳{Number(c.price).toLocaleString()}/night
+                                                                    </option>
                                                                 ))}
                                                             </select>
                                                             {formErrors[`category-${item.itemId}`] && (
@@ -1127,7 +1149,7 @@ const Home = () => {
                                                             <span className="label-text font-bold text-slate-700 text-xs">Adults</span>
                                                         </label>
                                                         <input
-                                                            type="number" min="0" 
+                                                            type="number" min="0"
                                                             value={item.adults !== undefined ? item.adults : ''}
                                                             placeholder="0"
                                                             onChange={e => handleRoomChange(item.itemId, { adults: e.target.value })}
@@ -1139,7 +1161,7 @@ const Home = () => {
                                                             <span className="label-text font-bold text-slate-700 text-xs">Children / Babies</span>
                                                         </label>
                                                         <input
-                                                            type="number" min="0" 
+                                                            type="number" min="0"
                                                             value={item.babies}
                                                             onChange={e => handleRoomChange(item.itemId, { babies: e.target.value })}
                                                             className="input input-sm input-bordered w-full rounded-xl bg-white text-xs border-slate-300"
@@ -1164,8 +1186,8 @@ const Home = () => {
                                     <span className="label-text font-bold text-slate-700 text-xs">Guest Address / Special Notes</span>
                                 </label>
                                 <textarea
-                                    name="address" 
-                                    value={formData.address} 
+                                    name="address"
+                                    value={formData.address}
                                     onChange={handleInput}
                                     placeholder="Guest address or special check-in requests..."
                                     className="textarea textarea-bordered w-full rounded-xl bg-white border-slate-300 text-xs sm:text-sm"
@@ -1179,16 +1201,16 @@ const Home = () => {
 
                             {/* Submit and Cancel Buttons */}
                             <div className="flex items-center gap-3 pt-2">
-                                <button 
-                                    type="button" 
-                                    onClick={handleCloseModal} 
+                                <button
+                                    type="button"
+                                    onClick={handleCloseModal}
                                     className="btn btn-sm sm:btn-md btn-ghost flex-1 rounded-xl cursor-pointer"
                                 >
                                     Cancel
                                 </button>
-                                <button 
-                                    type="submit" 
-                                    disabled={isSubmitting} 
+                                <button
+                                    type="submit"
+                                    disabled={isSubmitting}
                                     className="btn btn-sm sm:btn-md flex-2 rounded-xl bg-gradient-to-r from-[#dfc89e] via-[#c5a880] to-[#ad8a57] text-[#03221b] font-bold text-xs sm:text-sm uppercase tracking-wider shadow-lg border-none hover:brightness-110 cursor-pointer"
                                 >
                                     {isSubmitting ? (

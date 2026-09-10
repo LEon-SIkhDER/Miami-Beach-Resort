@@ -11,8 +11,7 @@ import {
     X, 
     BedDouble, 
     UserCheck, 
-    Receipt, 
-    Clock
+    Receipt
 } from 'lucide-react'
 import { 
     getBookingRooms, 
@@ -38,7 +37,6 @@ const ConfirmBookingModal = ({ booking, isOpen, onClose, onSuccess, targetStatus
     const [paidAmount, setPaidAmount] = useState('')
     const [transactionId, setTransactionId] = useState('')
 
-    const isPaymentWaiting = targetStatus === "payment_waiting"
 
     // Fetch all categories to get room numbers under each category
     const { data: categories = [] } = useQuery({
@@ -171,7 +169,7 @@ const ConfirmBookingModal = ({ booking, isOpen, onClose, onSuccess, targetStatus
     const handleSubmit = async (e) => {
         e.preventDefault()
 
-        // Physical room number is mandatory for all steps (Payment Waiting and Booking Confirmed)
+        // Physical room number is mandatory
         const missingRoom = assignedRooms.find(r => !r.roomNo || !String(r.roomNo).trim())
         if (missingRoom) {
             toast.error("Please assign a physical room number for all rooms.")
@@ -192,35 +190,33 @@ const ConfirmBookingModal = ({ booking, isOpen, onClose, onSuccess, targetStatus
             return
         }
 
-        // Strict required fields when targetStatus is booking_confirmed
-        if (!isPaymentWaiting) {
-            const missingAdults = assignedRooms.find(r => !r.adults || Number(r.adults) <= 0)
-            if (missingAdults) {
-                toast.error("Adult guest count is required for all rooms to confirm reservation.")
-                return
-            }
+        // Strict required fields for booking_confirmed
+        const missingAdults = assignedRooms.find(r => !r.adults || Number(r.adults) <= 0)
+        if (missingAdults) {
+            toast.error("Adult guest count is required for all rooms to confirm reservation.")
+            return
+        }
 
-            const paidNum = Number(paidAmount)
-            if (paidAmount === '' || isNaN(paidNum) || paidNum < 0) {
-                toast.error("Payment Done (৳) amount must be greater than 0 to confirm booking.")
-                return
-            }
+        const paidNum = Number(paidAmount)
+        if (paidAmount === '' || isNaN(paidNum) || paidNum < 0) {
+            toast.error("Payment Done (৳) amount must be greater than 0 to confirm booking.")
+            return
+        }
 
-            if (!paymentMethod.trim()) {
-                toast.error("Please select a Payment Method.")
-                return
-            }
+        if (!paymentMethod.trim()) {
+            toast.error("Please select a Payment Method.")
+            return
+        }
 
-            const isDigitalMethod = !["Cash", "Other"].includes(paymentMethod.trim())
-            if (isDigitalMethod && !transactionId.trim()) {
-                toast.error(`Transaction ID / Receipt No is required for ${paymentMethod}.`)
-                return
-            }
+        const isDigitalMethod = !["Cash", "Other"].includes(paymentMethod.trim())
+        if (isDigitalMethod && !transactionId.trim()) {
+            toast.error(`Transaction ID / Receipt No is required for ${paymentMethod}.`)
+            return
+        }
 
-            if (!reference.trim()) {
-                toast.error("Staff / Admin Reference is required to confirm booking.")
-                return
-            }
+        if (!reference.trim()) {
+            toast.error("Staff / Admin Reference is required to confirm booking.")
+            return
         }
 
         if (effectivePaid > finalTotal + 0.01) {
@@ -229,7 +225,7 @@ const ConfirmBookingModal = ({ booking, isOpen, onClose, onSuccess, targetStatus
         }
 
         setIsSubmitting(true)
-        const toastId = toast.loading(isPaymentWaiting ? "Setting status to Payment Waiting..." : "Confirming booking...")
+        const toastId = toast.loading("Confirming booking...")
 
         try {
             const normalizedRooms = assignedRooms.map(r => ({
@@ -263,7 +259,7 @@ const ConfirmBookingModal = ({ booking, isOpen, onClose, onSuccess, targetStatus
             const res = await axiosSecure.patch(`/booking/${booking._id}`, payload)
             if (res.data) {
                 onClose()
-                toast.success(isPaymentWaiting ? "Status updated to Payment Waiting! ⏳" : "Booking confirmed successfully! 🎉", { id: toastId })
+                toast.success("Booking confirmed successfully! 🎉", { id: toastId })
                 await Promise.all([
                     queryClient.invalidateQueries({ queryKey: ["requestBookings"] }),
                     queryClient.invalidateQueries({ queryKey: ["all-bookings-for-calendar"] }),
@@ -291,18 +287,14 @@ const ConfirmBookingModal = ({ booking, isOpen, onClose, onSuccess, targetStatus
         <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs overflow-y-auto">
             <div className="bg-white rounded-3xl shadow-2xl border border-slate-100 w-full max-w-xl max-h-[92vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
                 {/* Header */}
-                <div className={`flex items-center justify-between px-6 py-4 border-b shrink-0 ${
-                    isPaymentWaiting ? 'border-sky-100 bg-sky-50/60' : 'border-emerald-100 bg-emerald-50/50'
-                }`}>
+                <div className="flex items-center justify-between px-6 py-4 border-b border-emerald-100 bg-emerald-50/50 shrink-0">
                     <div className="flex items-center gap-2.5">
-                        <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${
-                            isPaymentWaiting ? 'bg-sky-100 text-sky-700' : 'bg-emerald-100 text-emerald-700'
-                        }`}>
-                            {isPaymentWaiting ? <Clock size={20} /> : <CheckCircle2 size={20} />}
+                        <div className="w-9 h-9 rounded-xl flex items-center justify-center bg-emerald-100 text-emerald-700">
+                            <CheckCircle2 size={20} />
                         </div>
                         <div>
                             <h3 className="font-bold text-slate-900 text-base sm:text-lg">
-                                {isPaymentWaiting ? "Set to Payment Waiting" : "Booking Confirmed"}
+                                Booking Confirmed
                             </h3>
                             <p className="text-xs text-slate-500 font-mono">
                                 {booking.bookingId} · {booking.name}
@@ -339,12 +331,6 @@ const ConfirmBookingModal = ({ booking, isOpen, onClose, onSuccess, targetStatus
                             <span className="font-bold text-slate-900">৳{Number(standardTotal || 0).toLocaleString()}</span>
                         </div>
                     </div>
-
-                    {isPaymentWaiting && (
-                        <p className="text-[11px] text-sky-800 bg-sky-50 border border-sky-200 rounded-xl p-2.5">
-                            💡 <strong>Note:</strong> Room number assignment is required to hold the room on the calendar while waiting for payment. Payment and transaction details can be entered now or during final confirmation.
-                        </p>
-                    )}
 
                     {/* Room Assignment (Multiple fields for each booked room) */}
                     <div className="space-y-3">
@@ -447,7 +433,7 @@ const ConfirmBookingModal = ({ booking, isOpen, onClose, onSuccess, targetStatus
                                                 <div className="form-control">
                                                     <label className="label py-0.5">
                                                         <span className="label-text font-bold text-slate-800 text-xs">
-                                                            Adults {!isPaymentWaiting && <span className="text-red-500 font-bold">*</span>}
+                                                            Adults <span className="text-red-500 font-bold">*</span>
                                                         </span>
                                                     </label>
                                                     <input
@@ -456,7 +442,7 @@ const ConfirmBookingModal = ({ booking, isOpen, onClose, onSuccess, targetStatus
                                                         value={room.adults !== undefined && room.adults !== null ? room.adults : ''}
                                                         placeholder="0"
                                                         onChange={e => handleRoomAdultsChange(index, e.target.value)}
-                                                        className={`input input-xs sm:input-sm input-bordered rounded-xl bg-white text-xs font-semibold ${!isPaymentWaiting && (!room.adults || Number(room.adults) <= 0) ? 'border-amber-400' : ''}`}
+                                                        className={`input input-xs sm:input-sm input-bordered rounded-xl bg-white text-xs font-semibold ${(!room.adults || Number(room.adults) <= 0) ? 'border-amber-400' : ''}`}
                                                     />
                                                 </div>
 
@@ -560,7 +546,7 @@ const ConfirmBookingModal = ({ booking, isOpen, onClose, onSuccess, targetStatus
                             <div className="form-control">
                                 <label className="label py-0.5 block">
                                     <span className="label-text font-bold text-slate-800 text-xs flex items-center gap-1">
-                                        <CreditCard size={13} className="text-teal-600" /> Payment Done (৳) {!isPaymentWaiting && <span className="text-red-500 font-bold">*</span>}
+                                        <CreditCard size={13} className="text-teal-600" /> Payment Done (৳) <span className="text-red-500 font-bold">*</span>
                                     </span>
                                 </label>
                                 <input
@@ -570,7 +556,7 @@ const ConfirmBookingModal = ({ booking, isOpen, onClose, onSuccess, targetStatus
                                     value={paidAmount}
                                     onChange={e => setPaidAmount(e.target.value)}
                                     placeholder="0"
-                                    className={`input input-sm input-bordered w-full rounded-xl bg-white text-xs font-bold text-emerald-800 ${!isPaymentWaiting && effectivePaid <= 0 ? 'border-amber-400' : ''}`}
+                                    className={`input input-sm input-bordered w-full rounded-xl bg-white text-xs font-bold text-emerald-800 ${effectivePaid <= 0 ? 'border-amber-400' : ''}`}
                                 />
                                 {/* Quick payment helper buttons */}
                                 <div className="flex gap-1.5 mt-1.5">
@@ -597,13 +583,13 @@ const ConfirmBookingModal = ({ booking, isOpen, onClose, onSuccess, targetStatus
                             <div className="form-control">
                                 <label className="label py-0.5">
                                     <span className="label-text font-bold text-slate-800 text-xs flex items-center gap-1">
-                                        <CreditCard size={13} className="text-teal-600" /> Payment Method {!isPaymentWaiting && <span className="text-red-500 font-bold">*</span>}
+                                        <CreditCard size={13} className="text-teal-600" /> Payment Method <span className="text-red-500 font-bold">*</span>
                                     </span>
                                 </label>
                                 <select
                                     value={paymentMethod}
                                     onChange={e => setPaymentMethod(e.target.value)}
-                                    className={`select select-sm select-bordered w-full rounded-xl bg-white text-xs font-semibold ${!isPaymentWaiting && !paymentMethod ? 'border-amber-400' : ''}`}
+                                    className={`select select-sm select-bordered w-full rounded-xl bg-white text-xs font-semibold ${!paymentMethod ? 'border-amber-400' : ''}`}
                                 >
                                     <option value="">-- Select Payment Method --</option>
                                     <option value="bKash">bKash (Mobile)</option>
@@ -626,18 +612,18 @@ const ConfirmBookingModal = ({ booking, isOpen, onClose, onSuccess, targetStatus
                                         <span className="flex items-center gap-1">
                                             <Receipt size={13} className="text-teal-600" /> Trx / Receipt
                                         </span>
-                                        {!isPaymentWaiting && paymentMethod && !["Cash", "Other"].includes(paymentMethod) && (
+                                        {paymentMethod && !["Cash", "Other"].includes(paymentMethod) && (
                                             <span className="text-red-500 font-bold text-[10px]">* Required</span>
                                         )}
                                     </span>
                                 </label>
                                 <input
                                     type="text"
-                                    required={!isPaymentWaiting && Boolean(paymentMethod && !["Cash", "Other"].includes(paymentMethod))}
+                                    required={Boolean(paymentMethod && !["Cash", "Other"].includes(paymentMethod))}
                                     value={transactionId}
                                     onChange={e => setTransactionId(e.target.value)}
                                     placeholder={paymentMethod === "Cash" || paymentMethod === "Other" ? "Optional for Cash / Other" : "e.g. TRX-982314 / Slip No"}
-                                    className={`input input-sm input-bordered w-full rounded-xl bg-white text-xs ${!isPaymentWaiting && paymentMethod && !["Cash", "Other"].includes(paymentMethod) && !transactionId.trim() ? 'border-amber-400' : ''}`}
+                                    className={`input input-sm input-bordered w-full rounded-xl bg-white text-xs ${paymentMethod && !["Cash", "Other"].includes(paymentMethod) && !transactionId.trim() ? 'border-amber-400' : ''}`}
                                 />
                             </div>
                         </div>
@@ -665,15 +651,15 @@ const ConfirmBookingModal = ({ booking, isOpen, onClose, onSuccess, targetStatus
                     <div className="form-control">
                         <label className="label py-0.5 block">
                             <span className="label-text font-semibold text-slate-700 text-xs flex items-center gap-1">
-                                <UserCheck size={14} className="text-teal-600" /> Reference (Staff / Admin) {!isPaymentWaiting && <span className="text-red-500 font-bold">*</span>}
+                                <UserCheck size={14} className="text-teal-600" /> Reference (Staff / Admin) <span className="text-red-500 font-bold">*</span>
                             </span>
                         </label>
                         <select
                             value={reference}
                             onChange={e => setReference(e.target.value)}
-                            className={`select select-sm select-bordered w-full rounded-xl bg-white text-xs font-medium ${!isPaymentWaiting && !reference ? 'border-amber-400' : ''}`}
+                            className={`select select-sm select-bordered w-full rounded-xl bg-white text-xs font-medium ${!reference ? 'border-amber-400' : ''}`}
                         >
-                            <option value="">-- Select Reference {!isPaymentWaiting ? "(Required)" : "(Optional)"} --</option>
+                            <option value="">-- Select Reference (Required) --</option>
                             {eligibleReferences.map(u => (
                                 <option key={u._id} value={u.name || u.email}>
                                     {u.name || u.email} ({u.role || "staff"})
@@ -701,16 +687,12 @@ const ConfirmBookingModal = ({ booking, isOpen, onClose, onSuccess, targetStatus
                         <button
                             type="submit"
                             disabled={isSubmitting}
-                            className={`btn btn-sm rounded-xl px-5 font-bold shadow-md border-none ${
-                                isPaymentWaiting 
-                                    ? 'bg-[#eab308] hover:bg-yellow-500 text-amber-950 shadow-amber-500/20' 
-                                    : 'bg-[#5261d6] hover:bg-[#4351be] text-white shadow-indigo-600/20'
-                            }`}
+                            className="btn btn-sm rounded-xl px-5 font-bold shadow-md border-none bg-[#5261d6] hover:bg-[#4351be] text-white shadow-indigo-600/20"
                         >
                             {isSubmitting ? (
                                 <span className="loading loading-spinner loading-sm" />
                             ) : (
-                                isPaymentWaiting ? "Save & Set Payment Waiting" : "Confirm Booking"
+                                "Confirm Booking"
                             )}
                         </button>
                     </div>

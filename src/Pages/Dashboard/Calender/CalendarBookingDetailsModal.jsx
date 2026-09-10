@@ -57,8 +57,6 @@ const getStatusBadge = (status) => {
     switch (status) {
         case "request_booking":
             return <span className="badge badge-sm bg-[#f59e0b] text-white font-bold border-none">Request Booking</span>
-        case "payment_waiting":
-            return <span className="badge badge-sm bg-rose-600 text-white font-bold border-none">Payment Waiting</span>
         case "booking_confirmed":
         case "confirmed":
             return <span className="badge badge-sm bg-[#5261d6] text-white font-bold border-none">Confirmed</span>
@@ -577,8 +575,8 @@ const CalendarBookingDetailsModal = ({
                             <ExternalLink size={13} /> Full Details Page
                         </Link>
 
-                        {/* Print / PDF Reservation Letter (Only available after booking status is confirmed) */}
-                        {booking && booking.status !== "request_booking" && (
+                        {/* Print / PDF Reservation Letter */}
+                        {booking && (
                             <button
                                 type="button"
                                 onClick={() => setIsVoucherOpen(true)}
@@ -626,19 +624,8 @@ const CalendarBookingDetailsModal = ({
                                 </button>
                             )}
 
-                            {/* Action: Set to Payment Waiting */}
-                            {booking.status === "request_booking" && (
-                                <button
-                                    type="button"
-                                    onClick={() => setConfirmModalData({ booking, targetStatus: "payment_waiting" })}
-                                    className="btn btn-sm bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl gap-1 shadow-xs border-none"
-                                >
-                                    <Clock size={14} /> Payment Waiting
-                                </button>
-                            )}
-
                             {/* Action: Confirm Booking (Staff only) */}
-                            {!isB2B && ["request_booking", "payment_waiting"].includes(booking.status) && (
+                            {!isB2B && booking.status === "request_booking" && (
                                 <button
                                     type="button"
                                     onClick={() => setConfirmModalData({ booking, targetStatus: "booking_confirmed" })}

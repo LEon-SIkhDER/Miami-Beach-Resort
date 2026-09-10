@@ -167,12 +167,6 @@ const MyBookings = () => {
                         <LogOut size={13} /> Checked Out
                     </span>
                 )
-            case "payment_waiting":
-                return (
-                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-rose-50 text-rose-700 border border-rose-200">
-                        <CreditCard size={13} /> Payment Waiting
-                    </span>
-                )
             case "cancel":
             case "cancelled":
                 return (
@@ -193,7 +187,7 @@ const MyBookings = () => {
     const filteredBookings = bookings.filter(b => {
         if (statusFilter && b.status !== statusFilter) {
             if (statusFilter === "confirmed" && !["booking_confirmed", "confirmed", "checked_id", "checked_in", "checked_out"].includes(b.status)) return false
-            if (statusFilter === "pending" && !["request_booking", "payment_waiting"].includes(b.status)) return false
+            if (statusFilter === "pending" && b.status !== "request_booking") return false
             if (statusFilter === "cancelled" && !["cancel", "cancelled"].includes(b.status)) return false
         }
         if (search) {
@@ -208,7 +202,7 @@ const MyBookings = () => {
     })
 
     const confirmedCount = bookings.filter(b => ["booking_confirmed", "confirmed", "checked_id", "checked_in", "checked_out"].includes(b.status)).length
-    const pendingCount = bookings.filter(b => ["request_booking", "payment_waiting"].includes(b.status)).length
+    const pendingCount = bookings.filter(b => b.status === "request_booking").length
     const cancelledCount = bookings.filter(b => ["cancel", "cancelled"].includes(b.status)).length
 
     return (
@@ -348,7 +342,6 @@ const MyBookings = () => {
                             <option value="">All Statuses</option>
                             <option value="confirmed">Confirmed</option>
                             <option value="pending">In Review / Pending</option>
-                            <option value="payment_waiting">Payment Waiting</option>
                             <option value="cancelled">Cancelled</option>
                         </select>
 
@@ -414,7 +407,7 @@ const MyBookings = () => {
                             const totalAmount = getBookingTotal(b)
                             const dateSummary = getBookingDateSummary(b) || `${b.checkIn || ""} to ${b.checkOut || ""}`
                             const isConfirmed = ["booking_confirmed", "confirmed", "checked_id", "checked_in", "checked_out"].includes(b.status)
-                            const isPending = ["request_booking", "payment_waiting"].includes(b.status)
+                            const isPending = b.status === "request_booking"
                             const paidAmount = Number(b.paidAmount || b.advanceAmount || 0)
                             const dueAmount = Math.max(0, Number(b.totalAmount !== undefined ? b.totalAmount : totalAmount) - paidAmount)
 
@@ -536,16 +529,14 @@ const MyBookings = () => {
                                                 <Eye size={14} /> View Details
                                             </button>
 
-                                            {/* Confirmation Voucher / Letter button for all statuses except request_booking */}
-                                            {b.status !== "request_booking" && (
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setVoucherBooking(b)}
-                                                    className="btn btn-sm bg-[#5261d6] hover:bg-[#4351be] text-white rounded-xl gap-1.5 text-xs font-bold shadow-xs border-none"
-                                                >
-                                                    <Printer size={14} /> Reservation Letter (PDF)
-                                                </button>
-                                            )}
+                                            {/* Confirmation Voucher / Letter button */}
+                                            <button
+                                                type="button"
+                                                onClick={() => setVoucherBooking(b)}
+                                                className="btn btn-sm bg-[#5261d6] hover:bg-[#4351be] text-white rounded-xl gap-1.5 text-xs font-bold shadow-xs border-none"
+                                            >
+                                                <Printer size={14} /> Reservation Letter (PDF)
+                                            </button>
 
                                             {/* WhatsApp hotline link */}
                                             <a
@@ -671,18 +662,16 @@ const MyBookings = () => {
 
                         {/* Footer Action */}
                         <div className="flex items-center justify-end gap-2 pt-2">
-                            {["booking_confirmed", "confirmed", "checked_id", "checked_in", "checked_out"].includes(detailsBooking.status) && (
-                                <button
-                                    type="button"
-                                    onClick={() => {
-                                        setVoucherBooking(detailsBooking)
-                                        setDetailsBooking(null)
-                                    }}
-                                    className="btn btn-sm bg-[#5261d6] hover:bg-[#4351be] text-white rounded-xl gap-1.5 font-bold border-none"
-                                >
-                                    <Printer size={14} /> Open Reservation Letter (PDF)
-                                </button>
-                            )}
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setVoucherBooking(detailsBooking)
+                                    setDetailsBooking(null)
+                                }}
+                                className="btn btn-sm bg-[#5261d6] hover:bg-[#4351be] text-white rounded-xl gap-1.5 font-bold border-none"
+                            >
+                                <Printer size={14} /> Open Reservation Letter (PDF)
+                            </button>
                             <button
                                 type="button"
                                 onClick={() => setDetailsBooking(null)}

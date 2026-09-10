@@ -112,7 +112,7 @@ const BookingDetails = () => {
     }
 
     // Modals
-    const [confirmModalTarget, setConfirmModalTarget] = useState(null) // "payment_waiting" or "booking_confirmed"
+    const [confirmModalTarget, setConfirmModalTarget] = useState(null) // "booking_confirmed" only
     const [isEditOpen, setIsEditOpen] = useState(false)
     const [isCancelOpen, setIsCancelOpen] = useState(false)
     const [isAddPaymentOpen, setIsAddPaymentOpen] = useState(false)
@@ -122,7 +122,6 @@ const BookingDetails = () => {
     const canDelete = ["admin", "manager"].includes(role)
     const canRecordPayment = ["admin", "manager", "agent"].includes(role)
     const canConfirm = ["admin", "manager", "agent"].includes(role)
-    const canSetPaymentWaiting = ["admin", "manager", "agent", "b2b"].includes(role)
     const canCancel = ["admin", "manager", "agent"].includes(role)
     const canViewAuditLogs = ["admin", "manager", "moderator"].includes(role?.toLowerCase())
 
@@ -233,12 +232,6 @@ const BookingDetails = () => {
                         <XCircle size={14} /> Cancelled
                     </span>
                 )
-            case "payment_waiting":
-                return (
-                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-rose-50 text-rose-700 border border-rose-200">
-                        <CreditCard size={14} /> Payment Waiting
-                    </span>
-                )
             default:
                 return (
                     <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-700 border border-amber-200">
@@ -323,27 +316,7 @@ const BookingDetails = () => {
                         </button>
                     )}
 
-                    {canSetPaymentWaiting && booking.status === "request_booking" && (
-                        <button 
-                            onClick={() => setConfirmModalTarget("payment_waiting")}
-                            className="btn btn-sm bg-rose-600 hover:bg-rose-700 text-white font-bold gap-1.5 rounded-xl shadow-xs border-none"
-                        >
-                            <CreditCard size={15} /> Set to Payment Waiting
-                        </button>
-                    )}
-
-                    {/* Reservation Confirmation Voucher / Letter */}
-                    {booking.status !== "request_booking" && (
-                        <button 
-                            onClick={() => setIsVoucherOpen(true)}
-                            className="btn btn-sm bg-[#5261d6] hover:bg-[#4351be] text-white gap-1.5 rounded-xl shadow-xs border-none"
-                            title="Print / Download A4 Reservation Letter PDF"
-                        >
-                            <Printer size={15} /> Reservation Letter (PDF)
-                        </button>
-                    )}
-
-                    {canConfirm && ["request_booking", "payment_waiting", "pending"].includes(booking.status) && (
+                    {canConfirm && booking.status === "request_booking" && (
                         <button 
                             onClick={() => setConfirmModalTarget("booking_confirmed")}
                             className="btn btn-sm bg-[#5261d6] hover:bg-[#4351be] text-white font-bold gap-1.5 rounded-xl shadow-xs border-none"
@@ -351,6 +324,16 @@ const BookingDetails = () => {
                             <CheckCircle2 size={15} /> Confirm Booking
                         </button>
                     )}
+
+                    {/* Reservation Confirmation Voucher / Letter */}
+                    <button 
+                        onClick={() => setIsVoucherOpen(true)}
+                        className="btn btn-sm bg-[#5261d6] hover:bg-[#4351be] text-white gap-1.5 rounded-xl shadow-xs border-none"
+                        title="Print / Download A4 Reservation Letter PDF"
+                    >
+                        <Printer size={15} /> Reservation Letter (PDF)
+                    </button>
+
 
                     {/* {!isCancelled && canRecordPayment && dueAmount > 0.01 && (
                         <button 
@@ -921,7 +904,7 @@ const BookingDetails = () => {
                 </div>
             )}
 
-            {/* Confirm / Payment Waiting Modal */}
+            {/* Confirm Booking Modal */}
             {confirmModalTarget && (
                 <ConfirmBookingModal
                     booking={booking}

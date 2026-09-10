@@ -46,7 +46,6 @@ const formatPrintDateTime = (dateObj = new Date()) => {
 const formatStatusLabel = (status) => {
     if (!status) return 'Confirmed'
     if (status === 'booking_confirmed') return 'Confirmed'
-    if (status === 'payment_waiting') return 'Payment Waiting'
     if (status === 'request_booking') return 'Request Booking'
     if (status === 'checked_in' || status === 'checked_id') return 'Checked In'
     if (status === 'checked_out') return 'Checked Out'
@@ -171,7 +170,7 @@ const ReservationVoucherModal = ({
                         </span>
                         <span className={`badge badge-sm font-bold border-none text-white ${
                             booking.status === "booking_confirmed" || booking.status === "confirmed" ? "bg-[#01966e]" :
-                            booking.status === "payment_waiting" ? "bg-amber-600" :
+                            booking.status === "request_booking" ? "bg-[#f59e0b]" :
                             booking.status === "checked_in" ? "bg-teal-600" :
                             booking.status === "checked_out" ? "bg-blue-600" :
                             booking.status === "cancelled" || booking.status === "cancel" ? "bg-rose-600" : "bg-slate-600"

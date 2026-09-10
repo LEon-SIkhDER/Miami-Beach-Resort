@@ -353,7 +353,6 @@ const Calender = () => {
         const todayOccupancyRate = totalPhysicalRooms > 0 ? Math.round((todayOccupied / totalPhysicalRooms) * 100) : 0;
 
         const statusCounts = {
-            payment_waiting: 0,
             checked_id: 0,
             booking_confirmed: 0,
             request_booking: 0,
@@ -363,8 +362,7 @@ const Calender = () => {
         if (Array.isArray(allBookings)) {
             allBookings.forEach(b => {
                 if (!b || ["cancel", "cancelled", "checked_out"].includes(b.status)) return;
-                if (b.status === "payment_waiting") statusCounts.payment_waiting++;
-                else if (b.status === "checked_id" || b.status === "checked_in") statusCounts.checked_id++;
+                if (b.status === "checked_id" || b.status === "checked_in") statusCounts.checked_id++;
                 else if (b.status === "booking_confirmed" || b.status === "confirmed") statusCounts.booking_confirmed++;
                 else if (b.status === "request_booking") statusCounts.request_booking++;
             });
@@ -380,7 +378,6 @@ const Calender = () => {
 
     // Exact requested color styles:
     // Request booking: current amber (#f59e0b)
-    // Payment waiting: yellow (#eab308)
     // Booking confirmed: #5261d6
     // Check in: #01966e
     const getStatusCellClass = (status) => {
@@ -391,8 +388,6 @@ const Calender = () => {
             case "checked_id":
             case "checked_in":
                 return "bg-[#01966e] text-white font-medium hover:bg-[#017c5b]";
-            case "payment_waiting":
-                return "bg-[#e11d48] text-white font-bold hover:bg-[#be123c]";
             case "request_booking":
                 return "bg-[#f59e0b] text-white font-medium hover:bg-[#d97706]";
             default:
@@ -424,6 +419,20 @@ const Calender = () => {
         }
     };
 
+    const handleCategory = (text) => {
+        const [normalText, bracketText] = text.split("(");
+
+        return text.includes("(") ? (
+            <>
+                {normalText.trim()}
+                <br />
+                {`(${bracketText.replace(")", "")})`}
+            </>
+        ) : (
+            text
+        );
+
+    }
     return (
         <div className="flex h-[calc(100dvh-65px)] w-full min-w-0 flex-col overflow-hidden bg-slate-50">
             {/* Top Workflow Ribbon with Specified Colors */}
@@ -439,21 +448,14 @@ const Calender = () => {
                     </div>
                     <span className="text-slate-300 font-black">➔</span>
 
-                    {/* 2. Payment Waiting */}
-                    <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 font-extrabold text-[11px]">
-                        <span className="w-2.5 h-2.5 rounded-full bg-rose-600 ring-2 ring-white" />
-                        <span>Payment Waiting ({statistics.statusCounts.payment_waiting})</span>
-                    </div>
-                    <span className="text-slate-300 font-black">➔</span>
-
-                    {/* 3. Confirmed */}
+                    {/* 2. Confirmed */}
                     <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#5261d6]/15 border border-[#5261d6]/40 text-[#5261d6] font-bold text-[11px]">
                         <span className="w-2.5 h-2.5 rounded-full bg-[#5261d6] ring-2 ring-white" />
                         <span>Confirmed ({statistics.statusCounts.booking_confirmed})</span>
                     </div>
                     <span className="text-slate-300 font-black">➔</span>
 
-                    {/* 4. Check In */}
+                    {/* 3. Check In */}
                     <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#01966e]/15 border border-[#01966e]/40 text-[#01966e] font-bold text-[11px]">
                         <span className="w-2.5 h-2.5 rounded-full bg-[#01966e] ring-2 ring-white" />
                         <span>Check In ({statistics.statusCounts.checked_id})</span>
@@ -514,8 +516,8 @@ const Calender = () => {
                         type="button"
                         onClick={() => setIsRequestModalOpen(true)}
                         className={`btn btn-sm rounded-xl transition-all duration-200 gap-1.5 font-bold h-8 ${requestBookings.length > 0
-                                ? "bg-[#f59e0b] hover:bg-amber-600 text-white border-none shadow-md shadow-amber-500/25 ring-2 ring-amber-400/40"
-                                : "btn-outline border-slate-300 text-slate-700 hover:bg-slate-100"
+                            ? "bg-[#f59e0b] hover:bg-amber-600 text-white border-none shadow-md shadow-amber-500/25 ring-2 ring-amber-400/40"
+                            : "btn-outline border-slate-300 text-slate-700 hover:bg-slate-100"
                             }`}
                     >
                         <Clock size={14} />
@@ -533,8 +535,8 @@ const Calender = () => {
                             setIsOutOfOrderOpen(true);
                         }}
                         className={`btn btn-sm rounded-xl transition-all duration-200 gap-1.5 font-bold h-8 ${outOfOrderList.length > 0
-                                ? "bg-neutral-900 hover:bg-neutral-800 text-amber-300 border-none shadow-md ring-2 ring-amber-400/30"
-                                : "btn-outline border-slate-300 text-slate-700 hover:bg-slate-100"
+                            ? "bg-neutral-900 hover:bg-neutral-800 text-amber-300 border-none shadow-md ring-2 ring-amber-400/30"
+                            : "btn-outline border-slate-300 text-slate-700 hover:bg-slate-100"
                             }`}
                     >
                         <Wrench size={13} className="text-amber-400" />
@@ -595,20 +597,16 @@ const Calender = () => {
             </div>
 
             {/* Calendar Grid Table */}
-            <div className="min-h-0 min-w-0 flex-1 overflow-auto border-t border-gray-300 bg-white">
-                <table className="min-w-max border-separate border-spacing-0 text-xs">
-                    <tbody>
-
-
-
-                        {isCategoriesLoading || isBookingsLoading ? (
-                            <tr>
-                                <td colSpan={dateRange.length + 1} className="text-center py-16 text-slate-400">
-                                    <RefreshCw size={28} className="mx-auto mb-2 animate-spin text-teal-600" />
-                                    Loading room schedule...
-                                </td>
-                            </tr>
-                        ) : displayCategories.length === 0 ? (
+            <div className="min-h-0 min-w-0 flex-1 overflow-auto border-t border-gray-300 bg-white flex flex-col">
+                {isCategoriesLoading || isBookingsLoading ? (
+                    <div className="flex-1 flex flex-col items-center justify-center p-16 text-slate-400 min-h-[350px]">
+                        <RefreshCw size={32} className="mx-auto mb-2.5 animate-spin text-teal-600" />
+                        <span className="text-sm font-semibold text-slate-600">Loading room schedule...</span>
+                    </div>
+                ) : (
+                    <table className="min-w-max border-separate border-spacing-0 text-xs">
+                        <tbody>
+                            {displayCategories.length === 0 ? (
                             <tr>
                                 <td colSpan={dateRange.length + 1} className="text-center py-16 text-slate-400">
                                     <BedDouble size={36} className="mx-auto mb-2 opacity-50" />
@@ -647,10 +645,10 @@ const Calender = () => {
                                                 <td
                                                     key={`overall-occupancy-${dateObj.iso}`}
                                                     className={`px-1 py-1 border border-gray-300 text-center font-mono text-[10px] font-bold whitespace-nowrap ${percent === 100
-                                                            ? "bg-rose-100/80 text-rose-900 font-black"
-                                                            : percent > 0
-                                                                ? "bg-teal-100/70 text-teal-900"
-                                                                : "bg-slate-50/70 text-slate-500 font-normal"
+                                                        ? "bg-rose-100/80 text-rose-900 font-black"
+                                                        : percent > 0
+                                                            ? "bg-teal-100/70 text-teal-900"
+                                                            : "bg-slate-50/70 text-slate-500 font-normal"
                                                         }`}
                                                     title={`Overall Occupancy\nDate: ${dateObj.display}\nOccupied: ${occupiedCount}/${totalRoomsCount} rooms (${percent}%)\nAvailable: ${availableCount} rooms${oooCount > 0 ? `\nOut of Order: ${oooCount} rooms` : ''}`}
                                                 >
@@ -669,8 +667,8 @@ const Calender = () => {
                                         {/* CATEGORY ROW HEADER — z-40 sticky */}
                                         <tr>
                                             <th className="sticky left-0 z-40 border border-gray-300 bg-slate-800 text-xs font-bold px-2.5 py-1.5 text-white shadow-md whitespace-nowrap text-left">
-                                                <div className="flex items-center justify-between gap-3">
-                                                    <span className="text-[10px]">{category.category}</span>
+                                                <div className="flex items-center justify-center gap-3">
+                                                    <span className="text-[10px] ">{handleCategory(category.category)}</span>
                                                 </div>
                                             </th>
                                             {dateRange.map((dateObj) => (
@@ -772,8 +770,8 @@ const Calender = () => {
                                                     const checkInIso = String(bookingInfo.checkIn || "").slice(0, 10);
                                                     const checkOutIso = String(bookingInfo.checkOut || "").slice(0, 10);
 
-                                                    const roundedTlClass = checkInIso && tableStartIso && checkInIso >= tableStartIso ? "rounded-tl-full" : "";
-                                                    const roundedBrClass = checkOutIso && tableEndIso && checkOutIso <= tableEndIso ? "rounded-br-full" : "";
+                                                    const roundedTlClass = checkInIso && tableStartIso && checkInIso >= tableStartIso ? "rounded-tl-2xl" : "";
+                                                    const roundedBrClass = checkOutIso && tableEndIso && checkOutIso <= tableEndIso ? "rounded-br-2xl" : "";
 
                                                     rowCells.push(
                                                         <td
@@ -811,10 +809,10 @@ const Calender = () => {
                                                                     : `Room ${roomNo} available on ${dateObj.display}\nClick to create a new reservation.`
                                                             }
                                                             className={`px-1 py-1 text-center text-xs whitespace-nowrap transition-all select-none border border-gray-300 max-w-[125px] ${dateObj.isPast
-                                                                    ? "bg-slate-100/70 text-slate-300 cursor-not-allowed"
-                                                                    : dateObj.isToday
-                                                                        ? "bg-amber-50/40 hover:bg-teal-50 cursor-pointer hover:outline-teal-500"
-                                                                        : "hover:bg-teal-50/50 cursor-pointer hover:outline-teal-500"
+                                                                ? "bg-slate-100/70 text-slate-300 cursor-not-allowed"
+                                                                : dateObj.isToday
+                                                                    ? "bg-amber-50/40 hover:bg-teal-50 cursor-pointer hover:outline-teal-500"
+                                                                    : "hover:bg-teal-50/50 cursor-pointer hover:outline-teal-500"
                                                                 }`}
                                                         />
                                                     );
@@ -839,6 +837,7 @@ const Calender = () => {
                         )}
                     </tbody>
                 </table>
+                )}
             </div>
 
 

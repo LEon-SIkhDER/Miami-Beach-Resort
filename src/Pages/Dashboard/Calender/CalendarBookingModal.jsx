@@ -346,6 +346,30 @@ const CalendarBookingModal = ({
             return
         }
 
+        // Validate stay dates for each category block
+        for (let i = 0; i < categoryBlocks.length; i++) {
+            const b = categoryBlocks[i]
+            if (!b.checkInDate || !b.checkOutDate || b.checkInDate >= b.checkOutDate) {
+                toast.error(`Invalid stay dates for ${b.categoryName || `Category ${i + 1}`}. Check-out must be after check-in.`)
+                return
+            }
+        }
+
+        // Validate duplicate category blocks with identical stay dates
+        const seenCategoryDates = new Set()
+        for (const block of categoryBlocks) {
+            const catId = String(block.categoryId || "")
+            const inDate = formatLocalDate(block.checkInDate)
+            const outDate = formatLocalDate(block.checkOutDate)
+            const key = `${catId}_${inDate}_${outDate}`
+
+            if (seenCategoryDates.has(key)) {
+                toast.error(`Duplicate category: "${block.categoryName || 'This category'}" has identical Check-In and Check-Out dates in multiple sections. Please select multiple rooms under a single category section instead.`)
+                return
+            }
+            seenCategoryDates.add(key)
+        }
+
         // Validate stay dates and conflicts for all checked rooms
         for (let i = 0; i < flatBookedRooms.length; i++) {
             const r = flatBookedRooms[i]
@@ -369,8 +393,8 @@ const CalendarBookingModal = ({
             }
         }
 
-        // Adult value required for payment_waiting and booking_confirmed
-        if (targetStatus === "payment_waiting" || targetStatus === "booking_confirmed") {
+        // Adult value required for booking_confirmed
+        if (targetStatus === "booking_confirmed") {
             const missingAdults = flatBookedRooms.find(r => !r.adults || Number(r.adults) <= 0)
             if (missingAdults) {
                 toast.error(`Adult guest count is required for Room ${missingAdults.roomNo || ''}.`)
@@ -415,7 +439,6 @@ const CalendarBookingModal = ({
         setSubmittingStatus(targetStatus)
         const loadingLabels = {
             request_booking: "Saving as Request Booking...",
-            payment_waiting: "Creating reservation as Payment Waiting...",
             booking_confirmed: "Confirming reservation..."
         }
         const toastId = toast.loading(loadingLabels[targetStatus] || "Processing reservation...")
@@ -471,7 +494,6 @@ const CalendarBookingModal = ({
             if (res.data) {
                 const successLabels = {
                     request_booking: "Saved as Request Booking! 📋",
-                    payment_waiting: "Reservation set to Payment Waiting! ⏳",
                     booking_confirmed: "Reservation confirmed successfully! 🎉"
                 }
                 toast.success(successLabels[targetStatus] || "Reservation saved successfully!", { id: toastId })
@@ -673,7 +695,7 @@ const CalendarBookingModal = ({
                                         {/* Row 1: Category Selector, Stay Dates & Negotiated Price */}
                                         <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
                                             {/* Category Selector (Dropdown only for additional blocks) */}
-                                            <div className="form-control sm:col-span-3">
+                                            <div className="form-control sm:col-span-6">
                                                 <label className="label py-0.5">
                                                     <span className="label-text font-semibold text-slate-700 text-xs">Category Type</span>
                                                 </label>
@@ -750,28 +772,7 @@ const CalendarBookingModal = ({
                                                 />
                                             </div>
 
-                                            {/* Negotiate Price Field */}
-                                            <div className="form-control sm:col-span-3">
-                                                <label className="label py-0.5">
-                                                    <span className="label-text font-bold text-slate-800 text-xs flex items-center justify-between">
-                                                        <span>Negotiate Price (৳)</span>
-                                                        {block.negotiatedPrice !== undefined && Number(block.negotiatedPrice) !== defaultCatPrice && (
-                                                            <span className="text-[10px] text-teal-700 font-bold">Custom</span>
-                                                        )}
-                                                    </span>
-                                                </label>
-                                                <input
-                                                    type="number"
-                                                    min="0"
-                                                    value={block.negotiatedPrice !== undefined ? block.negotiatedPrice : defaultCatPrice}
-                                                    onChange={e => handleCategoryBlockChange(block.blockId, { negotiatedPrice: e.target.value })}
-                                                    placeholder={String(defaultCatPrice)}
-                                                    className="input input-sm input-bordered rounded-xl bg-white text-xs font-bold text-teal-900"
-                                                />
-                                                <span className="text-[10px] text-slate-400 mt-0.5">
-                                                    Default: ৳{defaultCatPrice.toLocaleString()}/n
-                                                </span>
-                                            </div>
+
                                         </div>
 
                                         {/* Row 2: Guests Per Room & Duration/Subtotal Breakdown */}
@@ -804,9 +805,32 @@ const CalendarBookingModal = ({
                                                 />
                                             </div>
 
-                                            <div className="sm:col-span-2 flex items-end">
+                                            {/* Negotiate Price Field */}
+                                            <div className="form-control ">
+                                                <label className="label py-0.5">
+                                                    <span className="label-text font-bold text-slate-800 text-xs flex items-center justify-between">
+                                                        <span>Negotiate Price (৳)</span>
+                                                        {block.negotiatedPrice !== undefined && Number(block.negotiatedPrice) !== defaultCatPrice && (
+                                                            <span className="text-[10px] text-teal-700 font-bold">Custom</span>
+                                                        )}
+                                                    </span>
+                                                </label>
+                                                <input
+                                                    type="number"
+                                                    min="0"
+                                                    value={block.negotiatedPrice !== undefined ? block.negotiatedPrice : defaultCatPrice}
+                                                    onChange={e => handleCategoryBlockChange(block.blockId, { negotiatedPrice: e.target.value })}
+                                                    placeholder={String(defaultCatPrice)}
+                                                    className="input input-sm input-bordered rounded-xl bg-white text-xs font-bold text-teal-900"
+                                                />
+                                                <span className="text-[10px] text-slate-400 mt-0.5">
+                                                    Default: ৳{defaultCatPrice.toLocaleString()}/n
+                                                </span>
+                                            </div>
+
+                                            <div className="">
+                                                <span className='text-[11px]'>Duration: <strong>{nights} night(s)</strong></span>
                                                 <div className="text-[11px] text-slate-600 bg-white p-2 rounded-xl border border-slate-200 w-full flex justify-between items-center">
-                                                    <span>Duration: <strong>{nights} night(s)</strong></span>
                                                     <span>Category Total: <strong className="text-teal-800">৳{Number(effectivePricePerNight * nights * checkedCount).toLocaleString()}</strong></span>
                                                 </div>
                                             </div>
@@ -839,13 +863,12 @@ const CalendarBookingModal = ({
                                                         return (
                                                             <label
                                                                 key={cleanNum}
-                                                                className={`relative flex items-center justify-between p-2.5 rounded-xl border cursor-pointer select-none transition-all ${
-                                                                    isChecked
-                                                                        ? "bg-[#0f766e] text-white border-[#0f766e] shadow-xs ring-2 ring-teal-500/30 font-bold"
-                                                                        : isDisabled
+                                                                className={`relative flex items-center justify-between p-2.5 rounded-xl border cursor-pointer select-none transition-all ${isChecked
+                                                                    ? "bg-[#0f766e] text-white border-[#0f766e] shadow-xs ring-2 ring-teal-500/30 font-bold"
+                                                                    : isDisabled
                                                                         ? "bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed opacity-60"
                                                                         : "bg-white text-slate-800 border-slate-200 hover:border-teal-400 hover:bg-teal-50/40"
-                                                                }`}
+                                                                    }`}
                                                             >
                                                                 <div className="flex items-center gap-2">
                                                                     <input
@@ -861,9 +884,8 @@ const CalendarBookingModal = ({
                                                                 </div>
 
                                                                 {conflict.disabled && !isChecked && (
-                                                                    <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${
-                                                                        conflict.reason === "Out of Order" ? "bg-amber-100 text-amber-900" : "bg-rose-100 text-rose-900"
-                                                                    }`}>
+                                                                    <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${conflict.reason === "Out of Order" ? "bg-amber-100 text-amber-900" : "bg-rose-100 text-rose-900"
+                                                                        }`}>
                                                                         {conflict.reason === "Out of Order" ? "OOO" : "Busy"}
                                                                     </span>
                                                                 )}
@@ -1133,22 +1155,7 @@ const CalendarBookingModal = ({
                             <span>Request Booking</span>
                         </button>
 
-                        {/* Button 2: Set to Payment Waiting */}
-                        <button
-                            type="button"
-                            onClick={() => handleSubmit("payment_waiting")}
-                            disabled={submittingStatus !== null || flatBookedRooms.length === 0}
-                            className="btn btn-sm bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl px-3 shadow-xs border-none disabled:opacity-50"
-                        >
-                            {submittingStatus === "payment_waiting" ? (
-                                <span className="loading loading-spinner loading-xs" />
-                            ) : (
-                                <CreditCard size={14} />
-                            )}
-                            <span>Payment Waiting</span>
-                        </button>
-
-                        {/* Button 3: Booking Confirmed (Staff only) */}
+                        {/* Button 2: Booking Confirmed (Staff only) */}
                         {role !== "b2b" && (
                             <button
                                 type="button"

@@ -18,7 +18,6 @@ import {
     Eye,
     MapPin,
     EllipsisVertical,
-    CreditCard,
     CheckCircle2,
     LogIn,
     LogOut,
@@ -30,16 +29,17 @@ import {
     UserCheck,
     Globe,
     User,
-    Filter
+    Filter,
+    Printer
 } from 'lucide-react'
 import { formatDate, getBookingDateSummary, getBookingGuestTotals, getBookingRooms, getBookingTotal, getRoomName } from '../../../utils/bookingUtils'
 import ConfirmBookingModal from './ConfirmBookingModal'
 import EditBookingModal from './EditBookingModal'
 import CancelBookingModal from './CancelBookingModal'
+import ReservationVoucherModal from '../Calender/ReservationVoucherModal'
 
 const BOOKING_STATUS = {
     REQUEST_BOOKING: "request_booking",
-    PAYMENT_WAITING: "payment_waiting",
     BOOKING_CONFIRMED: "booking_confirmed",
     CHECKED_IN: "checked_id",
     CHECKED_OUT: "checked_out",
@@ -48,7 +48,6 @@ const BOOKING_STATUS = {
 
 const STATUS_OPTIONS = [
     { value: BOOKING_STATUS.REQUEST_BOOKING, label: "Request Booking" },
-    { value: BOOKING_STATUS.PAYMENT_WAITING, label: "Payment Waiting" },
     { value: BOOKING_STATUS.BOOKING_CONFIRMED, label: "Booking Confirmed" },
     { value: BOOKING_STATUS.CHECKED_IN, label: "Checked In" },
     { value: BOOKING_STATUS.CHECKED_OUT, label: "Checked Out" },
@@ -87,6 +86,7 @@ const Bookings = () => {
     const [confirmModalData, setConfirmModalData] = useState(null) // { booking, targetStatus }
     const [editModalBooking, setEditModalBooking] = useState(null)
     const [cancelModalBooking, setCancelModalBooking] = useState(null)
+    const [voucherBooking, setVoucherBooking] = useState(null)
 
     const isStaff = ["admin", "manager", "agent"].includes(role)
     const canEdit = ["admin", "manager", "agent"].includes(role)
@@ -162,8 +162,8 @@ const Bookings = () => {
     })
 
     const handleStatusChange = (booking, status) => {
-        // Payment Waiting or Booking Confirmed opens the interactive modal
-        if (status === BOOKING_STATUS.PAYMENT_WAITING || status === BOOKING_STATUS.BOOKING_CONFIRMED) {
+        // Booking Confirmed opens the interactive modal
+        if (status === BOOKING_STATUS.BOOKING_CONFIRMED) {
             setConfirmModalData({ booking, targetStatus: status })
             return
         }
@@ -226,8 +226,6 @@ const Bookings = () => {
         const baseClass = "inline-flex items-center gap-1 px-2.5 py-0.5 text-xs font-semibold border whitespace-nowrap"
 
         switch (status) {
-            case BOOKING_STATUS.PAYMENT_WAITING:
-                return <span className={`${baseClass} bg-rose-50 text-rose-700 border-rose-200 rounded-full`}><CreditCard size={12} /> Payment Waiting</span>
             case BOOKING_STATUS.BOOKING_CONFIRMED:
                 return <span className={`${baseClass} bg-emerald-50 text-emerald-700 border-emerald-200 rounded-full`}><CheckCircle2 size={12} /> Booking Confirmed</span>
             case BOOKING_STATUS.CHECKED_IN:
@@ -243,16 +241,11 @@ const Bookings = () => {
 
     const getStatusActions = (booking) => {
         if (role === "b2b") {
-            if (booking.status === BOOKING_STATUS.REQUEST_BOOKING) {
-                return [BOOKING_STATUS.PAYMENT_WAITING]
-            }
             return []
         }
 
         switch (booking.status) {
             case BOOKING_STATUS.REQUEST_BOOKING:
-                return [BOOKING_STATUS.PAYMENT_WAITING, BOOKING_STATUS.CANCEL]
-            case BOOKING_STATUS.PAYMENT_WAITING:
                 return [BOOKING_STATUS.BOOKING_CONFIRMED, BOOKING_STATUS.CANCEL]
             case BOOKING_STATUS.BOOKING_CONFIRMED:
                 return [BOOKING_STATUS.CHECKED_IN, BOOKING_STATUS.CANCEL]
@@ -389,7 +382,7 @@ const Bookings = () => {
                             <th className="whitespace-nowrap">Stay Dates</th>
                             <th className="whitespace-nowrap">Total Bill</th>
                             <th className="whitespace-nowrap">Status</th>
-                            <th className="text-center whitespace-nowrap min-w-[90px]">Actions</th>
+                            <th className="text-center whitespace-nowrap min-w-[140px]">Actions</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 text-sm">
@@ -492,16 +485,36 @@ const Bookings = () => {
 
                                     {/* Actions */}
                                     <td className="text-center whitespace-nowrap">
-                                        <div className="dropdown dropdown-end">
-                                            <div tabIndex={-1} role="button" className="btn btn-ghost btn-xs btn-circle text-slate-500 hover:text-slate-900">
-                                                <EllipsisVertical size={18} />
-                                            </div>
-                                            <ul tabIndex={-1} className="dropdown-content menu bg-base-100 rounded-box z-10 w-56 p-2 shadow-lg border border-slate-100">
-                                                <li>
-                                                    <Link to={`/dashboard/bookings/${b._id}`} className="text-slate-600 hover:text-teal-700 hover:bg-teal-50">
-                                                        <Eye size={15} /> View Details
-                                                    </Link>
-                                                </li>
+                                        <div className="flex items-center justify-center gap-1.5">
+                                            {/* <button
+                                                type="button"
+                                                onClick={() => setVoucherBooking(b)}
+                                                className="btn btn-xs bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200/60 rounded-lg gap-1 font-bold"
+                                                title="Print Invoice / Reservation Letter"
+                                            >
+                                                <Printer size={13} />
+                                                <span>Print Invoice</span>
+                                            </button> */}
+
+                                            <div className="dropdown dropdown-end">
+                                                <div tabIndex={-1} role="button" className="btn btn-ghost btn-xs btn-circle text-slate-500 hover:text-slate-900">
+                                                    <EllipsisVertical size={18} />
+                                                </div>
+                                                <ul tabIndex={-1} className="dropdown-content menu bg-base-100 rounded-box z-10 w-56 p-2 shadow-lg border border-slate-100">
+                                                    <li>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setVoucherBooking(b)}
+                                                            className="text-slate-600 hover:text-teal-700 hover:bg-teal-50"
+                                                        >
+                                                            <Printer size={15} /> Print Invoice
+                                                        </button>
+                                                    </li>
+                                                    <li>
+                                                        <Link to={`/dashboard/bookings/${b._id}`} className="text-slate-600 hover:text-teal-700 hover:bg-teal-50">
+                                                            <Eye size={15} /> View Details
+                                                        </Link>
+                                                    </li>
                                                 {canEdit && (
                                                     <li>
                                                         <button 
@@ -518,7 +531,7 @@ const Bookings = () => {
                                                         <button
                                                             type="button"
                                                             onClick={() => handleStatusChange(b, status)}
-                                                            className={status === BOOKING_STATUS.CANCEL ? "text-rose-600 hover:bg-rose-50" : status === BOOKING_STATUS.BOOKING_CONFIRMED ? "text-emerald-700 hover:bg-emerald-50 font-semibold" : status === BOOKING_STATUS.PAYMENT_WAITING ? "text-rose-700 hover:bg-rose-50 font-semibold" : "text-slate-600 hover:text-teal-700 hover:bg-teal-50"}
+                                                            className={status === BOOKING_STATUS.CANCEL ? "text-rose-600 hover:bg-rose-50" : status === BOOKING_STATUS.BOOKING_CONFIRMED ? "text-emerald-700 hover:bg-emerald-50 font-semibold" : "text-slate-600 hover:text-teal-700 hover:bg-teal-50"}
                                                         >
                                                             {status === BOOKING_STATUS.CANCEL ? <XCircle size={15} /> : <CheckCircle2 size={15} />}
                                                             {statusText(status)}
@@ -532,7 +545,8 @@ const Bookings = () => {
                                                         </button>
                                                     </li>
                                                 )}
-                                            </ul>
+                                                </ul>
+                                            </div>
                                         </div>
                                     </td>
                                 </tr>
@@ -598,13 +612,21 @@ const Bookings = () => {
                             </div>
 
                             <div className="flex items-center justify-between pt-1">
-                                <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-1.5 flex-wrap">
                                     <Link
                                         to={`/dashboard/bookings/${b._id}`}
                                         className="btn btn-sm btn-outline border-slate-300 text-slate-700 hover:bg-slate-50 rounded-xl gap-1"
                                     >
                                         <Eye size={15} /> Details
                                     </Link>
+                                    <button
+                                        type="button"
+                                        onClick={() => setVoucherBooking(b)}
+                                        className="btn btn-sm bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200/60 rounded-xl gap-1 font-semibold"
+                                        title="Print Invoice"
+                                    >
+                                        <Printer size={14} /> Invoice
+                                    </button>
                                     {canEdit && (
                                         <button
                                             type="button"
@@ -620,12 +642,21 @@ const Bookings = () => {
                                         <EllipsisVertical size={18} />
                                     </div>
                                     <ul tabIndex={-1} className="dropdown-content menu bg-base-100 rounded-box z-10 w-56 p-2 shadow-lg border border-slate-100">
+                                        <li>
+                                            <button
+                                                type="button"
+                                                onClick={() => setVoucherBooking(b)}
+                                                className="text-slate-600 hover:text-teal-700 hover:bg-teal-50"
+                                            >
+                                                <Printer size={15} /> Print Invoice
+                                            </button>
+                                        </li>
                                         {getStatusActions(b).map(status => (
                                             <li key={status}>
                                                 <button
                                                     type="button"
                                                     onClick={() => handleStatusChange(b, status)}
-                                                    className={status === BOOKING_STATUS.CANCEL ? "text-rose-600 hover:bg-rose-50" : status === BOOKING_STATUS.BOOKING_CONFIRMED ? "text-emerald-700 hover:bg-emerald-50 font-semibold" : status === BOOKING_STATUS.PAYMENT_WAITING ? "text-rose-700 hover:bg-rose-50 font-semibold" : "text-slate-600 hover:text-teal-700 hover:bg-teal-50"}
+                                                    className={status === BOOKING_STATUS.CANCEL ? "text-rose-600 hover:bg-rose-50" : status === BOOKING_STATUS.BOOKING_CONFIRMED ? "text-emerald-700 hover:bg-emerald-50 font-semibold" : "text-slate-600 hover:text-teal-700 hover:bg-teal-50"}
                                                 >
                                                     {status === BOOKING_STATUS.CANCEL ? <XCircle size={15} /> : <CheckCircle2 size={15} />}
                                                     {statusText(status)}
@@ -647,7 +678,7 @@ const Bookings = () => {
                 )}
             </div>
 
-            {/* Payment Waiting / Confirm Booking Modal (createPortal) */}
+            {/* Confirm Booking Modal (createPortal) */}
             {confirmModalData && (
                 <ConfirmBookingModal
                     booking={confirmModalData.booking}
@@ -686,6 +717,16 @@ const Bookings = () => {
                     }}
                     currentUser={currentUser}
                     role={role}
+                />
+            )}
+
+            {/* Reservation Voucher / Printable Invoice Modal (createPortal) */}
+            {voucherBooking && (
+                <ReservationVoucherModal
+                    isOpen={!!voucherBooking}
+                    onClose={() => setVoucherBooking(null)}
+                    bookingId={voucherBooking._id}
+                    initialBooking={voucherBooking}
                 />
             )}
         </div>

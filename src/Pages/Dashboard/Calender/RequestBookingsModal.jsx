@@ -44,12 +44,6 @@ import CancelBookingModal from '../Bookings/CancelBookingModal'
 
 const getRequestBookingStatusBadge = (status) => {
     switch (status) {
-        case "payment_waiting":
-            return (
-                <span className="badge badge-md bg-rose-600 text-white font-bold border-none shadow-xs">
-                    <Clock size={12} className="mr-1" /> Payment Waiting
-                </span>
-            )
         case "booking_confirmed":
         case "confirmed":
             return (
@@ -394,19 +388,8 @@ const RequestBookingsModal = ({ isOpen, onClose, requestBookings = [], role, cur
                                                     </button>
                                                 )}
 
-                                                {/* Status Change Action 1: Payment Waiting (Only for request_booking) */}
-                                                {b.status === "request_booking" && (
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => setConfirmModalData({ booking: b, targetStatus: "payment_waiting" })}
-                                                        className="btn btn-xs bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl gap-1 shadow-xs border-none"
-                                                    >
-                                                        <Clock size={13} /> Payment Waiting
-                                                    </button>
-                                                )}
-
-                                                {/* Status Change Action 2: Confirm Booking (Staff only) */}
-                                                {!isB2B && (
+                                                {/* Status Change Action: Confirm Booking (Staff only) */}
+                                                {!isB2B && b.status === "request_booking" && (
                                                     <button
                                                         type="button"
                                                         onClick={() => setConfirmModalData({ booking: b, targetStatus: "booking_confirmed" })}

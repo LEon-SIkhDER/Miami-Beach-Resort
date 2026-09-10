@@ -589,7 +589,7 @@ const DashboardHome = () => {
 
     // Guest User Dashboard (regular users)
     const confirmed = userBookings.filter(b => b.status === "booking_confirmed" || b.status === "confirmed").length
-    const pending = userBookings.filter(b => b.status === "request_booking" || b.status === "payment_waiting" || b.status === "pending").length
+    const pending = userBookings.filter(b => b.status === "request_booking" || b.status === "pending").length
     const cancelled = userBookings.filter(b => b.status === "cancel" || b.status === "cancelled").length
 
     if (isPartnerStaff) {
@@ -826,7 +826,6 @@ const DashboardHome = () => {
                                         <span className={`badge badge-xs font-bold border-none ${
                                             sell.status === "booking_confirmed" || sell.status === "confirmed" ? "bg-[#5261d6] text-white" :
                                             sell.status === "checked_id" || sell.status === "checked_in" ? "bg-[#01966e] text-white" :
-                                            sell.status === "payment_waiting" ? "bg-rose-600 text-white" :
                                             sell.status === "request_booking" ? "bg-[#f59e0b] text-white" :
                                             "bg-slate-200 text-slate-700"
                                         }`}>

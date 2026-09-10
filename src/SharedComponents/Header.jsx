@@ -1,5 +1,6 @@
 import React, { useContext, useEffect, useRef, useState } from 'react'
-import { Link, useNavigate, useLocation } from 'react-router'
+import { Link, NavLink, useNavigate, useLocation } from 'react-router'
+import './header.css'
 import { AuthContext } from '../Context/AuthContext'
 import useRole from '../hooks/useRole'
 import { 
@@ -127,14 +128,21 @@ const Header = () => {
 
                 {/* Desktop Center Navigation */}
                 <nav className="hidden lg:flex items-center gap-8 text-xs font-semibold uppercase tracking-[0.18em] text-slate-200">
-                    <a 
-                        href="#rooms" 
-                        onClick={(e) => handleAnchorClick(e, 'rooms')}
+                    <NavLink 
+                        to="/" 
+                        end
+                        className="hover:text-[#dfc89e] transition-colors cursor-pointer py-1 relative group"
+                    >
+                         Home
+                        <span className="absolute bottom-0 left-0 w-0 h-[1.5px] bg-[#c5a880] transition-all duration-300 group-hover:w-full"></span>
+                    </NavLink>
+                    <NavLink 
+                        to="/rooms" 
                         className="hover:text-[#dfc89e] transition-colors cursor-pointer py-1 relative group"
                     >
                          Rooms
                         <span className="absolute bottom-0 left-0 w-0 h-[1.5px] bg-[#c5a880] transition-all duration-300 group-hover:w-full"></span>
-                    </a>
+                    </NavLink>
                     <a 
                         href="#services" 
                         onClick={(e) => handleAnchorClick(e, 'services')}
@@ -153,21 +161,22 @@ const Header = () => {
                     </a>
                     
                     {!isStaffRole && (
-                        <Link 
+                        <NavLink 
                             to="/my-bookings" 
-                            className="hover:text-[#dfc89e] text-[#dfc89e] transition-colors font-bold"
+                            className="hover:text-[#dfc89e] transition-colors cursor-pointer py-1 relative group"
                         >
                             My Bookings
-                        </Link>
+                            <span className="absolute bottom-0 left-0 w-0 h-[1.5px] bg-[#c5a880] transition-all duration-300 group-hover:w-full"></span>
+                        </NavLink>
                     )}
                     {user && isStaffRole && (
-                        <Link 
+                        <NavLink 
                             to="/dashboard" 
                             className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-[#c5a880]/20 hover:bg-[#c5a880]/30 text-[#f5ebd7] font-bold border border-[#c5a880]/40 transition-all text-[11px]"
                         >
                             <LayoutDashboard size={13} className="text-[#dfc89e]" />
                             <span>Dashboard</span>
-                        </Link>
+                        </NavLink>
                     )}
                 </nav>
 
@@ -318,9 +327,9 @@ const Header = () => {
                                         </Link>
                                     )}
 
-                                    <a 
-                                        href="#rooms" 
-                                        onClick={(e) => { setDropdownOpen(false); handleAnchorClick(e, 'rooms') }}
+                                    <Link 
+                                        to="/rooms" 
+                                        onClick={() => setDropdownOpen(false)}
                                         className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-200 hover:bg-white/10 hover:text-[#dfc89e] font-semibold transition-colors cursor-pointer"
                                     >
                                         <div className="w-8 h-8 rounded-lg bg-white/5 text-slate-300 flex items-center justify-center shrink-0">
@@ -328,9 +337,9 @@ const Header = () => {
                                         </div>
                                         <div>
                                             <p className="font-bold text-white text-xs">Explore Royal Suites</p>
-                                            <p className="text-[10px] text-slate-400">Choose luxury chambers</p>
+                                            <p className="text-[10px] text-slate-400">Choose luxury rooms & suites</p>
                                         </div>
-                                    </a>
+                                    </Link>
 
                                     <div className="my-1.5 border-t border-[#c5a880]/20"></div>
 
@@ -382,13 +391,21 @@ const Header = () => {
             {mobileNavOpen && (
                 <div className="lg:hidden bg-[#031d17] border-b border-[#c5a880]/30 px-6 py-5 space-y-4 animate-in slide-in-from-top-4 duration-200">
                     <nav className="flex flex-col space-y-3 text-sm font-semibold uppercase tracking-widest text-slate-200">
-                        <a 
-                            href="#rooms" 
-                            onClick={(e) => handleAnchorClick(e, 'rooms')}
+                        <NavLink 
+                            to="/" 
+                            end
+                            onClick={() => setMobileNavOpen(false)}
+                            className="py-2 border-b border-white/5 hover:text-[#dfc89e]"
+                        >
+                            Home
+                        </NavLink>
+                        <NavLink 
+                            to="/rooms" 
+                            onClick={() => setMobileNavOpen(false)}
                             className="py-2 border-b border-white/5 hover:text-[#dfc89e]"
                         >
                             Suites & Rooms
-                        </a>
+                        </NavLink>
                         <a 
                             href="#services" 
                             onClick={(e) => handleAnchorClick(e, 'services')}
@@ -405,23 +422,23 @@ const Header = () => {
                         </a>
 
                         {!isStaffRole && (
-                            <Link 
+                            <NavLink 
                                 to="/my-bookings" 
                                 onClick={() => setMobileNavOpen(false)}
-                                className="py-2 text-[#dfc89e] font-bold"
+                                className="py-2 border-b border-white/5 hover:text-[#dfc89e]"
                             >
                                 My Bookings
-                            </Link>
+                            </NavLink>
                         )}
                         {user && isStaffRole && (
-                            <Link 
+                            <NavLink 
                                 to="/dashboard" 
                                 onClick={() => setMobileNavOpen(false)}
                                 className="py-2 text-[#dfc89e] font-bold flex items-center gap-2"
                             >
                                 <LayoutDashboard size={16} />
                                 <span>Go to Dashboard</span>
-                            </Link>
+                            </NavLink>
                         )}
                     </nav>
 

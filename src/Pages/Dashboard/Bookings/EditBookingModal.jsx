@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext } from 'react'
+import React, { useState, useEffect, useContext, useMemo } from 'react'
 import { createPortal } from 'react-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { AuthContext } from '../../../Context/AuthContext'
@@ -22,7 +22,8 @@ import {
     CheckCircle2,
     Receipt,
     UserCheck,
-    FileText
+    FileText,
+    CheckSquare
 } from 'lucide-react'
 import { getBookingRooms, getBookingTotal } from '../../../utils/bookingUtils'
 
@@ -44,11 +45,10 @@ const parseLocalDate = (str) => {
 
 const STATUS_OPTIONS = [
     { value: "request_booking", label: "Request Booking" },
-    { value: "payment_waiting", label: "Payment Waiting" },
     { value: "booking_confirmed", label: "Booking Confirmed" },
     { value: "checked_id", label: "Checked In" },
     { value: "checked_out", label: "Checked Out" },
-    { value: "cancel", label: "Cancel" }
+    { value: "cancel", label: "Cancelled" }
 ]
 
 const EditBookingModal = ({ booking, isOpen, onClose, onSuccess }) => {
@@ -70,7 +70,7 @@ const EditBookingModal = ({ booking, isOpen, onClose, onSuccess }) => {
     const [paidAmount, setPaidAmount] = useState('')
     const [advanceAmount, setAdvanceAmount] = useState(0)
     const [notes, setNotes] = useState('')
-    const [rooms, setRooms] = useState([])
+    const [categoryBlocks, setCategoryBlocks] = useState([])
 
     // Fetch all categories for room assignment & pricing
     const { data: categories = [] } = useQuery({
@@ -124,25 +124,19 @@ const EditBookingModal = ({ booking, isOpen, onClose, onSuccess }) => {
         })
     }
 
-    // Helper: Validate room assignment conflicts in Edit Modal
-    const isRoomNoOccupied = (roomNo, checkInDate, checkOutDate, currentBookingId, currentRoomIndex) => {
-        if (!roomNo || !checkInDate || !checkOutDate) return false
-        const checkIn = formatLocalDate(checkInDate)
-        const checkOut = formatLocalDate(checkOutDate)
+    // Check conflict for a physical room number within a category block
+    const getRoomConflictInfo = (roomNo, block) => {
+        const checkIn = formatLocalDate(block.checkInDate)
+        const checkOut = formatLocalDate(block.checkOutDate)
+        if (!roomNo || !checkIn || !checkOut) return { disabled: false, reason: "" }
 
-        // 1. Check against other rooms in the SAME edit modal form
-        const assignedInSameForm = rooms.some((r, idx) => {
-            if (idx === currentRoomIndex) return false
-            if (!r.roomNo || !r.checkInDate || !r.checkOutDate) return false
-            const rIn = formatLocalDate(r.checkInDate)
-            const rOut = formatLocalDate(r.checkOutDate)
-            return String(r.roomNo).trim() === String(roomNo).trim() && rIn < checkOut && rOut > checkIn
-        })
-        if (assignedInSameForm) return true
+        if (isRoomOutOfOrder(roomNo, block.checkInDate, block.checkOutDate)) {
+            return { disabled: true, reason: "Out of Order" }
+        }
 
-        // 2. Check against other confirmed/active reservations in database
-        return activeBookings.some(b => {
-            if (String(b._id) === String(currentBookingId) || String(b.bookingId) === String(currentBookingId)) return false
+        // Check against other confirmed/active bookings in db (ignore current booking)
+        const isOccupiedOther = activeBookings.some(b => {
+            if (String(b._id) === String(booking?._id) || String(b.bookingId) === String(booking?.bookingId)) return false
             if (["cancel", "cancelled", "checked_out"].includes(b.status)) return false
 
             const otherRooms = getBookingRooms(b)
@@ -151,6 +145,23 @@ const EditBookingModal = ({ booking, isOpen, onClose, onSuccess }) => {
                 return String(r.roomNo).trim() === String(roomNo).trim() && r.checkIn < checkOut && r.checkOut > checkIn
             })
         })
+        if (isOccupiedOther) {
+            return { disabled: true, reason: "Occupied" }
+        }
+
+        // Check if room is already selected in another category block with overlapping stay dates
+        const selectedInOther = categoryBlocks.some(b => {
+            if (b.blockId === block.blockId) return false
+            const bIn = formatLocalDate(b.checkInDate)
+            const bOut = formatLocalDate(b.checkOutDate)
+            const isSelected = Array.isArray(b.selectedRooms) && b.selectedRooms.includes(String(roomNo).trim())
+            return isSelected && bIn < checkOut && bOut > checkIn
+        })
+        if (selectedInOther) {
+            return { disabled: true, reason: "Selected elsewhere" }
+        }
+
+        return { disabled: false, reason: "" }
     }
 
     useEffect(() => {
@@ -160,28 +171,67 @@ const EditBookingModal = ({ booking, isOpen, onClose, onSuccess }) => {
             setAddress(booking.address || '')
             setUserEmail(booking.userEmail || booking.email || '')
             setStatus(booking.status || 'request_booking')
-            const existingMethod = booking.paymentMethod || 
-                booking.paymentHistory?.[0]?.paymentMethod || 
+            const existingMethod = booking.paymentMethod ||
+                booking.paymentHistory?.[0]?.paymentMethod ||
                 booking.paymentHistory?.find(p => p.paymentMethod)?.paymentMethod || ''
             setPaymentMethod(existingMethod)
-            const existingTrxId = booking.transactionId || 
-                booking.paymentHistory?.[0]?.transactionId || 
+            const existingTrxId = booking.transactionId ||
+                booking.paymentHistory?.[0]?.transactionId ||
                 booking.paymentHistory?.find(p => p.transactionId)?.transactionId || ''
             setTransactionId(existingTrxId)
             setReference(booking.reference || '')
             setNotes(booking.notes || '')
-            
+
             const rawRooms = getBookingRooms(booking)
-            setRooms(rawRooms.map(r => ({
-                ...r,
-                checkInDate: parseLocalDate(r.checkIn),
-                checkOutDate: parseLocalDate(r.checkOut),
-                adults: r.adults !== undefined && r.adults !== null && r.adults !== '' ? r.adults : '',
-                babies: Number(r.children !== undefined ? r.children : (r.babies || 0)),
-                children: Number(r.children !== undefined ? r.children : (r.babies || 0)),
-                pricePerNight: Number(r.pricePerNight || 0),
-                roomNo: r.roomNo || ''
-            })))
+            const blockMap = new Map()
+
+            rawRooms.forEach((r, idx) => {
+                const catId = String(r.categoryId || r.roomId || '')
+                const checkInStr = r.checkIn ? formatLocalDate(parseLocalDate(r.checkIn)) : ''
+                const checkOutStr = r.checkOut ? formatLocalDate(parseLocalDate(r.checkOut)) : ''
+                const key = `${catId}_${checkInStr}_${checkOutStr}`
+
+                const cat = categories.find(c => String(c._id) === catId) || categories.find(c => c.name === r.categoryName)
+                const cleanRoomNo = r.roomNo ? String(r.roomNo).trim() : ''
+
+                if (!blockMap.has(key)) {
+                    blockMap.set(key, {
+                        blockId: `cat-block-${idx + 1}-${Date.now()}`,
+                        categoryId: cat?._id || catId || (categories[0]?._id || ''),
+                        categoryName: cat?.name || r.categoryName || 'Category',
+                        checkInDate: parseLocalDate(r.checkIn) || new Date(),
+                        checkOutDate: parseLocalDate(r.checkOut) || addDays(new Date(), 1),
+                        negotiatedPrice: r.pricePerNight !== undefined ? Number(r.pricePerNight) : Number(cat?.price || 0),
+                        adults: r.adults !== undefined && r.adults !== null && r.adults !== '' ? r.adults : '',
+                        children: Number(r.children !== undefined ? r.children : (r.babies || 0)),
+                        selectedRooms: cleanRoomNo ? [cleanRoomNo] : [],
+                        isInitial: idx === 0
+                    })
+                } else {
+                    const existing = blockMap.get(key)
+                    if (cleanRoomNo && !existing.selectedRooms.includes(cleanRoomNo)) {
+                        existing.selectedRooms.push(cleanRoomNo)
+                    }
+                }
+            })
+
+            let initialBlocks = Array.from(blockMap.values())
+            if (initialBlocks.length === 0) {
+                const defaultCat = categories[0]
+                initialBlocks = [{
+                    blockId: `cat-block-1-${Date.now()}`,
+                    categoryId: defaultCat?._id || '',
+                    categoryName: defaultCat?.name || 'Category',
+                    checkInDate: new Date(),
+                    checkOutDate: addDays(new Date(), 1),
+                    negotiatedPrice: Number(defaultCat?.price || 0),
+                    adults: '',
+                    children: '',
+                    selectedRooms: [],
+                    isInitial: true
+                }]
+            }
+            setCategoryBlocks(initialBlocks)
 
             const initialPaid = booking.paidAmount !== undefined ? booking.paidAmount : (booking.advanceAmount || 0)
             setPaidAmount(initialPaid !== undefined && initialPaid > 0 ? String(initialPaid) : '')
@@ -189,68 +239,131 @@ const EditBookingModal = ({ booking, isOpen, onClose, onSuccess }) => {
             setExtraServiceCost(booking.extraServiceCost ? String(booking.extraServiceCost) : '')
             setAdvanceAmount(booking.advanceAmount || 0)
         }
-    }, [booking, isOpen])
+    }, [booking, isOpen, categories])
+
+    // Flatten all checked rooms across category blocks
+    const flatBookedRooms = useMemo(() => {
+        const result = []
+        categoryBlocks.forEach((block) => {
+            const cat = categories.find(c => String(c._id) === String(block.categoryId))
+            const defaultPrice = Number(cat?.price || 0)
+            const pricePerNight = block.negotiatedPrice !== undefined && block.negotiatedPrice !== ''
+                ? Math.max(0, Number(block.negotiatedPrice))
+                : defaultPrice
+            const nights = Math.max(1, Math.ceil((new Date(block.checkOutDate) - new Date(block.checkInDate)) / (1000 * 60 * 60 * 24)))
+            const selected = Array.isArray(block.selectedRooms) ? block.selectedRooms : []
+
+            if (selected.length === 0) {
+                // If no physical room numbers checked, retain 1 unassigned placeholder entry for this category
+                result.push({
+                    blockId: block.blockId,
+                    itemId: `${block.blockId}-unassigned`,
+                    categoryId: block.categoryId,
+                    categoryName: cat?.name || block.categoryName || "Category",
+                    roomNo: "",
+                    checkInDate: block.checkInDate,
+                    checkOutDate: block.checkOutDate,
+                    adults: block.adults !== '' && block.adults !== undefined ? Number(block.adults) : 0,
+                    children: block.children !== '' && block.children !== undefined ? Number(block.children) : 0,
+                    babies: block.children !== '' && block.children !== undefined ? Number(block.children) : 0,
+                    pricePerNight: pricePerNight,
+                    nights: nights
+                })
+            } else {
+                selected.forEach((roomNo) => {
+                    result.push({
+                        blockId: block.blockId,
+                        itemId: `${block.blockId}-${roomNo}`,
+                        categoryId: block.categoryId,
+                        categoryName: cat?.name || block.categoryName || "Category",
+                        roomNo: String(roomNo).trim(),
+                        checkInDate: block.checkInDate,
+                        checkOutDate: block.checkOutDate,
+                        adults: block.adults !== '' && block.adults !== undefined ? Number(block.adults) : 0,
+                        children: block.children !== '' && block.children !== undefined ? Number(block.children) : 0,
+                        babies: block.children !== '' && block.children !== undefined ? Number(block.children) : 0,
+                        pricePerNight: pricePerNight,
+                        nights: nights
+                    })
+                })
+            }
+        })
+        return result
+    }, [categoryBlocks, categories])
 
     if (!isOpen || !booking) return null
 
     const extraCost = extraServiceCost !== '' ? Math.max(0, Number(extraServiceCost)) : 0
-    const roomSubtotal = rooms.reduce((sum, r) => {
-        if (!r.checkInDate || !r.checkOutDate) return sum
-        const nights = Math.ceil((r.checkOutDate - r.checkInDate) / (1000 * 60 * 60 * 24))
-        return sum + (nights > 0 ? nights * Number(r.pricePerNight || 0) : 0)
+    const roomSubtotal = flatBookedRooms.reduce((sum, r) => {
+        return sum + (r.nights * r.pricePerNight)
     }, 0)
     const standardTotal = roomSubtotal + extraCost
     const netPayable = standardTotal
     const effectivePaid = paidAmount !== '' ? Number(paidAmount) : 0
     const dueAmount = Math.max(0, netPayable - effectivePaid)
 
-    const handleRoomChange = (index, changes) => {
-        setRooms(prev => prev.map((r, idx) => {
-            if (idx !== index) return r
-            const updated = { ...r, ...changes }
-            if (changes.categoryId) {
-                const cat = categories.find(c => String(c._id) === String(changes.categoryId))
-                if (cat) {
-                    updated.categoryName = cat.name
-                    updated.pricePerNight = Number(cat.price || updated.pricePerNight)
-                }
-                // Reset room number — it belongs to the old category and is invalid for the new one
-                updated.roomNo = ""
-            }
-            if (changes.checkInDate && updated.checkOutDate && changes.checkInDate >= updated.checkOutDate) {
-                updated.checkOutDate = addDays(changes.checkInDate, 1)
-            }
-            return updated
+    // Toggle physical room checkbox selection
+    const handleToggleRoom = (blockId, roomNo) => {
+        const cleanNo = String(roomNo).trim()
+        setCategoryBlocks(prev => prev.map(block => {
+            if (block.blockId !== blockId) return block
+            const currentSelected = Array.isArray(block.selectedRooms) ? block.selectedRooms : []
+            const isChecked = currentSelected.includes(cleanNo)
+            const nextSelected = isChecked
+                ? currentSelected.filter(r => r !== cleanNo)
+                : [...currentSelected, cleanNo]
+            return { ...block, selectedRooms: nextSelected }
         }))
     }
 
-    const handleAddRoom = () => {
-        const firstRoomCat = categories.find(c => String(c._id) === String(rooms[0]?.categoryId)) || categories[0]
-        const defaultCat = firstRoomCat || categories[0]
-        const checkIn = rooms[0]?.checkInDate || new Date()
-        const checkOut = rooms[0]?.checkOutDate || addDays(new Date(), 1)
-        const nights = Math.max(1, Math.ceil((new Date(checkOut) - new Date(checkIn)) / (1000 * 60 * 60 * 24)))
-        const pricePerNight = Number(defaultCat?.price || 0)
-        const newRoomPrice = pricePerNight * nights
+    // Add another category block
+    const handleAddCategory = () => {
+        const usedCategoryIds = new Set(categoryBlocks.map(b => String(b.categoryId)))
+        const nextAvailableCat = categories.find(c => !usedCategoryIds.has(String(c._id))) || categories[0]
+        const firstBlock = categoryBlocks[0]
+        const checkIn = firstBlock?.checkInDate || new Date()
+        const checkOut = firstBlock?.checkOutDate || addDays(new Date(checkIn), 1)
+        const defaultPrice = Number(nextAvailableCat?.price || 0)
 
-        setRooms(prev => [...prev, {
-            roomId: defaultCat?._id || "",
-            categoryId: defaultCat?._id || "",
-            categoryName: defaultCat?.name || "Suite",
-            roomNo: "",
-            checkInDate: checkIn,
-            checkOutDate: checkOut,
+        const newBlock = {
+            blockId: `cat-block-${Date.now()}-${categoryBlocks.length + 1}`,
+            categoryId: nextAvailableCat?._id || "",
+            categoryName: nextAvailableCat?.name || "Suite",
+            checkInDate: new Date(checkIn),
+            checkOutDate: new Date(checkOut),
+            negotiatedPrice: defaultPrice,
             adults: '',
-            babies: 0,
-            children: 0,
-            pricePerNight: pricePerNight
-        }])
-        toast.success(`Added ${defaultCat?.name || 'Room'} (+৳${newRoomPrice.toLocaleString()})`)
+            children: '',
+            selectedRooms: [],
+            isInitial: false
+        }
+
+        setCategoryBlocks(prev => [...prev, newBlock])
+        toast.success(`Added ${nextAvailableCat?.name || "Category"} section. Check the room numbers to book.`)
     }
 
-    const handleRemoveRoom = (index) => {
-        if (rooms.length <= 1) return
-        setRooms(prev => prev.filter((_, idx) => idx !== index))
+    // Remove a category block
+    const handleRemoveCategory = (blockId) => {
+        if (categoryBlocks.length <= 1) return
+        setCategoryBlocks(prev => prev.filter(b => b.blockId !== blockId))
+    }
+
+    // Update fields of a category block
+    const handleCategoryBlockChange = (blockId, changes) => {
+        setCategoryBlocks(prev => prev.map(block => {
+            if (block.blockId !== blockId) return block
+            const next = { ...block, ...changes }
+            if (changes.categoryId) {
+                const cat = categories.find(c => String(c._id) === String(changes.categoryId))
+                next.categoryName = cat?.name || ""
+                next.selectedRooms = []
+                next.negotiatedPrice = Number(cat?.price || next.negotiatedPrice || 0)
+            }
+            if (changes.checkInDate && next.checkOutDate && changes.checkInDate >= next.checkOutDate) {
+                next.checkOutDate = addDays(changes.checkInDate, 1)
+            }
+            return next
+        }))
     }
 
     const handleSubmit = async (e) => {
@@ -265,28 +378,42 @@ const EditBookingModal = ({ booking, isOpen, onClose, onSuccess }) => {
             return
         }
 
-        if (rooms.length === 0) {
-            toast.error("At least one room is required.")
+        if (categoryBlocks.length === 0 || flatBookedRooms.length === 0) {
+            toast.error("At least one room or category is required.")
             return
         }
 
         // Validate stay dates and conflicts
-        for (let i = 0; i < rooms.length; i++) {
-            const r = rooms[i]
-            if (!r.checkInDate || !r.checkOutDate || r.checkInDate >= r.checkOutDate) {
-                toast.error(`Invalid stay dates for Room ${r.roomNo || i + 1}. Check-out must be after check-in.`)
+        for (let i = 0; i < categoryBlocks.length; i++) {
+            const b = categoryBlocks[i]
+            if (!b.checkInDate || !b.checkOutDate || b.checkInDate >= b.checkOutDate) {
+                toast.error(`Invalid stay dates for ${b.categoryName || `Category ${i + 1}`}. Check-out must be after check-in.`)
                 return
             }
+        }
 
+        // Validate duplicate category blocks with identical stay dates
+        const seenCategoryDates = new Set()
+        for (const block of categoryBlocks) {
+            const catId = String(block.categoryId || "")
+            const inDate = formatLocalDate(block.checkInDate)
+            const outDate = formatLocalDate(block.checkOutDate)
+            const key = `${catId}_${inDate}_${outDate}`
+
+            if (seenCategoryDates.has(key)) {
+                toast.error(`Duplicate category: "${block.categoryName || 'This category'}" has identical Check-In and Check-Out dates in multiple sections. Please select multiple rooms under a single category section instead.`)
+                return
+            }
+            seenCategoryDates.add(key)
+        }
+
+        // Validate room conflicts
+        for (let i = 0; i < flatBookedRooms.length; i++) {
+            const r = flatBookedRooms[i]
             if (r.roomNo) {
-                const isOccupied = isRoomNoOccupied(r.roomNo, r.checkInDate, r.checkOutDate, booking._id, i)
-                const isOOO = isRoomOutOfOrder(r.roomNo, r.checkInDate, r.checkOutDate)
-                if (isOccupied) {
-                    toast.error(`Room ${r.roomNo} (Room ${i + 1}) is already occupied for the selected stay dates!`)
-                    return
-                }
-                if (isOOO) {
-                    toast.error(`Room ${r.roomNo} (Room ${i + 1}) is Out of Order for the selected stay dates!`)
+                const conflict = getRoomConflictInfo(r.roomNo, { blockId: r.blockId, checkInDate: r.checkInDate, checkOutDate: r.checkOutDate })
+                if (conflict.disabled) {
+                    toast.error(`Room ${r.roomNo} is unavailable (${conflict.reason}) for the selected stay dates!`)
                     return
                 }
             }
@@ -294,7 +421,7 @@ const EditBookingModal = ({ booking, isOpen, onClose, onSuccess }) => {
 
         // Require physical room number if advancing beyond request_booking
         if (status !== "request_booking" && status !== "cancel") {
-            const missingRoom = rooms.find(r => !r.roomNo || !String(r.roomNo).trim())
+            const missingRoom = flatBookedRooms.find(r => !r.roomNo || !String(r.roomNo).trim())
             if (missingRoom) {
                 toast.error("Please assign a physical room number for all rooms.")
                 return
@@ -304,7 +431,7 @@ const EditBookingModal = ({ booking, isOpen, onClose, onSuccess }) => {
         // If status is booking_confirmed, checked_id, checked_out:
         const isConfirmedStatus = ["booking_confirmed", "checked_id", "checked_in", "checked_out", "confirmed"].includes(status)
         if (isConfirmedStatus) {
-            const missingAdults = rooms.find(r => !r.adults || Number(r.adults) <= 0)
+            const missingAdults = flatBookedRooms.find(r => !r.adults || Number(r.adults) <= 0)
             if (missingAdults) {
                 toast.error(`Adult guest count is required for Room ${missingAdults.roomNo || ''} for confirmed reservations.`)
                 return
@@ -347,7 +474,7 @@ const EditBookingModal = ({ booking, isOpen, onClose, onSuccess }) => {
         const toastId = toast.loading("Updating reservation...")
 
         try {
-            const normalizedRooms = rooms.map(r => ({
+            const normalizedRooms = flatBookedRooms.map(r => ({
                 roomId: r.categoryId || r.roomId,
                 categoryId: r.categoryId || r.roomId,
                 categoryName: r.categoryName,
@@ -430,9 +557,9 @@ const EditBookingModal = ({ booking, isOpen, onClose, onSuccess }) => {
                             </p>
                         </div>
                     </div>
-                    <button 
-                        type="button" 
-                        onClick={onClose} 
+                    <button
+                        type="button"
+                        onClick={onClose}
                         className="btn btn-ghost btn-sm btn-circle text-slate-400 hover:text-slate-700"
                     >
                         <X size={18} />
@@ -524,68 +651,78 @@ const EditBookingModal = ({ booking, isOpen, onClose, onSuccess }) => {
                     <div className="space-y-4 pt-1">
                         <div className="flex items-center justify-between border-b border-slate-100 pb-1.5">
                             <h4 className="font-bold text-slate-900 uppercase tracking-wider text-xs flex items-center gap-1.5">
-                                <BedDouble size={14} className="text-teal-600" /> Booked Rooms ({rooms.length})
+                                <BedDouble size={14} className="text-teal-600" /> Booked Rooms ({flatBookedRooms.length})
                             </h4>
                             <button
                                 type="button"
-                                onClick={handleAddRoom}
+                                onClick={handleAddCategory}
                                 className="btn btn-xs btn-outline border-teal-600 text-teal-700 hover:bg-teal-50 rounded-xl gap-1 font-bold"
                             >
-                                <Plus size={13} /> Add Another Room
+                                <Plus size={13} /> Add Another Category
                             </button>
                         </div>
 
                         <div className="space-y-4">
-                            {rooms.map((room, index) => {
-                                const cat = categories.find(c => String(c._id) === String(room.categoryId))
+                            {categoryBlocks.map((block, index) => {
+                                const cat = categories.find(c => String(c._id) === String(block.categoryId))
                                 const availableRoomNumbers = Array.isArray(cat?.roomNumbers) ? cat.roomNumbers : []
-                                const nights = Math.max(1, Math.ceil((new Date(room.checkOutDate) - new Date(room.checkInDate)) / (1000 * 60 * 60 * 24)))
-                                const effectivePricePerNight = Number(room.pricePerNight || cat?.price || 0)
+                                const nights = Math.max(1, Math.ceil((new Date(block.checkOutDate) - new Date(block.checkInDate)) / (1000 * 60 * 60 * 24)))
                                 const defaultCatPrice = Number(cat?.price || 0)
+                                const effectivePricePerNight = block.negotiatedPrice !== undefined && block.negotiatedPrice !== ''
+                                    ? Math.max(0, Number(block.negotiatedPrice))
+                                    : defaultCatPrice
+                                const checkedCount = (block.selectedRooms || []).length
+                                const blockMultiplier = Math.max(1, checkedCount)
+                                const categoryTotal = effectivePricePerNight * nights * blockMultiplier
 
                                 return (
                                     <div
-                                        key={index}
+                                        key={block.blockId}
                                         className="p-4 sm:p-5 rounded-2xl bg-slate-50/90 border-2 border-slate-200/90 space-y-3.5 relative shadow-xs"
                                     >
-                                        {/* Room Card Header */}
+                                        {/* Category Card Header */}
                                         <div className="flex items-center justify-between pb-2 border-b border-slate-200">
                                             <div className="flex items-center gap-2">
                                                 <span className="badge badge-sm bg-teal-700 text-white font-bold">
-                                                    Room {index + 1}
+                                                    Category {index + 1}
                                                 </span>
                                                 <span className="font-bold text-slate-900 text-xs sm:text-sm">
-                                                    {cat?.name || "Choose Category"}
+                                                    {cat?.name || block.categoryName || "Choose Category"}
                                                 </span>
                                                 <span className="text-[11px] font-bold text-teal-800 bg-teal-100/80 px-2 py-0.5 rounded-md">
                                                     ৳{effectivePricePerNight.toLocaleString()}/night
                                                 </span>
+                                                {checkedCount > 0 && (
+                                                    <span className="badge badge-sm bg-teal-600 text-white font-semibold">
+                                                        {checkedCount} Room{checkedCount > 1 ? 's' : ''} Selected
+                                                    </span>
+                                                )}
                                             </div>
 
-                                            {rooms.length > 1 && (
+                                            {categoryBlocks.length > 1 && (
                                                 <button
                                                     type="button"
-                                                    onClick={() => handleRemoveRoom(index)}
+                                                    onClick={() => handleRemoveCategory(block.blockId)}
                                                     className="btn btn-ghost btn-xs text-rose-600 hover:bg-rose-50 rounded-lg gap-1 font-bold"
-                                                    title="Remove this room"
+                                                    title="Remove this category block"
                                                 >
-                                                    <Trash2 size={13} /> Remove Room
+                                                    <Trash2 size={13} /> Remove Category
                                                 </button>
                                             )}
                                         </div>
 
-                                        {/* Row 1: Category Selector, Stay Dates & Negotiated Price */}
+                                        {/* Row 1: Category Selector, Stay Dates */}
                                         <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
                                             {/* Category Selector */}
-                                            <div className="form-control sm:col-span-3">
+                                            <div className="form-control sm:col-span-6">
                                                 <label className="label py-0.5">
                                                     <span className="label-text font-semibold text-slate-700 text-xs">
                                                         Category Type <span className="text-red-500 font-bold">*</span>
                                                     </span>
                                                 </label>
                                                 <select
-                                                    value={room.categoryId}
-                                                    onChange={e => handleRoomChange(index, { categoryId: e.target.value })}
+                                                    value={block.categoryId}
+                                                    onChange={e => handleCategoryBlockChange(block.blockId, { categoryId: e.target.value })}
                                                     className="select select-sm select-bordered rounded-xl bg-white text-xs font-semibold w-full"
                                                 >
                                                     {categories.map(c => (
@@ -604,11 +741,11 @@ const EditBookingModal = ({ booking, isOpen, onClose, onSuccess }) => {
                                                     </span>
                                                 </label>
                                                 <DatePicker
-                                                    selected={room.checkInDate}
-                                                    onChange={date => handleRoomChange(index, { checkInDate: date })}
+                                                    selected={block.checkInDate}
+                                                    onChange={date => handleCategoryBlockChange(block.blockId, { checkInDate: date })}
                                                     selectsStart
-                                                    startDate={room.checkInDate}
-                                                    endDate={room.checkOutDate}
+                                                    startDate={block.checkInDate}
+                                                    endDate={block.checkOutDate}
                                                     dateFormat="dd MMM yyyy"
                                                     wrapperClassName="w-full"
                                                     className="input input-sm input-bordered rounded-xl bg-white text-xs w-full cursor-pointer"
@@ -624,40 +761,17 @@ const EditBookingModal = ({ booking, isOpen, onClose, onSuccess }) => {
                                                     </span>
                                                 </label>
                                                 <DatePicker
-                                                    selected={room.checkOutDate}
-                                                    onChange={date => handleRoomChange(index, { checkOutDate: date })}
+                                                    selected={block.checkOutDate}
+                                                    onChange={date => handleCategoryBlockChange(block.blockId, { checkOutDate: date })}
                                                     selectsEnd
-                                                    startDate={room.checkInDate}
-                                                    endDate={room.checkOutDate}
-                                                    minDate={room.checkInDate ? addDays(room.checkInDate, 1) : new Date()}
+                                                    startDate={block.checkInDate}
+                                                    endDate={block.checkOutDate}
+                                                    minDate={block.checkInDate ? addDays(block.checkInDate, 1) : new Date()}
                                                     dateFormat="dd MMM yyyy"
                                                     wrapperClassName="w-full"
                                                     className="input input-sm input-bordered rounded-xl bg-white text-xs w-full cursor-pointer font-bold text-teal-800"
                                                     onChangeRaw={e => e.preventDefault()}
                                                 />
-                                            </div>
-
-                                            {/* Negotiate Price Field */}
-                                            <div className="form-control sm:col-span-3">
-                                                <label className="label py-0.5">
-                                                    <span className="label-text font-bold text-slate-800 text-xs flex items-center justify-between">
-                                                        <span>Negotiate Price (৳)</span>
-                                                        {room.pricePerNight !== undefined && Number(room.pricePerNight) !== defaultCatPrice && (
-                                                            <span className="text-[10px] text-teal-700 font-bold">Custom</span>
-                                                        )}
-                                                    </span>
-                                                </label>
-                                                <input
-                                                    type="number"
-                                                    min="0"
-                                                    value={room.pricePerNight}
-                                                    onChange={e => handleRoomChange(index, { pricePerNight: e.target.value })}
-                                                    placeholder={String(defaultCatPrice)}
-                                                    className="input input-sm input-bordered rounded-xl bg-white text-xs font-bold text-teal-900 w-full"
-                                                />
-                                                <span className="text-[10px] text-slate-400 mt-0.5">
-                                                    Default: ৳{defaultCatPrice.toLocaleString()}/n
-                                                </span>
                                             </div>
                                         </div>
 
@@ -665,36 +779,59 @@ const EditBookingModal = ({ booking, isOpen, onClose, onSuccess }) => {
                                         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                                             <div className="form-control">
                                                 <label className="label py-0.5">
-                                                    <span className="label-text font-semibold text-slate-700 text-xs">Adults</span>
+                                                    <span className="label-text font-semibold text-slate-700 text-xs">Adults / Room</span>
                                                 </label>
                                                 <input
                                                     type="number"
                                                     min="0"
-                                                    value={room.adults !== undefined ? room.adults : ''}
+                                                    value={block.adults !== undefined ? block.adults : ''}
                                                     placeholder="0"
-                                                    onChange={e => handleRoomChange(index, { adults: e.target.value })}
+                                                    onChange={e => handleCategoryBlockChange(block.blockId, { adults: e.target.value })}
                                                     className="input input-sm input-bordered rounded-xl bg-white text-xs font-semibold w-full"
                                                 />
                                             </div>
 
                                             <div className="form-control">
                                                 <label className="label py-0.5">
-                                                    <span className="label-text font-semibold text-slate-700 text-xs">Children</span>
+                                                    <span className="label-text font-semibold text-slate-700 text-xs">Children / Room</span>
                                                 </label>
                                                 <input
                                                     type="number"
                                                     min="0"
-                                                    value={room.children !== undefined ? room.children : (room.babies || '')}
+                                                    value={block.children !== undefined ? block.children : ''}
                                                     placeholder="0"
-                                                    onChange={e => handleRoomChange(index, { babies: e.target.value, children: e.target.value })}
+                                                    onChange={e => handleCategoryBlockChange(block.blockId, { children: e.target.value })}
                                                     className="input input-sm input-bordered rounded-xl bg-white text-xs font-semibold w-full"
                                                 />
                                             </div>
 
-                                            <div className="col-span-2 flex items-end">
+                                            {/* Negotiate Price Field */}
+                                            <div className="form-control">
+                                                <label className="label py-0.5">
+                                                    <span className="label-text font-bold text-slate-800 text-xs flex items-center justify-between">
+                                                        <span>Negotiate Price (৳)</span>
+                                                        {block.negotiatedPrice !== undefined && Number(block.negotiatedPrice) !== defaultCatPrice && (
+                                                            <span className="text-[10px] text-teal-700 font-bold">Custom</span>
+                                                        )}
+                                                    </span>
+                                                </label>
+                                                <input
+                                                    type="number"
+                                                    min="0"
+                                                    value={block.negotiatedPrice !== undefined ? block.negotiatedPrice : defaultCatPrice}
+                                                    onChange={e => handleCategoryBlockChange(block.blockId, { negotiatedPrice: e.target.value })}
+                                                    placeholder={String(defaultCatPrice)}
+                                                    className="input input-sm input-bordered rounded-xl bg-white text-xs font-bold text-teal-900 w-full"
+                                                />
+                                                <span className="text-[10px] text-slate-400 mt-0.5">
+                                                    Default: ৳{defaultCatPrice.toLocaleString()}/n
+                                                </span>
+                                            </div>
+
+                                            <div className="">
+                                                <span className="text-[11px]">Duration: <strong>{nights} night(s)</strong></span>
                                                 <div className="text-[11px] text-slate-600 bg-white p-2 rounded-xl border border-slate-200 w-full flex justify-between items-center">
-                                                    <span>Duration: <strong>{nights} night(s)</strong></span>
-                                                    <span>Room Total: <strong className="text-teal-800">৳{Number(effectivePricePerNight * nights).toLocaleString()}</strong></span>
+                                                    <span>Category Total: <strong className="text-teal-800">৳{Number(categoryTotal).toLocaleString()}</strong></span>
                                                 </div>
                                             </div>
                                         </div>
@@ -703,15 +840,12 @@ const EditBookingModal = ({ booking, isOpen, onClose, onSuccess }) => {
                                         <div className="space-y-2 pt-1 border-t border-slate-200/80">
                                             <div className="flex items-center justify-between">
                                                 <label className="font-bold text-slate-900 text-xs flex items-center gap-1.5">
-                                                    <BedDouble size={14} className="text-teal-600" />
-                                                    Select Physical Room Number <span className="text-red-500 font-bold">*</span>
-                                                    {room.roomNo ? ` (Assigned: Room ${room.roomNo})` : ""}
+                                                    <CheckSquare size={14} className="text-teal-600" />
+                                                    Select Physical Rooms (Check to Book) <span className="text-red-500 font-bold">*</span>
                                                 </label>
-                                                {room.roomNo && (
-                                                    <span className="badge badge-sm bg-teal-50 text-teal-800 border-teal-200 font-bold">
-                                                        Assigned: Room {room.roomNo}
-                                                    </span>
-                                                )}
+                                                <span className="badge badge-sm bg-teal-50 text-teal-800 border-teal-200 font-bold">
+                                                    {checkedCount} Room{checkedCount !== 1 ? 's' : ''} Checked
+                                                </span>
                                             </div>
 
                                             {availableRoomNumbers.length === 0 ? (
@@ -722,28 +856,26 @@ const EditBookingModal = ({ booking, isOpen, onClose, onSuccess }) => {
                                                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5">
                                                     {availableRoomNumbers.map(num => {
                                                         const cleanNum = String(num).trim()
-                                                        const isSelected = String(room.roomNo || "").trim() === cleanNum
-                                                        const isOccupied = isRoomNoOccupied(cleanNum, room.checkInDate, room.checkOutDate, booking._id, index)
-                                                        const isOOO = isRoomOutOfOrder(cleanNum, room.checkInDate, room.checkOutDate)
-                                                        const isDisabled = (isOccupied || isOOO) && !isSelected
+                                                        const isChecked = (block.selectedRooms || []).includes(cleanNum)
+                                                        const conflict = getRoomConflictInfo(cleanNum, block)
+                                                        const isDisabled = conflict.disabled && !isChecked
 
                                                         return (
                                                             <label
                                                                 key={cleanNum}
-                                                                className={`relative flex items-center justify-between p-2.5 rounded-xl border cursor-pointer select-none transition-all ${
-                                                                    isSelected
+                                                                className={`relative flex items-center justify-between p-2.5 rounded-xl border cursor-pointer select-none transition-all ${isChecked
                                                                         ? "bg-[#0f766e] text-white border-[#0f766e] shadow-xs ring-2 ring-teal-500/30 font-bold"
                                                                         : isDisabled
-                                                                        ? "bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed opacity-60"
-                                                                        : "bg-white text-slate-800 border-slate-200 hover:border-teal-400 hover:bg-teal-50/40"
-                                                                }`}
+                                                                            ? "bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed opacity-60"
+                                                                            : "bg-white text-slate-800 border-slate-200 hover:border-teal-400 hover:bg-teal-50/40"
+                                                                    }`}
                                                             >
                                                                 <div className="flex items-center gap-2">
                                                                     <input
                                                                         type="checkbox"
-                                                                        checked={isSelected}
+                                                                        checked={isChecked}
                                                                         disabled={isDisabled}
-                                                                        onChange={() => handleRoomChange(index, { roomNo: isSelected ? "" : cleanNum })}
+                                                                        onChange={() => handleToggleRoom(block.blockId, cleanNum)}
                                                                         className="checkbox checkbox-sm checkbox-primary rounded-md"
                                                                     />
                                                                     <span className="font-mono text-xs font-bold">
@@ -751,16 +883,15 @@ const EditBookingModal = ({ booking, isOpen, onClose, onSuccess }) => {
                                                                     </span>
                                                                 </div>
 
-                                                                {isDisabled && (
-                                                                    <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${
-                                                                        isOOO ? "bg-amber-100 text-amber-900" : "bg-rose-100 text-rose-900"
-                                                                    }`}>
-                                                                        {isOOO ? "OOO" : "Busy"}
+                                                                {conflict.disabled && !isChecked && (
+                                                                    <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${conflict.reason === "Out of Order" ? "bg-amber-100 text-amber-900" : "bg-rose-100 text-rose-900"
+                                                                        }`}>
+                                                                        {conflict.reason === "Out of Order" ? "OOO" : (conflict.reason || "Busy")}
                                                                     </span>
                                                                 )}
-                                                                {isSelected && (
+                                                                {isChecked && (
                                                                     <span className="text-[10px] font-bold text-teal-200">
-                                                                        ✓ Selected
+                                                                        ✓ Booked
                                                                     </span>
                                                                 )}
                                                             </label>
@@ -948,9 +1079,9 @@ const EditBookingModal = ({ booking, isOpen, onClose, onSuccess }) => {
                                     {STATUS_OPTIONS.map(opt => {
                                         const isCheckedOutDisabled = opt.value === "checked_out" && dueAmount > 0.01
                                         return (
-                                            <option 
-                                                key={opt.value} 
-                                                value={opt.value} 
+                                            <option
+                                                key={opt.value}
+                                                value={opt.value}
                                                 disabled={isCheckedOutDisabled}
                                             >
                                                 {opt.label} {isCheckedOutDisabled ? "(Requires full payment)" : ""}
@@ -992,7 +1123,7 @@ const EditBookingModal = ({ booking, isOpen, onClose, onSuccess }) => {
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-4 border-t border-slate-100 bg-slate-50/70 -mx-6 -mb-6 p-6 rounded-b-3xl shrink-0">
                         <div className='w-max'>
                             <div className="text-xs text-slate-500 font-medium leading-tight">
-                                Total ({rooms.length} Room{rooms.length !== 1 ? 's' : ''}): <strong className="text-teal-900 font-extrabold text-sm">৳{netPayable.toLocaleString()}</strong>
+                                Total ({flatBookedRooms.length} Room{flatBookedRooms.length !== 1 ? 's' : ''}): <strong className="text-teal-900 font-extrabold text-sm">৳{netPayable.toLocaleString()}</strong>
                                 {dueAmount > 0 && (
                                     <>
                                         <br />

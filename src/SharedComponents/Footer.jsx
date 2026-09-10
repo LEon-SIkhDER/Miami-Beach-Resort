@@ -100,13 +100,12 @@ const Footer = () => {
                         </h4>
                         <ul className="space-y-3 text-xs sm:text-sm text-slate-300 font-medium">
                             <li>
-                                <a 
-                                    href="#rooms" 
-                                    onClick={(e) => handleAnchorClick(e, 'rooms')}
-                                    className="hover:text-[#dfc89e] hover:translate-x-1 inline-block transition-all cursor-pointer"
+                                <Link 
+                                    to="/rooms" 
+                                    className="hover:text-[#dfc89e] hover:translate-x-1 inline-block transition-all"
                                 >
                                     Suites & Rooms
-                                </a>
+                                </Link>
                             </li>
                             <li>
                                 <a 

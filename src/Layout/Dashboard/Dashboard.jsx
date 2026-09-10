@@ -1,5 +1,5 @@
-import React, { useContext, useState } from 'react'
-import { Link, NavLink, Navigate, Outlet, useLocation, useNavigate } from 'react-router'
+import React, { useContext, useState, useEffect } from 'react'
+import { Link, NavLink, Navigate, Outlet, ScrollRestoration, useLocation, useNavigate } from 'react-router'
 
 import { AuthContext } from '../../Context/AuthContext'
 import useRole from '../../hooks/useRole'
@@ -15,7 +15,14 @@ import {
     CalendarDays,
     XCircle,
     DollarSign,
-    Briefcase
+    Briefcase,
+    Settings as SettingsIcon,
+    ChevronDown,
+    Building2,
+    Utensils,
+    SlidersHorizontal,
+    Database,
+    Sparkles
 } from 'lucide-react'
 import { showConfirmAlert } from '../../utils/customSwal'
 import logo from '../../assets/logo.png'
@@ -23,11 +30,19 @@ import logo from '../../assets/logo.png'
 const Dashboard = () => {
     const { user, logOut } = useContext(AuthContext)
     const { role } = useRole()
-    const { pathname } = useLocation()
+    const { pathname, search } = useLocation()
     const isCalendarRoute = pathname === "/dashboard/calender"
+    const isSettingsRoute = pathname.startsWith("/dashboard/settings")
 
     const [sidebarOpen, setSidebarOpen] = useState(false)
+    const [settingsExpanded, setSettingsExpanded] = useState(isSettingsRoute)
     const navigate = useNavigate()
+
+    useEffect(() => {
+        if (isSettingsRoute) {
+            setSettingsExpanded(true)
+        }
+    }, [isSettingsRoute])
 
     if (role === "user") {
         return <Navigate to="/my-bookings" replace />
@@ -44,6 +59,24 @@ const Dashboard = () => {
                 logOut().then(() => navigate("/"))
             }
         })
+    }
+
+    const settingsSubLinks = [
+        // { to: "/dashboard/settings", label: "All Settings", icon: <Sparkles size={14} />, end: true },
+        // { to: "/dashboard/settings/hotel-setup", label: "Hotel Setup", icon: <Building2 size={14} /> },
+        { to: "/dashboard/settings/room-setup", label: "Room Setup", icon: <BedDouble size={14} /> },
+        // { to: "/dashboard/settings/restaurant-setup", label: "Restaurant Setup", icon: <Utensils size={14} /> },
+        // { to: "/dashboard/settings/staff-permission", label: "Staff & Permission", icon: <Shield size={14} /> },
+        // { to: "/dashboard/settings/general-settings", label: "General Settings", icon: <SlidersHorizontal size={14} /> },
+        // { to: "/dashboard/settings/backup-logs", label: "Backup & Logs", icon: <Database size={14} /> },
+    ]
+
+    const settingsNavItem = {
+        to: "/dashboard/settings",
+        label: "Settings",
+        icon: <SettingsIcon size={18} />,
+        isSubmenu: true,
+        subLinks: settingsSubLinks
     }
 
     const userLinks = [
@@ -69,6 +102,7 @@ const Dashboard = () => {
         { to: "/dashboard/cancellations", label: "Cancellations", icon: <XCircle size={18} /> },
         { to: "/dashboard/users", label: "Users & Roles", icon: <Users size={18} /> },
         { to: "/dashboard/calender", label: "Booking Calendar", icon: <CalendarDays size={18} /> },
+        settingsNavItem,
     ]
     const adminLinks = [
         { to: "/dashboard/overview", label: "Admin Overview", icon: <LayoutDashboard size={18} /> },
@@ -78,6 +112,7 @@ const Dashboard = () => {
         { to: "/dashboard/cancellations", label: "Cancellations", icon: <XCircle size={18} /> },
         { to: "/dashboard/users", label: "Users & Roles", icon: <Users size={18} /> },
         { to: "/dashboard/calender", label: "Booking Calendar", icon: <CalendarDays size={18} /> },
+        settingsNavItem,
     ]
 
     const getLinksForRole = () => {
@@ -140,23 +175,87 @@ const Dashboard = () => {
             {/* Navigation links */}
             <nav className="flex-1 space-y-1.5 overflow-y-auto">
                 <p className="text-[10px] font-bold tracking-wider text-slate-400 uppercase px-3 mb-2">Main Menu</p>
-                {links.map(link => (
-                    <NavLink
-                        key={link.to}
-                        to={link.to}
-                        end={link.to === "/dashboard" || link.to === "/dashboard/overview"}
-                        onClick={() => setSidebarOpen(false)}
-                        className={({ isActive }) =>
-                            `flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-all duration-150 ${isActive
-                                ? "bg-teal-600 text-white shadow-md shadow-teal-600/20"
-                                : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
-                            }`
-                        }
-                    >
-                        {link.icon}
-                        <span>{link.label}</span>
-                    </NavLink>
-                ))}
+                {links.map(link => {
+                    if (link.isSubmenu) {
+                        const isParentActive = pathname.startsWith("/dashboard/settings")
+                        return (
+                            <div key={link.to} className="space-y-1">
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setSettingsExpanded(prev => !prev)
+                                        if (!isParentActive) {
+                                            navigate("/dashboard/settings")
+                                        }
+                                    }}
+                                    className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-all duration-150 select-none ${
+                                        isParentActive
+                                            ? "bg-teal-600 text-white shadow-md shadow-teal-600/20"
+                                            : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                                    }`}
+                                >
+                                    <div className="flex items-center gap-3">
+                                        {link.icon}
+                                        <span>{link.label}</span>
+                                    </div>
+                                    <ChevronDown
+                                        size={16}
+                                        className={`transition-transform duration-200 ${
+                                            settingsExpanded ? "rotate-180" : ""
+                                        } ${isParentActive ? "text-teal-100" : "text-slate-400"}`}
+                                    />
+                                </button>
+
+                                {/* Collapsible Sub-menu */}
+                                {settingsExpanded && (
+                                    <div className="ml-3 pl-3 py-1 border-l-2 border-slate-200/90 space-y-1 transition-all">
+                                        {link.subLinks.map(sub => {
+                                            const isSubActive = sub.end
+                                                ? pathname === "/dashboard/settings"
+                                                : pathname === sub.to
+
+                                            return (
+                                                <Link
+                                                    key={sub.to}
+                                                    to={sub.to}
+                                                    onClick={() => setSidebarOpen(false)}
+                                                    className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-all duration-150 ${
+                                                        isSubActive
+                                                            ? "bg-teal-50 text-teal-800 font-bold border-l-2 border-teal-600 -ml-[14px] pl-[12px] shadow-2xs"
+                                                            : "text-slate-500 hover:text-slate-900 hover:bg-slate-100/70"
+                                                    }`}
+                                                >
+                                                    <span className={isSubActive ? "text-teal-600" : "text-slate-400"}>
+                                                        {sub.icon}
+                                                    </span>
+                                                    <span>{sub.label}</span>
+                                                </Link>
+                                            )
+                                        })}
+                                    </div>
+                                )}
+                            </div>
+                        )
+                    }
+
+                    return (
+                        <NavLink
+                            key={link.to}
+                            to={link.to}
+                            end={link.to === "/dashboard" || link.to === "/dashboard/overview"}
+                            onClick={() => setSidebarOpen(false)}
+                            className={({ isActive }) =>
+                                `flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-all duration-150 ${isActive
+                                    ? "bg-teal-600 text-white shadow-md shadow-teal-600/20"
+                                    : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                                }`
+                            }
+                        >
+                            {link.icon}
+                            <span>{link.label}</span>
+                        </NavLink>
+                    )
+                })}
             </nav>
 
             {/* Bottom Actions: Log out with confirmation */}
@@ -174,6 +273,7 @@ const Dashboard = () => {
 
     return (
         <div className="min-h-screen bg-slate-50 flex">
+            <ScrollRestoration />
             {/* Desktop Sidebar */}
             <aside className={`${isCalendarRoute ? "hidden" : "hidden lg:flex"} flex-col w-64 fixed top-0 left-0 bottom-0 z-30`}>
                 <SidebarContent />
@@ -205,7 +305,7 @@ const Dashboard = () => {
                     {renderRoleBadge(role, true)}
                 </header>
 
-                <main className={`flex-1 min-w-0 ${isCalendarRoute ? "w-full p-0 overflow-hidden" : "max-w-[1750px] p-4 sm:p-6 lg:p-8"} w-full mx-auto min-h-dvh`}>
+                <main className={`flex-1 min-w-0 ${isCalendarRoute ? "w-full p-0 overflow-hidden h-[calc(100dvh-65px)]" : "max-w-[1750px] p-4 sm:p-6 lg:p-8 min-h-dvh"} w-full mx-auto `}>
                     <Outlet />
                 </main>
             </div>
