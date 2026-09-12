@@ -22,7 +22,7 @@ const About = () => {
     return (
         <div className="min-h-screen bg-slate-50">
             {/* Hero Banner */}
-            <section className="relative bg-gradient-to-br from-slate-950 via-teal-950 to-slate-900 text-white py-20 sm:py-28 overflow-hidden">
+            <section className="relative bg-gradient-to-br from-slate-950 via-teal-950 to-slate-900 text-white pt-28 pb-20 sm:pt-36 sm:pb-28 overflow-hidden">
                 <div className="absolute inset-0 bg-[radial-gradient(#14b8a6_1px,transparent_1px)] [background-size:24px_24px] opacity-15"></div>
                 <div className="relative max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 text-center space-y-5">
                     <span className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-bold uppercase tracking-widest bg-teal-500/20 text-teal-300 border border-teal-500/30">

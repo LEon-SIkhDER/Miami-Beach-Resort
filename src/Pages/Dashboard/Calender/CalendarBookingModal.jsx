@@ -482,6 +482,7 @@ const CalendarBookingModal = ({
                 reference: isB2B ? (currentUser?.displayName || currentUser?.email || "B2B Partner") : reference.trim(),
                 transactionId: isB2B ? "" : transactionId.trim(),
                 notes: notes.trim(),
+                guestType: "Walk-In",
                 requestedByRole: role || "admin",
                 changedBy: {
                     name: currentUser?.displayName || (isB2B ? "B2B Partner" : "Admin / Staff"),

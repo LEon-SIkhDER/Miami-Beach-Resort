@@ -113,12 +113,21 @@ const Header = () => {
         }
     }
 
+    const currentPath = location.pathname.replace(/\/+$/, '') || '/'
+    const hasHeroBanner = ["/", "/rooms", "/about", "/services"].includes(currentPath)
+
     return (
         <header 
             className={`sticky top-0 z-50 transition-all duration-300 ${
-                scrolled 
-                    ? "bg-[#04261f]/95 backdrop-blur-md shadow-2xl border-b border-[#c5a880]/20 py-2.5" 
-                    : "bg-[#031d17]/90 backdrop-blur-md border-b border-[#c5a880]/15 py-3.5"
+                hasHeroBanner ? "-mb-[72px] sm:-mb-[76px]" : "mb-0"
+            } ${
+                mobileNavOpen
+                    ? "bg-[#031d17] border-b border-[#c5a880]/30 py-3.5"
+                    : scrolled 
+                        ? "bg-[#04261f]/95 backdrop-blur-md shadow-2xl border-b border-[#c5a880]/20 py-2.5" 
+                        : hasHeroBanner
+                            ? "bg-gradient-to-b from-black/70 via-black/25 to-transparent  py-3.5"
+                            : "bg-[#031d17]/90 backdrop-blur-md border-b border-[#c5a880]/15 py-3.5"
             }`}
         >
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between">

@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Link } from 'react-router'
 import { useQuery } from '@tanstack/react-query'
 import axios from 'axios'
@@ -8,7 +8,6 @@ import { addDays } from 'date-fns'
 import toast from 'react-hot-toast'
 import { showSuccessAlert, showErrorAlert } from '../../utils/customSwal'
 import { saveGuestBookingId } from '../../utils/bookingUtils'
-import logo from '../../assets/logo.png'
 import {
     BedDouble,
     Calendar,
@@ -91,7 +90,16 @@ const Home = () => {
     const [isSubmitting, setIsSubmitting] = useState(false)
     const [availabilityMsg, setAvailabilityMsg] = useState(null)
     const [searchQuery, setSearchQuery] = useState('')
+    const [debouncedSearch, setDebouncedSearch] = useState('')
     const [categoryFilter, setCategoryFilter] = useState('')
+
+    // Debounce search query by 300ms
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            setDebouncedSearch(searchQuery)
+        }, 300)
+        return () => clearTimeout(timer)
+    }, [searchQuery])
 
     // Hero quick booking bar state
     const [heroCheckIn, setHeroCheckIn] = useState(new Date())
@@ -99,7 +107,7 @@ const Home = () => {
     const [heroCategory, setHeroCategory] = useState("")
     const [heroAdults, setHeroAdults] = useState("2")
 
-    // Fetch categories safely
+    // Fetch categories safely for hero quick booking and price lookups
     const { data: rawCategories = [], isLoading: categoriesLoading } = useQuery({
         queryKey: ["public-categories"],
         queryFn: async () => {
@@ -111,22 +119,37 @@ const Home = () => {
                 console.error("Categories fetch error:", err)
                 return []
             }
-        }
+        },
+        staleTime: 5 * 60 * 1000
     })
 
     const categories = Array.isArray(rawCategories) ? rawCategories : []
 
-    const filteredCategories = categories.filter(cat => {
-        if (!cat) return false
-        if (categoryFilter && cat.name !== categoryFilter) return false
-        if (searchQuery) {
-            const q = searchQuery.toLowerCase()
-            return cat.name?.toLowerCase().includes(q) ||
-                cat.amenities?.toLowerCase().includes(q) ||
-                cat.description?.toLowerCase().includes(q)
-        }
-        return true
+    // Fetch filtered categories via server API for rooms section
+    const {
+        data: rawFilteredCategories = [],
+        isLoading: filteredCategoriesLoading,
+        isFetching: filteredCategoriesFetching
+    } = useQuery({
+        queryKey: ["home-categories-filtered", debouncedSearch, categoryFilter],
+        queryFn: async () => {
+            if (!SERVER_URL) return []
+            try {
+                const params = {}
+                if (debouncedSearch.trim()) params.search = debouncedSearch.trim()
+                if (categoryFilter) params.category = categoryFilter
+                const res = await axios.get(`${SERVER_URL}/categoryandroom`, { params })
+                return Array.isArray(res.data) ? res.data : []
+            } catch (err) {
+                console.error("Home filtered categories fetch error:", err)
+                return []
+            }
+        },
+        placeholderData: (previousData) => previousData,
     })
+
+    const filteredCategories = Array.isArray(rawFilteredCategories) ? rawFilteredCategories : []
+    const isFilteringHome = filteredCategoriesFetching || (searchQuery !== debouncedSearch)
 
     const getRoomNights = (item) => {
         if (!item.checkInDate || !item.checkOutDate) return 0
@@ -296,6 +319,9 @@ const Home = () => {
             address: formData.address,
             rooms: normalizedRooms,
             advanceAmount: 0,
+            guestType: "WEB",
+            requestedByRole: "user",
+            reference: "Website Direct",
         }
 
         try {
@@ -368,7 +394,7 @@ const Home = () => {
             {/* ══════════════════════════════════════════════════════
                 1. HERO / BANNER SECTION
             ══════════════════════════════════════════════════════ */}
-            <section className="relative bg-[#021813] text-white pt-20 pb-24 sm:pt-28 sm:pb-32 px-4 sm:px-6 lg:px-8 border-b border-[#c5a880]/20 overflow-hidden">
+            <section className="relative bg-[#021813] text-white pt-28 pb-24 sm:pt-36 sm:pb-32 lg:pt-32 lg:pb-28 lg:min-h-[75vh] xl:min-h-[82vh] flex flex-col justify-center px-4 sm:px-6 lg:px-8 border-b border-[#c5a880]/20 overflow-hidden">
                 {/* Background Hero Image */}
                 <div
                     className="absolute inset-0 bg-cover bg-center bg-no-repeat scale-105"
@@ -378,7 +404,7 @@ const Home = () => {
                 />
 
                 {/* Multi-layered imperial emerald & midnight dark gradient overlay for crystal-clear readability */}
-                <div className="absolute inset-0 bg-gradient-to-b from-[#021813]/90 via-[#03221b]/80 to-[#021813]/95 backdrop-blur-[1px]" />
+                <div className="absolute inset-0 bg-gradient-to-b from-[#021813]/80 via-[#03221b]/60 to-[#021813]/95 backdrop-blur-[1px]" />
 
                 {/* Subtle radial luxury pattern backdrop */}
                 <div className="absolute inset-0 opacity-15 bg-[radial-gradient(#c5a880_1px,transparent_1px)] [background-size:24px_24px] pointer-events-none"></div>
@@ -392,15 +418,10 @@ const Home = () => {
                         <span>Luxury Sea View Living • Cox's Bazar</span>
                     </div>
 
-                    {/* Logo & Headline */}
-                    <div className="flex flex-col items-center justify-center gap-4">
-                        <img
-                            src={logo}
-                            alt="Miami Beach Resort"
-                            className="h-16 sm:h-20 w-auto object-contain drop-shadow-[0_4px_20px_rgba(0,0,0,0.8)]"
-                        />
+                    {/* Headline */}
+                    <div className="space-y-3">
                         <h1 className="text-3xl sm:text-5xl lg:text-6xl font-serif font-extrabold tracking-tight text-white leading-tight drop-shadow-[0_4px_12px_rgba(0,0,0,0.6)]">
-                            Miami Beach Resort
+                            Miami Beach <span className="text-[#dfc89e]">Resort</span>
                         </h1>
                     </div>
 
@@ -517,7 +538,7 @@ const Home = () => {
                             <select
                                 value={heroCategory}
                                 onChange={(e) => setHeroCategory(e.target.value)}
-                                className="w-full bg-[#021813] text-white border border-[#c5a880]/30 rounded-xl px-3.5 py-2.5 text-xs font-medium focus:border-[#dfc89e] focus:outline-none cursor-pointer"
+                                className="select select-bordered w-full bg-[#021813] text-white border-[#c5a880]/30 rounded-xl text-xs font-medium focus:border-[#dfc89e] focus:outline-none cursor-pointer h-[42px] min-h-[42px]"
                             >
                                 <option value="">All Room Categories</option>
                                 {categories.map(c => (
@@ -554,13 +575,16 @@ const Home = () => {
                         <div className="inline-flex items-center gap-1.5 text-[#04261f] font-bold text-xs uppercase tracking-wider bg-[#c5a880]/20 px-3 py-1 rounded-full border border-[#c5a880]/40 mb-1.5">
                             <BedDouble size={14} className="text-[#04261f]" /> Room Categories
                         </div>
-                        <h2 className="text-2xl sm:text-4xl font-serif font-bold text-[#03221b] tracking-tight">
-                            Choose and Book Your Suite
+                        <h2 className="text-2xl sm:text-4xl font-serif font-bold text-[#03221b] tracking-tight flex items-center gap-2.5">
+                            <span>Choose and Book Your Suite</span>
+                            {isFilteringHome && (
+                                <span className="loading loading-spinner loading-xs text-[#04261f]" title="Fetching categories..." />
+                            )}
                         </h2>
                     </div>
 
                     {/* Search & Filter Bar */}
-                    <div className="flex flex-wrap items-center gap-2.5">
+                    {/* <div className="flex flex-wrap items-center gap-2.5">
                         <div className="relative flex-1 sm:flex-initial">
                             <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
                             <input
@@ -568,11 +592,14 @@ const Home = () => {
                                 placeholder="Search categories..."
                                 value={searchQuery}
                                 onChange={e => setSearchQuery(e.target.value)}
-                                className="pl-9 pr-4 py-2 bg-white rounded-xl border border-slate-300 text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-[#04261f] w-full sm:w-60 shadow-xs"
+                                className="pl-9 pr-8 py-2 bg-white rounded-xl border border-slate-300 text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-[#04261f] w-full sm:w-60 shadow-xs"
                             />
+                            {isFilteringHome && (
+                                <span className="loading loading-spinner loading-xs text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                            )}
                         </div>
                         <select
-                            className="py-2 px-4 bg-white rounded-xl border border-slate-300 text-xs font-semibold text-slate-800 focus:outline-none focus:border-[#04261f] shadow-xs cursor-pointer"
+                            className="select select-sm select-bordered rounded-xl bg-white border-slate-300 text-xs font-semibold text-slate-800 focus:outline-none focus:border-[#04261f] shadow-xs cursor-pointer"
                             value={categoryFilter}
                             onChange={e => setCategoryFilter(e.target.value)}
                         >
@@ -581,11 +608,11 @@ const Home = () => {
                                 <option key={cat._id} value={cat.name}>{cat.name}</option>
                             ))}
                         </select>
-                    </div>
+                    </div> */}
                 </div>
 
                 {/* Category Grid */}
-                {categoriesLoading ? (
+                {filteredCategoriesLoading && filteredCategories.length === 0 ? (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
                         {[1, 2, 3].map(n => (
                             <div key={n} className="bg-white rounded-3xl overflow-hidden border border-slate-200 shadow-sm animate-pulse flex flex-col">
@@ -598,7 +625,7 @@ const Home = () => {
                             </div>
                         ))}
                     </div>
-                ) : filteredCategories.length === 0 ? (
+                ) : filteredCategories.length === 0 && !isFilteringHome ? (
                     <div className="text-center py-16 bg-white rounded-3xl border border-slate-200 shadow-xs space-y-2">
                         <BedDouble size={48} className="mx-auto text-slate-300 mb-2" />
                         <h3 className="text-lg font-bold text-slate-700">No categories match your search</h3>
@@ -613,7 +640,7 @@ const Home = () => {
                         )}
                     </div>
                 ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
+                    <div className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8 transition-opacity duration-200 ${isFilteringHome ? 'opacity-60' : 'opacity-100'}`}>
                         {filteredCategories.slice(0, 6).map(cat => {
                             const photos = cat.images?.length
                                 ? cat.images.map(img => typeof img === 'string' ? img : img.url)

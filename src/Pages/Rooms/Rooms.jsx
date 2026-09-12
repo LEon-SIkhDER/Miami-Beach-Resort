@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Link } from 'react-router'
 import { useQuery } from '@tanstack/react-query'
 import axios from 'axios'
@@ -22,13 +22,22 @@ const Rooms = () => {
     const SERVER_URL = import.meta.env.VITE_SERVER_URL || ""
 
     const [searchQuery, setSearchQuery] = useState('')
+    const [debouncedSearch, setDebouncedSearch] = useState('')
     const [categoryFilter, setCategoryFilter] = useState('')
     const [sortBy, setSortBy] = useState('default')
     const [activeImageIndices, setActiveImageIndices] = useState({})
 
-    // Fetch categories safely
-    const { data: rawCategories = [], isLoading: categoriesLoading } = useQuery({
-        queryKey: ["public-categories"],
+    // Debounce search query by 300ms
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            setDebouncedSearch(searchQuery)
+        }, 300)
+        return () => clearTimeout(timer)
+    }, [searchQuery])
+
+    // Fetch all categories once for the dropdown options
+    const { data: allCategories = [] } = useQuery({
+        queryKey: ["public-categories-all"],
         queryFn: async () => {
             if (!SERVER_URL) return []
             try {
@@ -38,10 +47,36 @@ const Rooms = () => {
                 console.error("Categories fetch error:", err)
                 return []
             }
-        }
+        },
+        staleTime: 5 * 60 * 1000
+    })
+
+    // Fetch filtered categories via server API
+    const {
+        data: rawCategories = [],
+        isLoading: categoriesLoading,
+        isFetching: categoriesFetching
+    } = useQuery({
+        queryKey: ["public-categories-filtered", debouncedSearch, categoryFilter, sortBy],
+        queryFn: async () => {
+            if (!SERVER_URL) return []
+            try {
+                const params = {}
+                if (debouncedSearch.trim()) params.search = debouncedSearch.trim()
+                if (categoryFilter) params.category = categoryFilter
+                if (sortBy && sortBy !== 'default') params.sort = sortBy
+                const res = await axios.get(`${SERVER_URL}/categoryandroom`, { params })
+                return Array.isArray(res.data) ? res.data : []
+            } catch (err) {
+                console.error("Filtered categories fetch error:", err)
+                return []
+            }
+        },
+        placeholderData: (previousData) => previousData,
     })
 
     const categories = Array.isArray(rawCategories) ? rawCategories : []
+    const isFiltering = categoriesFetching || (searchQuery !== debouncedSearch)
 
     // Image navigation handlers
     const handlePrevImage = (e, catId, total) => {
@@ -62,33 +97,12 @@ const Rooms = () => {
         }))
     }
 
-    // Filter and sort logic
-    let filteredCategories = categories.filter(cat => {
-        if (!cat) return false
-        if (categoryFilter && cat.name !== categoryFilter) return false
-        if (searchQuery) {
-            const q = searchQuery.toLowerCase()
-            return cat.name?.toLowerCase().includes(q) ||
-                   cat.amenities?.toLowerCase().includes(q) ||
-                   cat.description?.toLowerCase().includes(q)
-        }
-        return true
-    })
-
-    if (sortBy === 'price-asc') {
-        filteredCategories.sort((a, b) => Number(a.price || 0) - Number(b.price || 0))
-    } else if (sortBy === 'price-desc') {
-        filteredCategories.sort((a, b) => Number(b.price || 0) - Number(a.price || 0))
-    } else if (sortBy === 'name-asc') {
-        filteredCategories.sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')))
-    }
-
     return (
         <div className="min-h-screen bg-slate-50">
             {/* ══════════════════════════════════════════════════════
                 HERO BANNER
             ══════════════════════════════════════════════════════ */}
-            <section className="relative min-h-[360px] sm:min-h-[420px] flex items-center justify-center overflow-hidden">
+            <section className="relative min-h-[380px] sm:min-h-[450px] flex items-center justify-center overflow-hidden">
                 <div
                     className="absolute inset-0 bg-cover bg-center bg-no-repeat scale-105 transition-transform duration-1000"
                     style={{ backgroundImage: `url(${HERO_BANNER_IMG})` }}
@@ -96,7 +110,7 @@ const Rooms = () => {
                 <div className="absolute inset-0 bg-gradient-to-t from-[#021813] via-[#03221b]/80 to-[#021813]/60" />
                 <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_0%,rgba(0,0,0,0.6)_100%)]" />
 
-                <div className="relative z-10 max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 text-center text-white py-16 space-y-4">
+                <div className="relative z-10 max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 text-center text-white pt-28 pb-16 sm:pt-36 sm:pb-20 space-y-4">
                     {/* Breadcrumb */}
                     <div className="inline-flex items-center gap-2 text-xs font-semibold text-[#dfc89e] uppercase tracking-[0.2em] bg-white/10 px-4 py-1.5 rounded-full backdrop-blur-md border border-[#c5a880]/30">
                         <Link to="/" className="hover:underline">Home</Link>
@@ -123,8 +137,11 @@ const Rooms = () => {
                         <span className="text-xs font-bold text-slate-500 uppercase tracking-wider block">
                             Available Accommodations
                         </span>
-                        <h2 className="text-xl sm:text-2xl font-serif font-bold text-slate-900">
-                            Explore All Rooms ({filteredCategories.length})
+                        <h2 className="text-xl sm:text-2xl font-serif font-bold text-slate-900 flex items-center gap-2.5">
+                            <span>Explore All Rooms ({categories.length})</span>
+                            {isFiltering && (
+                                <span className="loading loading-spinner loading-xs text-[#04261f]" title="Fetching rooms..." />
+                            )}
                         </h2>
                     </div>
 
@@ -137,25 +154,28 @@ const Rooms = () => {
                                 placeholder="Search rooms or amenities..."
                                 value={searchQuery}
                                 onChange={e => setSearchQuery(e.target.value)}
-                                className="pl-9 pr-4 py-2 bg-slate-50 hover:bg-white focus:bg-white rounded-xl border border-slate-200 text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-[#04261f] w-full sm:w-64 transition-colors"
+                                className="pl-9 pr-8 py-2 bg-slate-50 hover:bg-white focus:bg-white rounded-xl border border-slate-200 text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-[#04261f] w-full sm:w-64 transition-colors"
                             />
+                            {isFiltering && (
+                                <span className="loading loading-spinner loading-xs text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                            )}
                         </div>
 
                         {/* Category Dropdown */}
                         <select
-                            className="py-2 px-3.5 bg-slate-50 hover:bg-white focus:bg-white rounded-xl border border-slate-200 text-xs font-semibold text-slate-800 focus:outline-none focus:border-[#04261f] transition-colors cursor-pointer"
+                            className="select select-sm select-bordered rounded-xl bg-slate-50 hover:bg-white focus:bg-white border-slate-200 text-xs font-semibold text-slate-800 focus:outline-none focus:border-[#04261f] transition-colors cursor-pointer"
                             value={categoryFilter}
                             onChange={e => setCategoryFilter(e.target.value)}
                         >
                             <option value="">All Categories</option>
-                            {categories.map(cat => (
+                            {allCategories.map(cat => (
                                 <option key={cat._id} value={cat.name}>{cat.name}</option>
                             ))}
                         </select>
 
                         {/* Sort Dropdown */}
                         <select
-                            className="py-2 px-3.5 bg-slate-50 hover:bg-white focus:bg-white rounded-xl border border-slate-200 text-xs font-semibold text-slate-800 focus:outline-none focus:border-[#04261f] transition-colors cursor-pointer"
+                            className="select select-sm select-bordered rounded-xl bg-slate-50 hover:bg-white focus:bg-white border-slate-200 text-xs font-semibold text-slate-800 focus:outline-none focus:border-[#04261f] transition-colors cursor-pointer"
                             value={sortBy}
                             onChange={e => setSortBy(e.target.value)}
                         >
@@ -168,7 +188,7 @@ const Rooms = () => {
                 </div>
 
                 {/* Rooms Grid */}
-                {categoriesLoading ? (
+                {categoriesLoading && categories.length === 0 ? (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
                         {[1, 2, 3, 4, 5, 6].map(n => (
                             <div key={n} className="bg-white rounded-3xl overflow-hidden border border-slate-200 shadow-sm animate-pulse flex flex-col">
@@ -181,7 +201,7 @@ const Rooms = () => {
                             </div>
                         ))}
                     </div>
-                ) : filteredCategories.length === 0 ? (
+                ) : categories.length === 0 && !isFiltering ? (
                     <div className="text-center py-20 bg-white rounded-3xl border border-slate-200 shadow-xs space-y-3">
                         <BedDouble size={48} className="mx-auto text-slate-300 mb-2" />
                         <h3 className="text-xl font-bold text-slate-700 font-serif">No accommodations found</h3>
@@ -198,8 +218,8 @@ const Rooms = () => {
                         )}
                     </div>
                 ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
-                        {filteredCategories.map(cat => {
+                    <div className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8 transition-opacity duration-200 ${isFiltering ? 'opacity-60' : 'opacity-100'}`}>
+                        {categories.map(cat => {
                             const photos = cat.images?.length
                                 ? cat.images.map(img => typeof img === 'string' ? img : img.url)
                                 : cat.imageUrl ? [cat.imageUrl] : []

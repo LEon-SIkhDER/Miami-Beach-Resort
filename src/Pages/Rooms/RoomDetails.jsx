@@ -266,6 +266,9 @@ const RoomDetails = () => {
             address: formData.address,
             rooms: normalizedRooms,
             advanceAmount: 0,
+            guestType: "WEB",
+            requestedByRole: "user",
+            reference: "Website Direct",
         }
 
         try {

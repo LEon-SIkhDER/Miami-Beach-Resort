@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, useEffect, useTransition } from 'react'
 import { Link } from 'react-router'
 import DatePicker from 'react-datepicker'
 import 'react-datepicker/dist/react-datepicker.css'
@@ -24,24 +24,37 @@ import {
     Briefcase,
     CreditCard,
     Wallet,
-    Clock
+    Clock,
+    DoorClosed
 } from 'lucide-react'
 import { formatDate } from '../../../utils/bookingUtils'
 
 const IncomeAnalytics = () => {
     const axiosSecure = useAxiosSecure()
     const [search, setSearch] = useState("")
+    const [debouncedSearch, setDebouncedSearch] = useState("")
+    const [isPending, startTransition] = useTransition()
     const [selectedCategory, setSelectedCategory] = useState("all")
     const [selectedRole, setSelectedRole] = useState("all")
     const [selectedWorker, setSelectedWorker] = useState("all")
-    const [startDate, setStartDate] = useState(null)
-    const [endDate, setEndDate] = useState(null)
-    const [activePreset, setActivePreset] = useState("all")
+    const [selectedGuestType, setSelectedGuestType] = useState("all")
+    const [selectedRoom, setSelectedRoom] = useState("all")
+    const [startDate, setStartDate] = useState(() => startOfMonth(new Date()))
+    const [endDate, setEndDate] = useState(() => endOfMonth(new Date()))
+    const [activePreset, setActivePreset] = useState("month")
+
+    // Debounce search input by 200ms
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            setDebouncedSearch(search)
+        }, 200)
+        return () => clearTimeout(timer)
+    }, [search])
 
     const formattedStart = startDate ? format(startDate, "yyyy-MM-dd") : ""
     const formattedEnd = endDate ? format(endDate, "yyyy-MM-dd") : ""
 
-    const { data: incomeData = {}, isLoading: isIncomeLoading } = useQuery({
+    const { data: incomeData = {}, isLoading: isIncomeLoading, isFetching: isIncomeFetching } = useQuery({
         queryKey: ["admin-income-breakdown", formattedStart, formattedEnd],
         queryFn: async () => {
             const params = new URLSearchParams()
@@ -50,7 +63,8 @@ const IncomeAnalytics = () => {
             const queryStr = params.toString() ? `?${params.toString()}` : ""
             const res = await axiosSecure.get(`/admin/income-breakdown${queryStr}`)
             return res.data
-        }
+        },
+        placeholderData: (previousData) => previousData,
     })
 
     const { data: overview = {}, isLoading: isOverviewLoading } = useQuery({
@@ -61,6 +75,8 @@ const IncomeAnalytics = () => {
         }
     })
 
+    const isFiltering = isIncomeFetching || isPending || (search !== debouncedSearch)
+
     // Fetch all users for worker / agent / b2b dropdown filters
     const { data: allUsers = [] } = useQuery({
         queryKey: ["all-users-for-sales-report"],
@@ -70,37 +86,50 @@ const IncomeAnalytics = () => {
         }
     })
 
-    const handlePresetChange = (preset) => {
-        setActivePreset(preset)
-        const today = new Date()
-        if (preset === "all") {
-            setStartDate(null)
-            setEndDate(null)
-        } else if (preset === "today") {
-            setStartDate(today)
-            setEndDate(today)
-        } else if (preset === "week") {
-            setStartDate(startOfWeek(today, { weekStartsOn: 6 }))
-            setEndDate(endOfWeek(today, { weekStartsOn: 6 }))
-        } else if (preset === "month") {
-            setStartDate(startOfMonth(today))
-            setEndDate(endOfMonth(today))
-        } else if (preset === "last30") {
-            setStartDate(subDays(today, 30))
-            setEndDate(today)
+    // Fetch all categories and room numbers for room filter
+    const { data: dbCategories = [] } = useQuery({
+        queryKey: ["all-categories-for-sales-report"],
+        queryFn: async () => {
+            const res = await axiosSecure.get("/categoryandroom")
+            return res.data
         }
+    })
+
+    const handlePresetChange = (preset) => {
+        startTransition(() => {
+            setActivePreset(preset)
+            const today = new Date()
+            if (preset === "all") {
+                setStartDate(null)
+                setEndDate(null)
+            } else if (preset === "today") {
+                setStartDate(today)
+                setEndDate(today)
+            } else if (preset === "week") {
+                setStartDate(startOfWeek(today, { weekStartsOn: 6 }))
+                setEndDate(endOfWeek(today, { weekStartsOn: 6 }))
+            } else if (preset === "month") {
+                setStartDate(startOfMonth(today))
+                setEndDate(endOfMonth(today))
+            } else if (preset === "last30") {
+                setStartDate(subDays(today, 30))
+                setEndDate(today)
+            }
+        })
     }
 
     const handleCustomDateChange = (type, date) => {
-        setActivePreset("custom")
-        if (type === "start") {
-            setStartDate(date)
-            if (endDate && date && date > endDate) {
+        startTransition(() => {
+            setActivePreset("custom")
+            if (type === "start") {
+                setStartDate(date)
+                if (endDate && date && date > endDate) {
+                    setEndDate(date)
+                }
+            } else {
                 setEndDate(date)
             }
-        } else {
-            setEndDate(date)
-        }
+        })
     }
 
     const isLoading = isIncomeLoading || isOverviewLoading
@@ -187,14 +216,34 @@ const IncomeAnalytics = () => {
                 }
             }
 
+            // Guest-Type filter (WEB vs Walk-In)
+            if (selectedGuestType !== "all") {
+                const itemGuestType = item.guestType || (
+                    (item.requestedByRole === "user" || !item.requestedByRole || String(item.reference || "").toLowerCase().includes("website"))
+                        ? "WEB"
+                        : "Walk-In"
+                )
+                if (itemGuestType !== selectedGuestType) {
+                    return false
+                }
+            }
+
+            // Room No filter
+            if (selectedRoom !== "all") {
+                if (String(item.roomNo || "").trim() !== String(selectedRoom).trim()) {
+                    return false
+                }
+            }
+
             // Search query
-            if (search.trim()) {
-                const s = search.toLowerCase()
+            if (debouncedSearch.trim()) {
+                const s = debouncedSearch.toLowerCase()
                 const match = (
                     item.guestName?.toLowerCase().includes(s) ||
                     item.guestPhone?.toLowerCase().includes(s) ||
                     item.bookingId?.toLowerCase().includes(s) ||
                     item.categoryName?.toLowerCase().includes(s) ||
+                    item.roomNo?.toLowerCase().includes(s) ||
                     item.transactionId?.toLowerCase().includes(s) ||
                     item.reference?.toLowerCase().includes(s) ||
                     item.paymentMethod?.toLowerCase().includes(s)
@@ -204,9 +253,9 @@ const IncomeAnalytics = () => {
 
             return true
         })
-    }, [allBookingItems, selectedCategory, selectedRole, selectedWorker, search])
+    }, [allBookingItems, selectedCategory, selectedRole, selectedWorker, selectedGuestType, selectedRoom, debouncedSearch])
 
-    const isAnyFilterActive = isDateFiltered || selectedRole !== "all" || selectedWorker !== "all" || selectedCategory !== "all" || !!search.trim()
+    const isAnyFilterActive = isDateFiltered || selectedRole !== "all" || selectedWorker !== "all" || selectedCategory !== "all" || selectedGuestType !== "all" || selectedRoom !== "all" || !!search.trim()
 
     // Dynamic totals calculation across all active filters
     const totalFilteredSales = useMemo(() => {
@@ -261,6 +310,31 @@ const IncomeAnalytics = () => {
         return Array.from(set).sort()
     }, [roomBreakdown, allBookingItems])
 
+    // All available room numbers for the selector (respects selectedCategory if chosen)
+    const allAvailableRooms = useMemo(() => {
+        const set = new Set()
+        dbCategories.forEach(cat => {
+            if (selectedCategory !== "all" && cat.name !== selectedCategory) return
+            if (Array.isArray(cat.roomNumbers)) {
+                cat.roomNumbers.forEach(r => {
+                    const clean = String(r || "").trim()
+                    if (clean) set.add(clean)
+                })
+            }
+        })
+        allBookingItems.forEach(item => {
+            if (selectedCategory !== "all" && item.categoryName !== selectedCategory) return
+            const clean = String(item.roomNo || "").trim()
+            if (clean) set.add(clean)
+        })
+        return Array.from(set).sort((a, b) => {
+            const numA = parseInt(a, 10)
+            const numB = parseInt(b, 10)
+            if (!isNaN(numA) && !isNaN(numB)) return numA - numB
+            return a.localeCompare(b, undefined, { numeric: true })
+        })
+    }, [dbCategories, allBookingItems, selectedCategory])
+
     // Dynamic suite category performance derived from filteredItems
     const filteredRoomBreakdown = useMemo(() => {
         const catMap = new Map()
@@ -293,7 +367,7 @@ const IncomeAnalytics = () => {
                         <span className="w-9 h-9 rounded-xl bg-indigo-100 text-indigo-700 flex items-center justify-center">
                             <DollarSign size={22} />
                         </span>
-                        Sales Report & Revenue Analytics
+                        <span>Sales Report & Revenue Analytics</span>
                     </h1>
                     <p className="text-xs sm:text-sm text-slate-500 mt-1">
                         Comprehensive sales reporting, worker & agent performance tracking, room tariffs, and revenue breakdowns.
@@ -355,6 +429,8 @@ const IncomeAnalytics = () => {
                                     setSelectedRole("all")
                                     setSelectedWorker("all")
                                     setSelectedCategory("all")
+                                    setSelectedGuestType("all")
+                                    setSelectedRoom("all")
                                     setSearch("")
                                 }}
                                 className="btn btn-sm btn-ghost text-rose-600 hover:bg-rose-50 rounded-xl gap-1 mt-4 text-xs font-bold"
@@ -364,8 +440,7 @@ const IncomeAnalytics = () => {
                             </button>
                         )}
                     </div>
-
-                    {/* Quick Preset Buttons */}
+                                        {/* Quick Preset Buttons */}
                     <div className="flex flex-wrap items-center gap-1.5">
                         <span className="text-xs font-semibold text-slate-400 mr-1 hidden sm:inline">Presets:</span>
                         {[
@@ -391,8 +466,8 @@ const IncomeAnalytics = () => {
                     </div>
                 </div>
 
-                {/* Row 2: Worker & Role Filter Selectors (Requirement 7) */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-2 border-t border-slate-100">
+                {/* Row 2: Worker, Category, Room No & Guest-Type Filter Selectors */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3 pt-2 border-t border-slate-100">
                     {/* Role Filter */}
                     <div className="form-control">
                         <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 flex items-center gap-1">
@@ -402,10 +477,12 @@ const IncomeAnalytics = () => {
                             value={selectedRole}
                             onChange={e => {
                                 const newRole = e.target.value
-                                setSelectedRole(newRole)
-                                if (selectedWorker !== "all") {
-                                    setSelectedWorker("all")
-                                }
+                                startTransition(() => {
+                                    setSelectedRole(newRole)
+                                    if (selectedWorker !== "all") {
+                                        setSelectedWorker("all")
+                                    }
+                                })
                             }}
                             className="select select-sm select-bordered rounded-xl bg-white text-xs font-semibold text-slate-800"
                         >
@@ -424,7 +501,10 @@ const IncomeAnalytics = () => {
                         </label>
                         <select
                             value={selectedWorker}
-                            onChange={e => setSelectedWorker(e.target.value)}
+                            onChange={e => {
+                                const newWorker = e.target.value
+                                startTransition(() => setSelectedWorker(newWorker))
+                            }}
                             className="select select-sm select-bordered rounded-xl bg-white text-xs font-semibold text-slate-800"
                         >
                             <option value="all">
@@ -445,13 +525,58 @@ const IncomeAnalytics = () => {
                         </label>
                         <select
                             value={selectedCategory}
-                            onChange={e => setSelectedCategory(e.target.value)}
+                            onChange={e => {
+                                const newCat = e.target.value
+                                startTransition(() => {
+                                    setSelectedCategory(newCat)
+                                    setSelectedRoom("all")
+                                })
+                            }}
                             className="select select-sm select-bordered rounded-xl bg-white text-xs font-semibold text-slate-800"
                         >
                             <option value="all">All Suite Types</option>
                             {allAvailableCategories.map((catName, i) => (
                                 <option key={i} value={catName}>{catName}</option>
                             ))}
+                        </select>
+                    </div>
+
+                    {/* Room No Filter */}
+                    <div className="form-control">
+                        <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 flex items-center gap-1">
+                            <DoorClosed size={12} className="text-amber-600" /> Room No
+                        </label>
+                        <select
+                            value={selectedRoom}
+                            onChange={e => {
+                                const newRoom = e.target.value
+                                startTransition(() => setSelectedRoom(newRoom))
+                            }}
+                            className="select select-sm select-bordered rounded-xl bg-white text-xs font-semibold text-slate-800"
+                        >
+                            <option value="all">All Rooms</option>
+                            {allAvailableRooms.map((roomNo, i) => (
+                                <option key={i} value={roomNo}>Room {roomNo}</option>
+                            ))}
+                        </select>
+                    </div>
+
+                    {/* Guest-Type Filter */}
+                    <div className="form-control">
+                        <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 flex items-center gap-1">
+                            <Users size={12} className="text-blue-600" /> Guest-Type
+                        </label>
+                        <select
+                            value={selectedGuestType}
+                            onChange={e => {
+                                const newGuestType = e.target.value
+                                startTransition(() => setSelectedGuestType(newGuestType))
+                            }}
+                            className="select select-sm select-bordered rounded-xl bg-white text-xs font-semibold text-slate-800"
+                        >
+                            <option value="all">All Guest Types</option>
+                            <option value="WEB">WEB</option>
+                            <option value="Walk-In">Walk-In</option>
                         </select>
                     </div>
 
@@ -474,9 +599,12 @@ const IncomeAnalytics = () => {
                 </div>
 
                 {/* Active Filter Indicator Banner */}
-                {isAnyFilterActive && (
+                {(isAnyFilterActive || isFiltering) && (
                     <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-100 text-xs text-slate-600">
-                        <span className="badge badge-sm bg-teal-50 text-teal-800 border-teal-200 font-bold">Active Filters</span>
+                        <span className="badge badge-sm bg-teal-50 text-teal-800 border-teal-200 font-bold flex items-center gap-1.5">
+                            <span>Active Filters</span>
+                            {isFiltering && <span className="loading loading-spinner loading-xs text-teal-600" />}
+                        </span>
                         {isDateFiltered && (
                             <span className="bg-slate-100 px-2 py-0.5 rounded-lg text-slate-700">
                                 Date: <strong>{startDate ? formatDate(startDate) : "Beginning"}</strong> to <strong>{endDate ? formatDate(endDate) : "Latest"}</strong>
@@ -495,6 +623,16 @@ const IncomeAnalytics = () => {
                         {selectedCategory !== "all" && (
                             <span className="bg-amber-50 px-2 py-0.5 rounded-lg text-amber-800 font-semibold">
                                 Suite: <strong>{selectedCategory}</strong>
+                            </span>
+                        )}
+                        {selectedRoom !== "all" && (
+                            <span className="bg-amber-50 px-2 py-0.5 rounded-lg text-amber-800 font-semibold">
+                                Room: <strong>{selectedRoom}</strong>
+                            </span>
+                        )}
+                        {selectedGuestType !== "all" && (
+                            <span className="bg-blue-50 px-2 py-0.5 rounded-lg text-blue-700 font-semibold">
+                                Guest-Type: <strong>{selectedGuestType}</strong>
                             </span>
                         )}
                         {search.trim() && (
@@ -650,9 +788,6 @@ const IncomeAnalytics = () => {
                     </div>
 
                     <div className="flex items-center gap-2">
-                        <span className="badge badge-sm bg-emerald-50 text-emerald-800 border-emerald-200 font-bold">
-                            ৳{totalFilteredSales.toLocaleString()} Total Sales
-                        </span>
                         <span className="badge badge-sm bg-slate-100 text-slate-700 font-semibold">
                             {filteredItems.length} Entries
                         </span>
@@ -674,7 +809,7 @@ const IncomeAnalytics = () => {
                                 <th className="text-center whitespace-nowrap">Action</th>
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-slate-100 text-sm">
+                        <tbody className={`divide-y divide-slate-100 text-sm transition-opacity duration-200 ${isFiltering ? 'opacity-60' : 'opacity-100'}`}>
                             {isLoading ? (
                                 [1, 2, 3, 4].map(n => (
                                     <tr key={n} className="animate-pulse">
@@ -717,11 +852,38 @@ const IncomeAnalytics = () => {
                                             )}
                                         </td>
                                         <td className="whitespace-nowrap">
-                                            <p className="font-bold text-slate-900">{item.guestName}</p>
+                                            <div className="flex items-center gap-1.5">
+                                                <p className="font-bold text-slate-900">{item.guestName}</p>
+                                                {(() => {
+                                                    const gType = item.guestType || (
+                                                        (item.requestedByRole === "user" || !item.requestedByRole || String(item.reference || "").toLowerCase().includes("website"))
+                                                            ? "WEB"
+                                                            : "Walk-In"
+                                                    )
+                                                    return (
+                                                        <span className={`badge badge-xs font-bold text-[9px] px-1.5 py-0.5 rounded ${
+                                                            gType === "WEB"
+                                                                ? "bg-blue-50 text-blue-700 border border-blue-200"
+                                                                : "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                                                        }`}>
+                                                            {gType}
+                                                        </span>
+                                                    )
+                                                })()}
+                                            </div>
                                             <p className="text-xs text-slate-500 font-medium">{item.guestPhone}</p>
                                         </td>
                                         <td className="whitespace-nowrap">
                                             <p className="font-semibold text-slate-800 text-xs">{item.categoryName}</p>
+                                            {item.roomNo ? (
+                                                <span className="badge badge-xs bg-amber-50 text-amber-800 border border-amber-200 font-bold block w-fit mt-0.5 text-[9px]">
+                                                    Room {item.roomNo}
+                                                </span>
+                                            ) : (
+                                                <span className="text-[10px] text-slate-400 block mt-0.5">
+                                                    Room unassigned
+                                                </span>
+                                            )}
                                             {item.extraService && (
                                                 <span className="text-[10px] text-amber-800 font-semibold block">
                                                     + {item.extraService}

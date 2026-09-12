@@ -1,7 +1,9 @@
-import React, { useState } from 'react'
+import React, { useState, useContext } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router'
 import Logo from './Logo'
 import toast from 'react-hot-toast'
+import { AuthContext } from '../Context/AuthContext'
+import useRole from '../hooks/useRole'
 import { 
     MapPin, 
     Phone, 
@@ -18,9 +20,13 @@ import {
 } from 'lucide-react'
 
 const Footer = () => {
+    const { user } = useContext(AuthContext)
+    const { role } = useRole()
     const [newsletterEmail, setNewsletterEmail] = useState('')
     const location = useLocation()
     const navigate = useNavigate()
+
+    const isAuthority = Boolean(user && ["admin", "manager", "agent", "b2b"].includes(role))
 
     const handleAnchorClick = (e, targetId) => {
         e.preventDefault()
@@ -117,12 +123,21 @@ const Footer = () => {
                                 </a>
                             </li>
                             <li>
-                                <Link 
-                                    to="/my-bookings" 
-                                    className="hover:text-[#dfc89e] hover:translate-x-1 inline-block transition-all"
-                                >
-                                    My Bookings
-                                </Link>
+                                {isAuthority ? (
+                                    <Link 
+                                        to="/dashboard" 
+                                        className="hover:text-[#dfc89e] hover:translate-x-1 inline-block transition-all"
+                                    >
+                                        Dashboard
+                                    </Link>
+                                ) : (
+                                    <Link 
+                                        to="/my-bookings" 
+                                        className="hover:text-[#dfc89e] hover:translate-x-1 inline-block transition-all"
+                                    >
+                                        My Bookings
+                                    </Link>
+                                )}
                             </li>
                         </ul>
                     </div>
