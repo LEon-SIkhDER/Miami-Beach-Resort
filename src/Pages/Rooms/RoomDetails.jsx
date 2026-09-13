@@ -132,7 +132,16 @@ const RoomDetails = () => {
 
     const getRoomPrice = (entry) => {
         const cat = categories.find(c => c._id === entry.categoryId) || item
-        return Number(cat?.price || 0)
+        const basePrice = Number(cat?.price || 0)
+        if (!entry?.checkInDate || !Array.isArray(cat?.scheduledPrices) || cat.scheduledPrices.length === 0) {
+            return basePrice
+        }
+        const checkIn = typeof entry.checkInDate === 'string' ? entry.checkInDate : formatLocalDate(entry.checkInDate)
+        if (!checkIn) return basePrice
+        const applicable = cat.scheduledPrices
+            .filter(sp => sp && sp.effectiveDate && sp.effectiveDate <= checkIn)
+            .sort((a, b) => b.effectiveDate.localeCompare(a.effectiveDate))
+        return applicable.length > 0 ? Number(applicable[0].price || 0) : basePrice
     }
 
     const getRoomTotal = (entry) => {
@@ -255,7 +264,7 @@ const RoomDetails = () => {
                 adults: entry.adults !== '' && entry.adults !== undefined ? Number(entry.adults) : 0,
                 babies: Number(entry.children !== undefined ? entry.children : (entry.babies || 0)),
                 children: Number(entry.children !== undefined ? entry.children : (entry.babies || 0)),
-                pricePerNight: Number(cat?.price || 0),
+                pricePerNight: getRoomPrice(entry),
                 nights: getRoomNights(entry)
             }
         })

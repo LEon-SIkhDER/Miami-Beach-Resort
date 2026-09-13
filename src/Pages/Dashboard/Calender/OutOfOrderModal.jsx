@@ -66,10 +66,10 @@ const OutOfOrderModal = ({
     const [notes, setNotes] = useState('')
 
     // Fetch active Out of Order records
-    const { 
-        data: oooList = [], 
-        isLoading: isOOOLoading, 
-        refetch: refetchOOO 
+    const {
+        data: oooList = [],
+        isLoading: isOOOLoading,
+        refetch: refetchOOO
     } = useQuery({
         queryKey: ["out-of-order-records"],
         queryFn: async () => {
@@ -230,9 +230,9 @@ const OutOfOrderModal = ({
                             </p>
                         </div>
                     </div>
-                    <button 
-                        type="button" 
-                        onClick={onClose} 
+                    <button
+                        type="button"
+                        onClick={onClose}
                         className="btn btn-ghost btn-sm btn-circle text-slate-400 hover:text-white"
                     >
                         <X size={18} />
@@ -244,22 +244,20 @@ const OutOfOrderModal = ({
                     <button
                         type="button"
                         onClick={() => setActiveTab('create')}
-                        className={`py-3 px-4 text-xs font-bold border-b-2 flex items-center gap-1.5 transition-colors ${
-                            activeTab === 'create'
-                                ? 'border-amber-500 text-neutral-900 bg-white'
-                                : 'border-transparent text-slate-500 hover:text-slate-900'
-                        }`}
+                        className={`py-3 px-4 text-xs font-bold border-b-2 flex items-center gap-1.5 transition-colors ${activeTab === 'create'
+                            ? 'border-amber-500 text-neutral-900 bg-white'
+                            : 'border-transparent text-slate-500 hover:text-slate-900'
+                            }`}
                     >
                         <Plus size={14} /> Mark Room Out of Order
                     </button>
                     <button
                         type="button"
                         onClick={() => setActiveTab('list')}
-                        className={`py-3 px-4 text-xs font-bold border-b-2 flex items-center gap-1.5 transition-colors ${
-                            activeTab === 'list'
-                                ? 'border-amber-500 text-neutral-900 bg-white'
-                                : 'border-transparent text-slate-500 hover:text-slate-900'
-                        }`}
+                        className={`py-3 px-4 text-xs font-bold border-b-2 flex items-center gap-1.5 transition-colors ${activeTab === 'list'
+                            ? 'border-amber-500 text-neutral-900 bg-white'
+                            : 'border-transparent text-slate-500 hover:text-slate-900'
+                            }`}
                     >
                         <ShieldAlert size={14} /> Active Out of Order ({oooList.length})
                     </button>
@@ -320,7 +318,7 @@ const OutOfOrderModal = ({
                             {/* Date Range */}
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                 <div className="form-control">
-                                    <label className="label py-0.5">
+                                    <label className="label py-0.5 block">
                                         <span className="label-text font-bold text-slate-800 text-xs flex items-center gap-1">
                                             <Calendar size={13} className="text-teal-600" /> Start Date <span className="text-red-500 font-bold">*</span>
                                         </span>
@@ -338,8 +336,10 @@ const OutOfOrderModal = ({
                                         endDate={endDate}
                                         minDate={new Date()}
                                         dateFormat="dd MMM yyyy"
+                                        wrapperClassName="w-full"
                                         className="input input-sm input-bordered rounded-xl bg-white text-xs w-full cursor-pointer"
                                         onChangeRaw={e => e.preventDefault()}
+
                                     />
                                 </div>
 
@@ -354,6 +354,7 @@ const OutOfOrderModal = ({
                                         onChange={d => setEndDate(d)}
                                         selectsEnd
                                         startDate={startDate}
+                                        wrapperClassName="w-full"
                                         endDate={endDate}
                                         minDate={new Date(startDate.getTime() + 24 * 60 * 60 * 1000)}
                                         dateFormat="dd MMM yyyy"
@@ -365,13 +366,13 @@ const OutOfOrderModal = ({
 
                             {/* Reason */}
                             <div className="form-control">
-                                <label className="label py-0.5">
+                                <label className="label py-0.5 block">
                                     <span className="label-text font-bold text-slate-800 text-xs">Maintenance Reason <span className="text-red-500 font-bold">*</span></span>
                                 </label>
                                 <select
                                     value={reason}
                                     onChange={e => setReason(e.target.value)}
-                                    className="select select-sm select-bordered rounded-xl bg-white text-xs font-semibold"
+                                    className="select select-sm select-bordered rounded-xl bg-white text-xs font-semibold w-full"
                                 >
                                     {OOO_REASONS.map(r => (
                                         <option key={r} value={r}>{r}</option>
@@ -381,7 +382,7 @@ const OutOfOrderModal = ({
 
                             {reason === "Other Maintenance" && (
                                 <div className="form-control">
-                                    <label className="label py-0.5">
+                                    <label className="label py-0.5 block">
                                         <span className="label-text font-semibold text-slate-700 text-xs">Custom Reason Details</span>
                                     </label>
                                     <input
@@ -390,14 +391,14 @@ const OutOfOrderModal = ({
                                         value={customReason}
                                         onChange={e => setCustomReason(e.target.value)}
                                         placeholder="Describe the issue..."
-                                        className="input input-sm input-bordered rounded-xl bg-white text-xs"
+                                        className="input input-sm input-bordered rounded-xl bg-white text-xs w-full"
                                     />
                                 </div>
                             )}
 
                             {/* Notes */}
                             <div className="form-control">
-                                <label className="label py-0.5">
+                                <label className="label py-0.5 block">
                                     <span className="label-text font-semibold text-slate-700 text-xs flex items-center gap-1">
                                         <FileText size={13} className="text-teal-600" /> Internal Notes (Optional)
                                     </span>
@@ -407,7 +408,7 @@ const OutOfOrderModal = ({
                                     value={notes}
                                     onChange={e => setNotes(e.target.value)}
                                     placeholder="Technician details, parts ordered..."
-                                    className="input input-sm input-bordered rounded-xl bg-white text-xs"
+                                    className="input input-sm input-bordered rounded-xl bg-white text-xs w-full"
                                 />
                             </div>
 
@@ -444,7 +445,7 @@ const OutOfOrderModal = ({
                                 </div>
                             ) : (
                                 oooList.map(record => (
-                                    <div 
+                                    <div
                                         key={record._id}
                                         className="p-4 rounded-2xl bg-neutral-900 text-white border border-neutral-800 space-y-2.5 shadow-sm"
                                     >

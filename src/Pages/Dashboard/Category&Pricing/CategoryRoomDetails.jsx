@@ -20,7 +20,9 @@ import {
     Plus,
     Clock,
     DollarSign,
-    Tag
+    Tag,
+    History,
+    Lock
 } from 'lucide-react'
 import { parseFacilityList, parseRoomNumbers } from './categoryRoomUtils'
 import EditCategory from './EditCategory'
@@ -116,6 +118,20 @@ const CategoryRoomDetails = () => {
     const roomNumbers = parseRoomNumbers(category.roomNumbers || [])
     const amenities = parseFacilityList(category.amenities || "")
     const scheduledPrices = Array.isArray(category.scheduledPrices) ? category.scheduledPrices : []
+    const priceHistory = Array.isArray(category.priceHistory) ? category.priceHistory : []
+    const todayStr = (() => {
+        try {
+            return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Dhaka' }).format(new Date())
+        } catch (e) {
+            return new Date().toISOString().split('T')[0]
+        }
+    })()
+    const activeScheduledPrices = scheduledPrices.filter(sp => sp && sp.effectiveDate && sp.effectiveDate > todayStr)
+    const sortedPriceHistory = [...priceHistory].sort((a, b) => {
+        const dateA = a.effectiveDate || (a.appliedAt ? new Date(a.appliedAt).toISOString().split('T')[0] : '')
+        const dateB = b.effectiveDate || (b.appliedAt ? new Date(b.appliedAt).toISOString().split('T')[0] : '')
+        return dateB.localeCompare(dateA)
+    })
 
     const prevImage = () => {
         if (photos.length === 0) return
@@ -204,7 +220,7 @@ const CategoryRoomDetails = () => {
         setIsSavingSchedule(true)
         const toastId = toast.loading("Scheduling price change...")
         try {
-            await axios.post(`${SERVER_URL}/categoryandroom/${category._id}/schedule-price`, {
+            const { data } = await axios.post(`${SERVER_URL}/categoryandroom/${category._id}/schedule-price`, {
                 effectiveDate: scheduleDate,
                 price: Number(schedulePrice),
                 note: scheduleNote.trim()
@@ -214,7 +230,7 @@ const CategoryRoomDetails = () => {
                 queryClient.invalidateQueries({ queryKey: ["all-categories-for-calendar"] }),
                 queryClient.invalidateQueries({ queryKey: ["categories"] })
             ])
-            toast.success(`Price of ৳${Number(schedulePrice).toLocaleString()} scheduled for ${scheduleDate}!`, { id: toastId })
+            toast.success(data.message || `Price of ৳${Number(schedulePrice).toLocaleString()} scheduled for ${scheduleDate}!`, { id: toastId })
             setScheduleDate('')
             setSchedulePrice('')
             setScheduleNote('')
@@ -225,8 +241,19 @@ const CategoryRoomDetails = () => {
         }
     }
 
-    const handleDeleteSchedulePrice = async (effectiveDate) => {
-        const toastId = toast.loading("Removing scheduled price...")
+    const handleCancelSchedulePrice = async (effectiveDate) => {
+        const result = await Swal.fire({
+            title: "Cancel Price Schedule?",
+            text: `Are you sure you want to cancel the scheduled price change for ${effectiveDate}?`,
+            icon: "warning",
+            showCancelButton: true,
+            confirmButtonColor: "#e11d48",
+            cancelButtonColor: "#64748b",
+            confirmButtonText: "Yes, Cancel Schedule"
+        })
+        if (!result.isConfirmed) return
+
+        const toastId = toast.loading("Canceling scheduled price...")
         try {
             await axios.delete(`${SERVER_URL}/categoryandroom/${category._id}/schedule-price/${effectiveDate}`)
             await Promise.all([
@@ -234,9 +261,9 @@ const CategoryRoomDetails = () => {
                 queryClient.invalidateQueries({ queryKey: ["all-categories-for-calendar"] }),
                 queryClient.invalidateQueries({ queryKey: ["categories"] })
             ])
-            toast.success("Scheduled price removed", { id: toastId })
+            toast.success("Scheduled price cancelled and removed", { id: toastId })
         } catch (err) {
-            toast.error("Failed to remove scheduled price", { id: toastId })
+            toast.error("Failed to cancel scheduled price", { id: toastId })
         }
     }
 
@@ -272,7 +299,7 @@ const CategoryRoomDetails = () => {
 
             {/* Main Media Player: Video First, with Image Carousel */}
             <div className="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-sm">
-                <div className="relative bg-slate-900 h-80 sm:h-[420px]">
+                <div className="relative bg-slate-900 h-80 sm:h-[570px]">
                     {mediaType === 'video' && category.video ? (
                         <iframe
                             src={category.video}
@@ -418,7 +445,22 @@ const CategoryRoomDetails = () => {
                             </p>
                         )}
                     </div>
-
+                    {/* Amenities */}
+                    {amenities.length > 0 && (
+                        <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs">
+                            <div className="flex items-center gap-2 mb-4">
+                                <Star size={18} className="text-amber-500" />
+                                <h2 className="font-bold text-slate-900">Amenities</h2>
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                                {amenities.map(amenity => (
+                                    <span key={amenity} className="badge badge-md bg-amber-50 text-amber-700 border border-amber-200 font-medium px-3 py-2">
+                                        {amenity}
+                                    </span>
+                                ))}
+                            </div>
+                        </div>
+                    )}
                     {/* Room Inventory & Out-of-Order Controls */}
                     <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-4">
                         <div className="flex items-center justify-between">
@@ -437,19 +479,17 @@ const CategoryRoomDetails = () => {
                                     const isOOO = !!oooRecord
 
                                     return (
-                                        <div 
-                                            key={num} 
-                                            className={`p-3.5 rounded-2xl border transition-all flex flex-col justify-between space-y-2.5 ${
-                                                isOOO 
-                                                    ? 'bg-neutral-900 border-amber-500 text-white shadow-xs' 
-                                                    : 'bg-slate-50 border-slate-200 hover:border-teal-300'
-                                            }`}
+                                        <div
+                                            key={num}
+                                            className={`p-3.5 rounded-2xl border transition-all flex flex-col justify-between space-y-2.5 ${isOOO
+                                                ? 'bg-neutral-900 border-amber-500 text-white shadow-xs'
+                                                : 'bg-slate-50 border-slate-200 hover:border-teal-300'
+                                                }`}
                                         >
                                             <div className="flex items-center justify-between">
                                                 <div className="flex items-center gap-2">
-                                                    <div className={`w-8 h-8 rounded-xl flex items-center justify-center font-bold text-sm ${
-                                                        isOOO ? 'bg-amber-400/20 text-amber-300' : 'bg-teal-100 text-teal-800'
-                                                    }`}>
+                                                    <div className={`w-8 h-8 rounded-xl flex items-center justify-center font-bold text-sm ${isOOO ? 'bg-amber-400/20 text-amber-300' : 'bg-teal-100 text-teal-800'
+                                                        }`}>
                                                         <Hash size={14} />
                                                     </div>
                                                     <div>
@@ -460,9 +500,8 @@ const CategoryRoomDetails = () => {
                                                     </div>
                                                 </div>
 
-                                                <span className={`badge badge-sm font-bold border-none ${
-                                                    isOOO ? 'bg-amber-400 text-neutral-950' : 'bg-emerald-100 text-emerald-800'
-                                                }`}>
+                                                <span className={`badge badge-sm font-bold border-none ${isOOO ? 'bg-amber-400 text-neutral-950' : 'bg-emerald-100 text-emerald-800'
+                                                    }`}>
                                                     {isOOO ? 'Out of Order' : 'Active'}
                                                 </span>
                                             </div>
@@ -503,6 +542,9 @@ const CategoryRoomDetails = () => {
                             <p className="text-sm text-slate-400">No room numbers assigned to this category.</p>
                         )}
                     </div>
+
+
+
 
                     {/* Date-wise Scheduled Price History & Management */}
                     <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-5">
@@ -576,18 +618,23 @@ const CategoryRoomDetails = () => {
                             </div>
                         </form>
 
-                        {/* List of Scheduled Prices */}
-                        <div className="space-y-2">
-                            <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider">
-                                Active Price Schedules ({scheduledPrices.length})
-                            </h4>
+                        {/* List of Active Scheduled Prices */}
+                        <div className="space-y-3">
+                            <div className="flex items-center justify-between">
+                                <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                                    Active Price Schedules ({activeScheduledPrices.length})
+                                </h4>
+                                {activeScheduledPrices.length > 0 && (
+                                    <span className="text-[11px] text-slate-400 font-medium">Upcoming future schedules</span>
+                                )}
+                            </div>
 
-                            {scheduledPrices.length > 0 ? (
-                                <div className="divide-y divide-slate-100 border border-slate-200 rounded-2xl overflow-hidden bg-white">
-                                    {scheduledPrices
+                            {activeScheduledPrices.length > 0 ? (
+                                <div className="divide-y divide-slate-100 border border-slate-200 rounded-2xl overflow-hidden bg-white shadow-xs">
+                                    {activeScheduledPrices
                                         .sort((a, b) => a.effectiveDate.localeCompare(b.effectiveDate))
                                         .map((sp, idx) => (
-                                            <div key={idx} className="p-3 flex items-center justify-between text-xs hover:bg-slate-50 transition">
+                                            <div key={sp.id || idx} className="p-3.5 flex items-center justify-between text-xs hover:bg-slate-50 transition">
                                                 <div className="flex items-center gap-3">
                                                     <span className="badge badge-sm bg-teal-50 text-teal-800 border border-teal-200 font-bold">
                                                         From {sp.effectiveDate}
@@ -601,39 +648,74 @@ const CategoryRoomDetails = () => {
                                                 </div>
                                                 <button
                                                     type="button"
-                                                    onClick={() => handleDeleteSchedulePrice(sp.effectiveDate)}
-                                                    className="btn btn-ghost btn-xs text-rose-600 hover:bg-rose-50"
-                                                    title="Remove schedule"
+                                                    onClick={() => handleCancelSchedulePrice(sp.effectiveDate)}
+                                                    className="btn btn-ghost btn-xs text-rose-600 hover:bg-rose-50 hover:text-rose-700 font-semibold gap-1"
+                                                    title="Cancel schedule"
                                                 >
                                                     <Trash2 size={13} />
+                                                    <span>Cancel</span>
                                                 </button>
                                             </div>
                                         ))}
                                 </div>
                             ) : (
                                 <p className="text-xs text-slate-400 bg-slate-50 p-4 rounded-xl text-center">
-                                    No scheduled price changes. Base price of <strong>৳{Number(category.price).toLocaleString()}</strong> applies for all dates.
+                                    No active upcoming schedules. Current actual price of <strong>৳{Number(category.price).toLocaleString()}</strong> applies.
+                                </p>
+                            )}
+                        </div>
+
+                        {/* Price History (Permanent Audit Log — Cannot be deleted) */}
+                        <div className="space-y-3 pt-3 border-t border-slate-100">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                    <History size={16} className="text-teal-700" />
+                                    <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                                        Price History ({sortedPriceHistory.length})
+                                    </h4>
+                                </div>
+                                <div className="flex items-center gap-1 text-[11px] text-slate-400">
+                                    <Lock size={12} className="text-slate-400" />
+                                    <span>Immutable records</span>
+                                </div>
+                            </div>
+
+                            {sortedPriceHistory.length > 0 ? (
+                                <div className="divide-y divide-slate-100 border border-slate-200 rounded-2xl overflow-hidden bg-white shadow-xs">
+                                    {sortedPriceHistory.map((hist, idx) => {
+                                        const appliedDateStr = hist.appliedAt ? new Date(hist.appliedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : ""
+                                        return (
+                                            <div key={hist.id || idx} className="p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs hover:bg-slate-50 transition">
+                                                <div className="flex flex-wrap items-center gap-2.5">
+                                                    <span className="badge badge-sm bg-slate-100 text-slate-700 border border-slate-200 font-semibold">
+                                                        Effective {hist.effectiveDate}
+                                                    </span>
+                                                    <span className="text-slate-400 line-through font-medium">
+                                                        ৳{Number(hist.previousPrice).toLocaleString()}
+                                                    </span>
+                                                    <span className="text-slate-400">→</span>
+                                                    <strong className="text-teal-700 font-bold text-sm">
+                                                        ৳{Number(hist.newPrice).toLocaleString()} / night
+                                                    </strong>
+                                                    {hist.note && (
+                                                        <span className="text-slate-500 italic">({hist.note})</span>
+                                                    )}
+                                                </div>
+                                                <div className="flex items-center gap-2 text-slate-400 text-[11px] shrink-0">
+                                                    <span className="badge badge-xs bg-slate-100 text-slate-500 border-none font-medium">Applied</span>
+                                                    {appliedDateStr && <span>{appliedDateStr}</span>}
+                                                </div>
+                                            </div>
+                                        )
+                                    })}
+                                </div>
+                            ) : (
+                                <p className="text-xs text-slate-400 bg-slate-50 p-4 rounded-xl text-center">
+                                    No past price changes recorded yet. Initial price is <strong>৳{Number(category.price).toLocaleString()}</strong>.
                                 </p>
                             )}
                         </div>
                     </div>
-
-                    {/* Amenities */}
-                    {amenities.length > 0 && (
-                        <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs">
-                            <div className="flex items-center gap-2 mb-4">
-                                <Star size={18} className="text-amber-500" />
-                                <h2 className="font-bold text-slate-900">Amenities</h2>
-                            </div>
-                            <div className="flex flex-wrap gap-2">
-                                {amenities.map(amenity => (
-                                    <span key={amenity} className="badge badge-md bg-amber-50 text-amber-700 border border-amber-200 font-medium px-3 py-2">
-                                        {amenity}
-                                    </span>
-                                ))}
-                            </div>
-                        </div>
-                    )}
                 </div>
 
                 {/* Right Col — Quick Stats */}
@@ -645,12 +727,16 @@ const CategoryRoomDetails = () => {
                             <span className="font-bold text-slate-900">{roomNumbers.length}</span>
                         </div>
                         <div className="flex justify-between">
-                            <span className="text-slate-500">Base Price</span>
+                            <span className="text-slate-500">Current Price</span>
                             <span className="font-bold text-[#009689]">৳{Number(category.price).toLocaleString()}</span>
                         </div>
                         <div className="flex justify-between">
-                            <span className="text-slate-500">Scheduled Rates</span>
-                            <span className="font-bold text-slate-900">{scheduledPrices.length}</span>
+                            <span className="text-slate-500">Active Schedules</span>
+                            <span className="font-bold text-slate-900">{activeScheduledPrices.length}</span>
+                        </div>
+                        <div className="flex justify-between">
+                            <span className="text-slate-500">Price Changes</span>
+                            <span className="font-bold text-slate-900">{sortedPriceHistory.length}</span>
                         </div>
                         <div className="flex justify-between">
                             <span className="text-slate-500">Amenities</span>

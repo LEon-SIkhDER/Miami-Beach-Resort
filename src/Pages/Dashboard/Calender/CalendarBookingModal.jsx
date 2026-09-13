@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useMemo } from 'react'
+import React, { useState, useEffect, useMemo, useRef, useContext } from 'react'
 import { createPortal } from 'react-dom'
 import { useQuery } from '@tanstack/react-query'
+import { AuthContext } from '../../../Context/AuthContext'
 import useAxiosSecure from '../../../hooks/useAxiosSecure'
 import DatePicker from 'react-datepicker'
 import 'react-datepicker/dist/react-datepicker.css'
@@ -72,7 +73,20 @@ const CalendarBookingModal = ({
     role
 }) => {
     const axiosSecure = useAxiosSecure()
+    const { user: authUser } = useContext(AuthContext) || {}
+    const activeUser = currentUser || authUser
+    const isReferenceManuallyChanged = useRef(false)
     const [submittingStatus, setSubmittingStatus] = useState(null)
+
+    // Helper to resolve current authority name from allUsers or activeUser
+    const resolveCurrentAuthorityName = (usersList = allUsers) => {
+        if (!activeUser) return ''
+        const matched = (usersList || []).find(u => 
+            (activeUser?.email && u.email?.toLowerCase() === activeUser.email.toLowerCase()) ||
+            (activeUser?.uid && u.uid === activeUser.uid)
+        )
+        return matched?.name || activeUser?.displayName || activeUser?.email || ''
+    }
 
     // Form states
     const [name, setName] = useState('')
@@ -205,13 +219,25 @@ const CalendarBookingModal = ({
             setExtraService('')
             setExtraServiceCost('')
             setPaymentMethod('')
-            setReference('')
+            isReferenceManuallyChanged.current = false
+            const defaultRef = resolveCurrentAuthorityName(allUsers)
+            setReference(defaultRef)
             setPaidAmount('')
             setTransactionId('')
             setNotes('')
             setSubmittingStatus(null)
         }
     }, [isOpen, initialData, categories])
+
+    // Auto-fill or refine reference with current authority name when users or activeUser loads (if user hasn't manually edited it)
+    useEffect(() => {
+        if (isOpen && !isReferenceManuallyChanged.current) {
+            const defaultRef = resolveCurrentAuthorityName(allUsers)
+            if (defaultRef) {
+                setReference(defaultRef)
+            }
+        }
+    }, [isOpen, allUsers, activeUser])
 
     // Flatten all checked rooms across category blocks
     const flatBookedRooms = useMemo(() => {
@@ -340,6 +366,12 @@ const CalendarBookingModal = ({
             return
         }
 
+        // Reference (Staff / Admin) is required for both request status and confirm status
+        if (!isB2B && !reference.trim()) {
+            toast.error("Reference (Staff / Admin) is required.")
+            return
+        }
+
         // Validate that at least one room is checked
         if (flatBookedRooms.length === 0) {
             toast.error("Please check at least one room number checkbox to book.")
@@ -393,13 +425,11 @@ const CalendarBookingModal = ({
             }
         }
 
-        // Adult value required for booking_confirmed
-        if (targetStatus === "booking_confirmed") {
-            const missingAdults = flatBookedRooms.find(r => !r.adults || Number(r.adults) <= 0)
-            if (missingAdults) {
-                toast.error(`Adult guest count is required for Room ${missingAdults.roomNo || ''}.`)
-                return
-            }
+        // Adult value required for booking
+        const missingAdults = flatBookedRooms.find(r => !r.adults || Number(r.adults) <= 0)
+        if (missingAdults) {
+            toast.error(`Adult guest count is required for Room ${missingAdults.roomNo || ''}.`)
+            return
         }
 
         // Strict validation for Confirm Booking (booking_confirmed)
@@ -780,7 +810,9 @@ const CalendarBookingModal = ({
                                         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                                             <div className="form-control">
                                                 <label className="label py-0.5">
-                                                    <span className="label-text font-semibold text-slate-700 text-xs">Adults / Room</span>
+                                                    <span className="label-text font-semibold text-slate-700 text-xs">
+                                                        Adults / Room <span className="text-red-500 font-bold">*</span>
+                                                    </span>
                                                 </label>
                                                 <input
                                                     type="number"
@@ -1099,22 +1131,33 @@ const CalendarBookingModal = ({
                             {/* Staff Reference */}
                             <div className="form-control">
                                 <label className="label py-0.5 block">
-                                    <span className="label-text font-semibold text-slate-700 text-xs flex items-center gap-1">
-                                        <UserCheck size={13} className="text-teal-600" /> Reference (Staff / Admin)
+                                    <span className="label-text font-semibold text-slate-700 text-xs flex items-center justify-between w-full">
+                                        <span className="flex items-center gap-1">
+                                            <UserCheck size={13} className="text-teal-600" /> Reference (Staff / Admin)
+                                        </span>
+                                        <span className="text-rose-500 font-bold text-[10px]">* Required</span>
                                     </span>
                                 </label>
                                 <select
                                     value={reference}
-                                    onChange={e => setReference(e.target.value)}
-                                    className="select select-sm select-bordered rounded-xl bg-white text-xs font-medium"
+                                    onChange={e => {
+                                        isReferenceManuallyChanged.current = true
+                                        setReference(e.target.value)
+                                    }}
+                                    className={`select select-sm select-bordered rounded-xl bg-white text-xs font-medium ${!reference.trim() ? 'border-amber-400' : ''}`}
                                 >
-                                    <option value="">-- Select Reference (Optional) --</option>
+                                    <option value="">-- Select Reference (Staff / Admin) --</option>
+                                    {reference && !eligibleReferences.some(u => (u.name || u.email) === reference) && (
+                                        <option value={reference}>
+                                            {reference} ({role || "Current Authority"})
+                                        </option>
+                                    )}
                                     {eligibleReferences.map(u => (
                                         <option key={u._id} value={u.name || u.email}>
                                             {u.name || u.email} ({u.role || "staff"})
                                         </option>
                                     ))}
-                                    {eligibleReferences.length === 0 && (
+                                    {eligibleReferences.length === 0 && !reference && (
                                         <>
                                             <option value="Direct Frontdesk">Direct Frontdesk</option>
                                             <option value="Admin Management">Admin Management</option>

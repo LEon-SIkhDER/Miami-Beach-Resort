@@ -20,7 +20,8 @@ import {
     getBookingDiscount, 
     getBookingPaidAmount, 
     getBookingDateSummary, 
-    getRoomTotal 
+    getRoomTotal,
+    getNightCount
 } from '../../../utils/bookingUtils'
 
 const ConfirmBookingModal = ({ booking, isOpen, onClose, onSuccess, targetStatus = "booking_confirmed" }) => {
@@ -74,13 +75,21 @@ const ConfirmBookingModal = ({ booking, isOpen, onClose, onSuccess, targetStatus
     useEffect(() => {
         if (booking && isOpen) {
             const rawRooms = getBookingRooms(booking)
-            setAssignedRooms(rawRooms.map((r) => ({
-                ...r,
-                roomNo: r.roomNo || "",
-                adults: r.adults !== undefined && r.adults !== null && r.adults !== '' && Number(r.adults) > 0 ? Number(r.adults) : '',
-                children: r.children !== undefined && r.children !== null ? Number(r.children) : (r.babies !== undefined && r.babies !== null ? Number(r.babies) : 0),
-                babies: r.babies !== undefined && r.babies !== null ? Number(r.babies) : (r.children !== undefined && r.children !== null ? Number(r.children) : 0)
-            })))
+            setAssignedRooms(rawRooms.map((r) => {
+                const checkIn = r.checkIn || booking.checkIn
+                const checkOut = r.checkOut || booking.checkOut
+                const nights = Number(r.nights) || getNightCount(checkIn, checkOut) || 1
+                return {
+                    ...r,
+                    checkIn,
+                    checkOut,
+                    nights,
+                    roomNo: r.roomNo || "",
+                    adults: r.adults !== undefined && r.adults !== null && r.adults !== '' && Number(r.adults) > 0 ? Number(r.adults) : '',
+                    children: r.children !== undefined && r.children !== null ? Number(r.children) : (r.babies !== undefined && r.babies !== null ? Number(r.babies) : 0),
+                    babies: r.babies !== undefined && r.babies !== null ? Number(r.babies) : (r.children !== undefined && r.children !== null ? Number(r.children) : 0)
+                }
+            }))
             setPaidAmount(booking.paidAmount !== undefined && booking.paidAmount > 0 ? String(booking.paidAmount) : '')
             setPaymentMethod(booking.paymentMethod || '')
             setExtraService(booking.extraService || '')
@@ -158,7 +167,7 @@ const ConfirmBookingModal = ({ booking, isOpen, onClose, onSuccess, targetStatus
     const extraCost = extraServiceCost !== '' ? Math.max(0, Number(extraServiceCost)) : 0
     const roomSubtotal = assignedRooms.reduce((sum, r) => {
         const p = Number(r.pricePerNight !== undefined ? r.pricePerNight : getRoomTotal(r))
-        const n = Number(r.nights || 1)
+        const n = Number(r.nights) || getNightCount(r.checkIn, r.checkOut) || 1
         return sum + (r.pricePerNight !== undefined ? p * n : getRoomTotal(r))
     }, 0) || getBookingSubtotal(booking) || 0
     const standardTotal = roomSubtotal + extraCost
@@ -230,6 +239,7 @@ const ConfirmBookingModal = ({ booking, isOpen, onClose, onSuccess, targetStatus
         try {
             const normalizedRooms = assignedRooms.map(r => ({
                 ...r,
+                nights: Number(r.nights) || getNightCount(r.checkIn, r.checkOut) || 1,
                 adults: r.adults !== '' && r.adults !== undefined ? Number(r.adults) : 0,
                 children: Number(r.children || 0),
                 babies: Number(r.babies || r.children || 0),
@@ -341,6 +351,7 @@ const ConfirmBookingModal = ({ booking, isOpen, onClose, onSuccess, targetStatus
 
                         <div className="space-y-2.5">
                             {assignedRooms.map((room, index) => {
+                                const roomNights = Number(room.nights) || getNightCount(room.checkIn, room.checkOut) || 1
                                 const cat = categories.find(c => String(c._id) === String(room.categoryId || room.roomId)) ||
                                              categories.find(c => c.name === room.categoryName)
                                 const availableRoomNumbers = Array.isArray(cat?.roomNumbers) ? cat.roomNumbers : []
@@ -355,7 +366,7 @@ const ConfirmBookingModal = ({ booking, isOpen, onClose, onSuccess, targetStatus
                                                 {cat?.name || room.categoryName || "Category Room"}
                                             </span>
                                             <span className="text-slate-500 text-[11px]">
-                                                {room.checkIn} → {room.checkOut}
+                                                {room.checkIn} → {room.checkOut} ({roomNights} night{roomNights !== 1 ? 's' : ''})
                                             </span>
                                         </div>
 
@@ -478,9 +489,9 @@ const ConfirmBookingModal = ({ booking, isOpen, onClose, onSuccess, targetStatus
                                             </div>
 
                                             <div className="flex justify-between items-center text-xs pt-1 border-t border-teal-100/50">
-                                                <span className="text-slate-500 text-[11px] font-medium">Room Total ({room.nights || 1} night{Number(room.nights || 1) !== 1 ? 's' : ''}):</span>
+                                                <span className="text-slate-500 text-[11px] font-medium">Room Total ({roomNights} night{roomNights !== 1 ? 's' : ''}):</span>
                                                 <strong className="text-teal-900 font-extrabold">
-                                                    ৳{Number((room.pricePerNight || 0) * (room.nights || 1)).toLocaleString()}
+                                                    ৳{Number((room.pricePerNight || 0) * roomNights).toLocaleString()}
                                                 </strong>
                                             </div>
                                         </div>

@@ -1,14 +1,18 @@
-import React, { useState, useMemo, useEffect, useTransition } from 'react'
+import React, { useState, useMemo, useEffect, useTransition, useContext } from 'react'
 import { Link } from 'react-router'
 import DatePicker from 'react-datepicker'
 import 'react-datepicker/dist/react-datepicker.css'
 import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, subDays } from 'date-fns'
 import useAxiosSecure from '../../../hooks/useAxiosSecure'
 import { useQuery } from '@tanstack/react-query'
+import { AuthContext } from '../../../Context/AuthContext'
+import SalesReportPdfModal from './SalesReportPdfModal'
+import { exportSalesToExcel } from './exportSalesExcel'
+import { exportSalesToPdf } from './exportSalesPdf'
 import {
     DollarSign,
     TrendingUp,
-    Calendar,
+    Calendar as CalendarIcon,
     BedDouble,
     Search,
     Receipt,
@@ -17,7 +21,6 @@ import {
     ArrowUpRight,
     Sparkles,
     BarChart3,
-    Calendar as CalendarIcon,
     Filter,
     RotateCcw,
     Users,
@@ -25,12 +28,22 @@ import {
     CreditCard,
     Wallet,
     Clock,
-    DoorClosed
+    DoorClosed,
+    ChevronLeft,
+    ChevronRight,
+    Download,
+    ChevronDown,
+    FileSpreadsheet,
+    FileText,
+    Printer
 } from 'lucide-react'
 import { formatDate } from '../../../utils/bookingUtils'
 
 const IncomeAnalytics = () => {
     const axiosSecure = useAxiosSecure()
+    const { user } = useContext(AuthContext)
+    const [isPdfModalOpen, setIsPdfModalOpen] = useState(false)
+    const [isDirectPrint, setIsDirectPrint] = useState(false)
     const [search, setSearch] = useState("")
     const [debouncedSearch, setDebouncedSearch] = useState("")
     const [isPending, startTransition] = useTransition()
@@ -81,8 +94,17 @@ const IncomeAnalytics = () => {
     const { data: allUsers = [] } = useQuery({
         queryKey: ["all-users-for-sales-report"],
         queryFn: async () => {
-            const res = await axiosSecure.get("/users")
-            return res.data
+            try {
+                const res = await axiosSecure.get("/users")
+                if (Array.isArray(res?.data)) return res.data
+                if (Array.isArray(res?.data?.users)) return res.data.users
+                if (Array.isArray(res?.data?.data)) return res.data.data
+                if (res?.data && typeof res.data === 'object') return Object.values(res.data)
+                return []
+            } catch (e) {
+                console.error("Failed to load users for sales report:", e)
+                return []
+            }
         }
     })
 
@@ -90,8 +112,16 @@ const IncomeAnalytics = () => {
     const { data: dbCategories = [] } = useQuery({
         queryKey: ["all-categories-for-sales-report"],
         queryFn: async () => {
-            const res = await axiosSecure.get("/categoryandroom")
-            return res.data
+            try {
+                const res = await axiosSecure.get("/categoryandroom")
+                if (Array.isArray(res?.data)) return res.data
+                if (Array.isArray(res?.data?.categories)) return res.data.categories
+                if (Array.isArray(res?.data?.data)) return res.data.data
+                return []
+            } catch (e) {
+                console.error("Failed to load categories for sales report:", e)
+                return []
+            }
         }
     })
 
@@ -133,15 +163,18 @@ const IncomeAnalytics = () => {
     }
 
     const isLoading = isIncomeLoading || isOverviewLoading
-    const roomBreakdown = incomeData.roomBreakdown || []
+    const roomBreakdown = Array.isArray(incomeData?.roomBreakdown) ? incomeData.roomBreakdown : []
     const isDateFiltered = !!startDate || !!endDate
 
     // Flatten all room-level booking items for the details table
     const allBookingItems = useMemo(() => {
+        if (!Array.isArray(roomBreakdown)) return []
         return roomBreakdown.flatMap(cat => 
-            (cat.bookings || []).map(b => ({
+            (Array.isArray(cat?.bookings) ? cat.bookings : []).map(b => ({
                 ...b,
-                categoryName: cat.roomName
+                categoryName: cat?.roomName || "Standard",
+                adults: Number(b?.adults !== undefined ? b.adults : 1),
+                children: Number(b?.children !== undefined ? b.children : 0)
             }))
         )
     }, [roomBreakdown])
@@ -165,18 +198,36 @@ const IncomeAnalytics = () => {
     const workerOptions = useMemo(() => {
         const set = new Map()
 
+        // Normalize users list whether allUsers is Array, Object with .users/.data, or key-value map
+        const userList = Array.isArray(allUsers)
+            ? allUsers
+            : (allUsers && typeof allUsers === 'object' && Array.isArray(allUsers.users))
+                ? allUsers.users
+                : (allUsers && typeof allUsers === 'object' && Array.isArray(allUsers.data))
+                    ? allUsers.data
+                    : (allUsers && typeof allUsers === 'object' && !Array.isArray(allUsers))
+                        ? Object.values(allUsers)
+                        : []
+
         // 1. Add matching users from database (allUsers)
-        allUsers.forEach(u => {
-            if (matchesRole(u.role, selectedRole)) {
-                const label = u.name || u.email
-                if (label) {
-                    set.set(label, { name: label, role: u.role })
+        if (Array.isArray(userList)) {
+            for (let i = 0; i < userList.length; i++) {
+                const u = userList[i]
+                if (!u || typeof u !== 'object') continue
+                if (matchesRole(u.role, selectedRole)) {
+                    const label = u.name || u.email
+                    if (label) {
+                        set.set(label, { name: label, role: u.role })
+                    }
                 }
             }
-        })
+        }
 
         // 2. Add matching bookedBy and references from booking items
-        allBookingItems.forEach(item => {
+        const bookingItems = Array.isArray(allBookingItems) ? allBookingItems : []
+        for (let i = 0; i < bookingItems.length; i++) {
+            const item = bookingItems[i]
+            if (!item) continue
             const bookedRole = item.bookedBy?.role || item.requestedByRole
             if (item.bookedBy?.name && matchesRole(bookedRole, selectedRole) && !set.has(item.bookedBy.name)) {
                 set.set(item.bookedBy.name, { name: item.bookedBy.name, role: bookedRole || "worker" })
@@ -184,13 +235,16 @@ const IncomeAnalytics = () => {
             if (item.reference && matchesRole(item.requestedByRole || bookedRole, selectedRole) && !set.has(item.reference)) {
                 set.set(item.reference, { name: item.reference, role: item.requestedByRole || bookedRole || "reference" })
             }
-        })
+        }
 
-        return Array.from(set.values()).sort((a, b) => a.name.localeCompare(b.name))
+        return Array.from(set.values()).sort((a, b) => (a?.name || "").localeCompare(b?.name || ""))
     }, [allUsers, allBookingItems, selectedRole])
 
     const filteredItems = useMemo(() => {
+        if (!Array.isArray(allBookingItems)) return []
         return allBookingItems.filter(item => {
+            if (!item) return false
+
             // Category filter
             if (selectedCategory !== "all" && item.categoryName !== selectedCategory) {
                 return false
@@ -236,8 +290,8 @@ const IncomeAnalytics = () => {
             }
 
             // Search query
-            if (debouncedSearch.trim()) {
-                const s = debouncedSearch.toLowerCase()
+            if (debouncedSearch && debouncedSearch.trim()) {
+                const s = debouncedSearch.toLowerCase().trim()
                 const match = (
                     item.guestName?.toLowerCase().includes(s) ||
                     item.guestPhone?.toLowerCase().includes(s) ||
@@ -255,78 +309,132 @@ const IncomeAnalytics = () => {
         })
     }, [allBookingItems, selectedCategory, selectedRole, selectedWorker, selectedGuestType, selectedRoom, debouncedSearch])
 
+    // Pagination configuration & calculations
+    const limit = 25
+    const [pageState, setPageState] = useState(1)
+    const handlePageState = (num) => {
+        window.scrollTo({
+            top: 0,
+            behavior: "smooth"
+        })
+        setPageState(num)
+    }
+
+    // Reset pagination to page 1 whenever filter criteria changes
+    useEffect(() => {
+        setPageState(1)
+    }, [debouncedSearch, selectedCategory, selectedRole, selectedWorker, selectedGuestType, selectedRoom, startDate, endDate])
+
+    const totalPages = Math.max(1, Math.ceil((filteredItems?.length || 0) / limit))
+
+    useEffect(() => {
+        if (pageState > totalPages) {
+            setPageState(Math.max(1, totalPages))
+        }
+    }, [totalPages, pageState])
+
+    const paginatedItems = useMemo(() => {
+        const safeItems = Array.isArray(filteredItems) ? filteredItems : []
+        const startIndex = (pageState - 1) * limit
+        return safeItems.slice(startIndex, startIndex + limit)
+    }, [filteredItems, pageState, limit])
+
     const isAnyFilterActive = isDateFiltered || selectedRole !== "all" || selectedWorker !== "all" || selectedCategory !== "all" || selectedGuestType !== "all" || selectedRoom !== "all" || !!search.trim()
 
     // Dynamic totals calculation across all active filters
     const totalFilteredSales = useMemo(() => {
-        return filteredItems.reduce((sum, item) => sum + Number(item.amount || 0), 0)
+        const safeItems = Array.isArray(filteredItems) ? filteredItems : []
+        return safeItems.reduce((sum, item) => sum + Number(item?.amount || 0), 0)
     }, [filteredItems])
 
     const totalFilteredNights = useMemo(() => {
-        return filteredItems.reduce((sum, item) => sum + Number(item.nights || 0), 0)
+        const safeItems = Array.isArray(filteredItems) ? filteredItems : []
+        return safeItems.reduce((sum, item) => sum + Number(item?.nights || 0), 0)
     }, [filteredItems])
 
     const totalFilteredPaid = useMemo(() => {
+        const safeItems = Array.isArray(filteredItems) ? filteredItems : []
         const seen = new Set()
         let sum = 0
-        filteredItems.forEach(item => {
-            const bId = String(item.bookingId || item._id)
-            if (!seen.has(bId)) {
+        for (let i = 0; i < safeItems.length; i++) {
+            const item = safeItems[i]
+            const bId = String(item?.bookingId || item?._id || '')
+            if (bId && !seen.has(bId)) {
                 seen.add(bId)
-                sum += Number(item.paidAmount || 0)
+                sum += Number(item?.paidAmount || 0)
             }
-        })
+        }
         return sum
     }, [filteredItems])
 
     const totalFilteredDue = useMemo(() => {
+        const safeItems = Array.isArray(filteredItems) ? filteredItems : []
         const seen = new Set()
         let sum = 0
-        filteredItems.forEach(item => {
-            const bId = String(item.bookingId || item._id)
-            if (!seen.has(bId)) {
+        for (let i = 0; i < safeItems.length; i++) {
+            const item = safeItems[i]
+            const bId = String(item?.bookingId || item?._id || '')
+            if (bId && !seen.has(bId)) {
                 seen.add(bId)
-                sum += Number(item.dueAmount || 0)
+                sum += Number(item?.dueAmount || 0)
             }
-        })
+        }
         return sum
     }, [filteredItems])
 
     // Distinct bookings count matching active filters
     const filteredBookingsCount = useMemo(() => {
-        const idSet = new Set(filteredItems.map(item => String(item.bookingId || item._id)))
+        const safeItems = Array.isArray(filteredItems) ? filteredItems : []
+        const idSet = new Set(safeItems.map(item => String(item?.bookingId || item?._id || '')).filter(Boolean))
         return idSet.size
     }, [filteredItems])
 
     // All available suite categories for the selector
     const allAvailableCategories = useMemo(() => {
         const set = new Set()
-        roomBreakdown.forEach(cat => {
-            if (cat.roomName) set.add(cat.roomName)
-        })
-        allBookingItems.forEach(item => {
-            if (item.categoryName) set.add(item.categoryName)
-        })
+        const rbList = Array.isArray(roomBreakdown) ? roomBreakdown : []
+        for (let i = 0; i < rbList.length; i++) {
+            const cat = rbList[i]
+            if (cat?.roomName) set.add(cat.roomName)
+        }
+        const biList = Array.isArray(allBookingItems) ? allBookingItems : []
+        for (let i = 0; i < biList.length; i++) {
+            const item = biList[i]
+            if (item?.categoryName) set.add(item.categoryName)
+        }
         return Array.from(set).sort()
     }, [roomBreakdown, allBookingItems])
 
     // All available room numbers for the selector (respects selectedCategory if chosen)
     const allAvailableRooms = useMemo(() => {
         const set = new Set()
-        dbCategories.forEach(cat => {
-            if (selectedCategory !== "all" && cat.name !== selectedCategory) return
+        const catList = Array.isArray(dbCategories) 
+            ? dbCategories 
+            : (dbCategories && typeof dbCategories === 'object' && Array.isArray(dbCategories.categories))
+                ? dbCategories.categories
+                : (dbCategories && typeof dbCategories === 'object' && Array.isArray(dbCategories.data))
+                    ? dbCategories.data
+                    : []
+
+        for (let i = 0; i < catList.length; i++) {
+            const cat = catList[i]
+            if (!cat) continue
+            if (selectedCategory !== "all" && cat.name !== selectedCategory) continue
             if (Array.isArray(cat.roomNumbers)) {
-                cat.roomNumbers.forEach(r => {
-                    const clean = String(r || "").trim()
+                for (let j = 0; j < cat.roomNumbers.length; j++) {
+                    const clean = String(cat.roomNumbers[j] || "").trim()
                     if (clean) set.add(clean)
-                })
+                }
             }
-        })
-        allBookingItems.forEach(item => {
-            if (selectedCategory !== "all" && item.categoryName !== selectedCategory) return
+        }
+        const biList = Array.isArray(allBookingItems) ? allBookingItems : []
+        for (let i = 0; i < biList.length; i++) {
+            const item = biList[i]
+            if (!item) continue
+            if (selectedCategory !== "all" && item.categoryName !== selectedCategory) continue
             const clean = String(item.roomNo || "").trim()
             if (clean) set.add(clean)
-        })
+        }
         return Array.from(set).sort((a, b) => {
             const numA = parseInt(a, 10)
             const numB = parseInt(b, 10)
@@ -338,7 +446,10 @@ const IncomeAnalytics = () => {
     // Dynamic suite category performance derived from filteredItems
     const filteredRoomBreakdown = useMemo(() => {
         const catMap = new Map()
-        filteredItems.forEach(item => {
+        const safeItems = Array.isArray(filteredItems) ? filteredItems : []
+        for (let i = 0; i < safeItems.length; i++) {
+            const item = safeItems[i]
+            if (!item) continue
             const catName = item.categoryName || "Uncategorized"
             if (!catMap.has(catName)) {
                 catMap.set(catName, {
@@ -354,9 +465,56 @@ const IncomeAnalytics = () => {
             entry.bookingCount += 1
             entry.totalNights += Number(item.nights || 0)
             entry.bookings.push(item)
-        })
-        return Array.from(catMap.values()).sort((a, b) => b.totalRevenue - a.totalRevenue)
+        }
+        return Array.from(catMap.values())
     }, [filteredItems])
+
+    const handleExportExcel = () => {
+        exportSalesToExcel({
+            items: filteredItems,
+            dateRange: { startDate, endDate, activePreset },
+            categoryBreakdown: filteredRoomBreakdown,
+            totalSales: totalFilteredSales
+        })
+    }
+
+    const handleExportPdf = () => {
+        exportSalesToPdf({
+            items: filteredItems,
+            dateRange: { startDate, endDate, activePreset },
+            filters: {
+                role: selectedRole,
+                worker: selectedWorker,
+                category: selectedCategory,
+                room: selectedRoom,
+                guestType: selectedGuestType,
+                search: search.trim()
+            },
+            categoryBreakdown: filteredRoomBreakdown,
+            totalSales: totalFilteredSales,
+            currentUser: user,
+            printDirect: false
+        })
+    }
+
+    const handlePrintPdf = () => {
+        exportSalesToPdf({
+            items: filteredItems,
+            dateRange: { startDate, endDate, activePreset },
+            filters: {
+                role: selectedRole,
+                worker: selectedWorker,
+                category: selectedCategory,
+                room: selectedRoom,
+                guestType: selectedGuestType,
+                search: search.trim()
+            },
+            categoryBreakdown: filteredRoomBreakdown,
+            totalSales: totalFilteredSales,
+            currentUser: user,
+            printDirect: true
+        })
+    }
 
     return (
         <div className="space-y-6 sm:space-y-8">
@@ -374,8 +532,12 @@ const IncomeAnalytics = () => {
                     </p>
                 </div>
 
-                <div className="inline-flex items-center gap-1.5 bg-white px-3.5 py-1.5 rounded-xl border border-slate-200 text-xs font-semibold text-slate-600 shadow-xs">
-                    <TrendingUp size={14} className="text-emerald-600" /> Live Sales Dashboard
+                <div className="flex flex-wrap items-center gap-2.5">
+                   
+
+                    <div className="inline-flex items-center gap-1.5 bg-white px-3.5 py-1.5 rounded-xl border border-slate-200 text-xs font-semibold text-slate-600 shadow-xs">
+                        <TrendingUp size={14} className="text-emerald-600" /> Live Sales Dashboard
+                    </div>
                 </div>
             </div>
 
@@ -727,7 +889,7 @@ const IncomeAnalytics = () => {
                     <BarChart3 size={18} className="text-teal-600" /> Revenue by Room Suite {isAnyFilterActive ? "(Filtered)" : ""}
                 </h3>
 
-                {filteredRoomBreakdown.length === 0 ? (
+                {(filteredRoomBreakdown?.length || 0) === 0 ? (
                     <div className="bg-white border border-slate-200 rounded-2xl p-8 text-center text-slate-400">
                         <BedDouble size={36} className="mx-auto mb-2 opacity-50 text-slate-300" />
                         <p className="font-semibold text-slate-600 text-sm">No room sales recorded matching your selected filters.</p>
@@ -735,7 +897,7 @@ const IncomeAnalytics = () => {
                     </div>
                 ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                        {filteredRoomBreakdown.map((cat, idx) => {
+                        {(filteredRoomBreakdown || []).map((cat, idx) => {
                             const share = totalFilteredSales > 0 ? Math.round((cat.totalRevenue / totalFilteredSales) * 100) : 0
                             return (
                                 <div key={idx} className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs space-y-3 flex flex-col justify-between">
@@ -783,14 +945,67 @@ const IncomeAnalytics = () => {
                             <Receipt size={18} className="text-teal-600" /> Sales Transactions & Workflow Breakdown
                         </h3>
                         <p className="text-xs text-slate-500 mt-0.5">
-                            Showing {filteredItems.length} filtered transaction item(s) · Total Sells: <strong>৳{totalFilteredSales.toLocaleString()}</strong>
+                            Showing {(filteredItems?.length || 0) === 0 ? 0 : `${(pageState - 1) * limit + 1}–${Math.min(pageState * limit, (filteredItems?.length || 0))} of ${(filteredItems?.length || 0)}`} filtered transaction item(s) · Total Sells: <strong>৳{totalFilteredSales.toLocaleString()}</strong>
                         </p>
                     </div>
 
                     <div className="flex items-center gap-2">
                         <span className="badge badge-sm bg-slate-100 text-slate-700 font-semibold">
-                            {filteredItems.length} Entries
+                            {(filteredItems?.length || 0)} Entries
                         </span>
+                        {totalPages > 1 && (
+                            <span className="badge badge-sm bg-teal-100 text-teal-800 font-semibold">
+                                Page {pageState} of {totalPages}
+                            </span>
+                        )}
+                        {/* Print Button (Prints the exact same 10-column PDF document) */}
+                        <button
+                            type="button"
+                            onClick={() => {
+                                handlePrintPdf()
+                            }}
+                            className="btn btn-sm bg-[#01966e] hover:bg-[#017c5b] text-white font-bold rounded-xl gap-1.5 shadow-xs border-none cursor-pointer"
+                            title="Print bookings report (A4)"
+                        >
+                            <Printer size={14} /> Print
+                        </button>
+
+                        {/* Export Dropdown (Requirement: PDF and XL) */}
+                        <div className="dropdown dropdown-end">
+                            <div tabIndex={0} role="button" className="btn btn-sm bg-teal-700 hover:bg-teal-800 text-white font-bold rounded-xl gap-1.5 shadow-xs border-none cursor-pointer">
+                                <Download size={14} /> Export <ChevronDown size={14} />
+                            </div>
+                            <ul tabIndex={0} className="dropdown-content menu bg-white rounded-2xl z-30 w-48 p-2 shadow-xl border border-slate-200 text-xs font-semibold space-y-1">
+                                <li>
+                                    <button
+                                        type="button"
+                                        onClick={(e) => {
+                                            e.currentTarget?.blur()
+                                            handleExportPdf()
+                                        }}
+                                        className="flex items-center gap-2.5 text-slate-800 hover:bg-teal-50 hover:text-teal-900 rounded-xl py-2 px-3 transition-colors cursor-pointer"
+                                        title="Download filtered sales report as PDF (.pdf)"
+                                    >
+                                        <FileText size={16} className="text-rose-600" />
+                                        <span>Download PDF</span>
+                                    </button>
+                                </li>
+                                <li>
+                                    <button
+                                        type="button"
+                                        onClick={(e) => {
+                                            e.currentTarget?.blur()
+                                            handleExportExcel()
+                                        }}
+                                        className="flex items-center gap-2.5 text-slate-800 hover:bg-emerald-50 hover:text-emerald-900 rounded-xl py-2 px-3 transition-colors cursor-pointer"
+                                        title="Download filtered sales report as Excel (.xlsx)"
+                                    >
+                                        <FileSpreadsheet size={16} className="text-emerald-600" />
+                                        <span>Export Excel (.xlsx)</span>
+                                    </button>
+                                </li>
+                        </ul>
+                    </div>
                     </div>
                 </div>
 
@@ -824,7 +1039,7 @@ const IncomeAnalytics = () => {
                                         <td><div className="h-7 bg-slate-200 w-14 mx-auto"></div></td>
                                     </tr>
                                 ))
-                            ) : filteredItems.length === 0 ? (
+                            ) : (filteredItems?.length || 0) === 0 ? (
                                 <tr>
                                     <td colSpan={9} className="text-center py-12 text-slate-400">
                                         <Receipt size={36} className="mx-auto mb-2 opacity-50" />
@@ -832,7 +1047,7 @@ const IncomeAnalytics = () => {
                                     </td>
                                 </tr>
                             ) : (
-                                filteredItems.map((item, idx) => (
+                                paginatedItems.map((item, idx) => (
                                     <tr key={`${item.bookingId}-${idx}`} className="hover:bg-slate-50/80 transition-colors">
                                         <td className="whitespace-nowrap">
                                             <Link
@@ -956,11 +1171,11 @@ const IncomeAnalytics = () => {
                         </tbody>
 
                         {/* Table Footer with Total Sells and Summary (Requirement 7) */}
-                        {filteredItems.length > 0 && (
+                        {(filteredItems?.length || 0) > 0 && (
                             <tfoot className="bg-slate-100/90 border-t-2 border-slate-300 text-slate-900 font-bold text-xs">
                                 <tr>
                                     <td colSpan={4} className="py-3 px-4 font-black uppercase tracking-wider text-slate-800">
-                                        Total Sells Summary ({filteredItems.length} Transactions)
+                                        Total Sells Summary ({(filteredItems?.length || 0)} Transactions)
                                     </td>
                                     <td className="py-3 text-center font-mono font-bold text-slate-800">
                                         {totalFilteredNights} Nights
@@ -986,7 +1201,90 @@ const IncomeAnalytics = () => {
                         )}
                     </table>
                 </div>
+
+                {/* Pagination Controls */}
+                {(filteredItems?.length || 0) > limit && (
+                    <div className="my-6 flex flex-wrap items-center justify-center gap-2">
+                        <button
+                            type="button"
+                            onClick={() => handlePageState(pageState - 1)}
+                            className="btn btn-sm sm:btn-md min-h-10 rounded-full border border-slate-200 bg-white px-3 text-slate-700 shadow-xs transition-all hover:border-teal-500 hover:bg-teal-50 disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400 cursor-pointer disabled:cursor-not-allowed"
+                            disabled={pageState === 1}
+                            title="Previous Page"
+                        >
+                            <ChevronLeft size={16} />
+                        </button>
+                        {Array.from({ length: totalPages }, (_, index) => {
+                            const pageNumber = index + 1
+                            if (totalPages > 7) {
+                                if (
+                                    pageNumber !== 1 &&
+                                    pageNumber !== totalPages &&
+                                    Math.abs(pageNumber - pageState) > 1
+                                ) {
+                                    if (
+                                        pageNumber === pageState - 2 ||
+                                        pageNumber === pageState + 2
+                                    ) {
+                                        return (
+                                            <span key={index} className="px-1 text-slate-400 font-bold select-none">
+                                                ...
+                                            </span>
+                                        )
+                                    }
+                                    return null
+                                }
+                            }
+
+                            return (
+                                <button
+                                    key={index}
+                                    type="button"
+                                    onClick={() => handlePageState(pageNumber)}
+                                    className={`btn btn-sm sm:btn-md h-10 min-h-10 w-10 rounded-full border text-sm font-bold shadow-none transition-all cursor-pointer ${
+                                        pageState === pageNumber
+                                            ? 'bg-teal-700 text-white border-teal-700 hover:bg-teal-800 hover:border-teal-800'
+                                            : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
+                                    } items-center justify-center`}
+                                >
+                                    {pageNumber}
+                                </button>
+                            )
+                        })}
+                        <button
+                            type="button"
+                            onClick={() => handlePageState(pageState + 1)}
+                            className="btn btn-sm sm:btn-md min-h-10 rounded-full border border-slate-200 bg-white px-3 text-slate-700 shadow-xs transition-all hover:border-teal-500 hover:bg-teal-50 disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400 cursor-pointer disabled:cursor-not-allowed"
+                            disabled={pageState === totalPages}
+                            title="Next Page"
+                        >
+                            <ChevronRight size={16} />
+                        </button>
+                    </div>
+                )}
             </div>
+
+            {/* Sales Report PDF Export Modal */}
+            <SalesReportPdfModal
+                isOpen={isPdfModalOpen}
+                onClose={() => {
+                    setIsPdfModalOpen(false)
+                    setIsDirectPrint(false)
+                }}
+                items={filteredItems}
+                dateRange={{ startDate, endDate, activePreset }}
+                filters={{
+                    role: selectedRole,
+                    worker: selectedWorker,
+                    category: selectedCategory,
+                    room: selectedRoom,
+                    guestType: selectedGuestType,
+                    search: search.trim()
+                }}
+                currentUser={user}
+                totalSales={totalFilteredSales}
+                directPrint={isDirectPrint}
+            />
         </div>
     )
 }

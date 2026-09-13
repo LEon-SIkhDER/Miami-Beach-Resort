@@ -48,7 +48,10 @@ export const getNightCount = (checkIn, checkOut) => {
 
 export const getBookingRooms = (booking = {}) => {
     if (Array.isArray(booking.rooms) && booking.rooms.length) {
-        return booking.rooms
+        return booking.rooms.map(r => ({
+            ...r,
+            nights: Number(r.nights) || getNightCount(r.checkIn || booking.checkIn, r.checkOut || booking.checkOut) || 1
+        }))
     }
 
     if (!booking.roomId && !booking.checkIn && !booking.checkOut) {
@@ -56,6 +59,7 @@ export const getBookingRooms = (booking = {}) => {
     }
 
     const childCount = Number(booking.children !== undefined ? booking.children : (booking.babies || 0))
+    const nights = getNightCount(booking.checkIn, booking.checkOut) || 1
 
     return [{
         roomId: booking.roomId,
@@ -66,6 +70,7 @@ export const getBookingRooms = (booking = {}) => {
         babies: childCount,
         children: childCount,
         pricePerNight: Number(booking.pricePerNight || booking.price || 0),
+        nights: nights,
         room: {
             name: booking.roomName,
             category: booking.roomCategory

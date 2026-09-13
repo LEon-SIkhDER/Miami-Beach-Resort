@@ -32,7 +32,7 @@ const Dashboard = () => {
     const { role } = useRole()
     const { pathname, search } = useLocation()
     const isCalendarRoute = pathname === "/dashboard/calender"
-    const isSettingsRoute = pathname.startsWith("/dashboard/settings")
+    const isSettingsRoute = pathname.startsWith("/dashboard/settings") || pathname.startsWith("/dashboard/category&room")
 
     const [sidebarOpen, setSidebarOpen] = useState(false)
     const [settingsExpanded, setSettingsExpanded] = useState(isSettingsRoute)
@@ -62,13 +62,13 @@ const Dashboard = () => {
     }
 
     const settingsSubLinks = [
-        // { to: "/dashboard/settings", label: "All Settings", icon: <Sparkles size={14} />, end: true },
-        // { to: "/dashboard/settings/hotel-setup", label: "Hotel Setup", icon: <Building2 size={14} /> },
+        { to: "/dashboard/settings", label: "All Settings", icon: <Sparkles size={14} />, end: true },
         { to: "/dashboard/settings/room-setup", label: "Room Setup", icon: <BedDouble size={14} /> },
-        // { to: "/dashboard/settings/restaurant-setup", label: "Restaurant Setup", icon: <Utensils size={14} /> },
-        // { to: "/dashboard/settings/staff-permission", label: "Staff & Permission", icon: <Shield size={14} /> },
-        // { to: "/dashboard/settings/general-settings", label: "General Settings", icon: <SlidersHorizontal size={14} /> },
-        // { to: "/dashboard/settings/backup-logs", label: "Backup & Logs", icon: <Database size={14} /> },
+        { to: "/dashboard/settings/hotel-setup", label: "Hotel Setup", icon: <Building2 size={14} /> },
+        { to: "/dashboard/settings/restaurant-setup", label: "Restaurant Setup", icon: <Utensils size={14} /> },
+        { to: "/dashboard/settings/staff-permission", label: "Staff & Permission", icon: <Shield size={14} /> },
+        { to: "/dashboard/settings/general-settings", label: "General Settings", icon: <SlidersHorizontal size={14} /> },
+        { to: "/dashboard/settings/backup-logs", label: "Backup & Logs", icon: <Database size={14} /> },
     ]
 
     const settingsNavItem = {
@@ -95,8 +95,7 @@ const Dashboard = () => {
         { to: "/dashboard/calender", label: "Booking Calendar", icon: <CalendarDays size={18} /> },
     ]
     const managerLinks = [
-        { to: "/dashboard/overview", label: "Overview", icon: <LayoutDashboard size={18} /> }, 
-        { to: "/dashboard/category&room", label: "Category & Room", icon: <BedDouble size={18} /> },
+        { to: "/dashboard/overview", label: "Overview", icon: <LayoutDashboard size={18} /> },
         { to: "/dashboard/bookings", label: "All Bookings", icon: <CalendarCheck size={18} /> },
         { to: "/dashboard/income", label: "Sales Report", icon: <DollarSign size={18} /> },
         { to: "/dashboard/cancellations", label: "Cancellations", icon: <XCircle size={18} /> },
@@ -106,7 +105,6 @@ const Dashboard = () => {
     ]
     const adminLinks = [
         { to: "/dashboard/overview", label: "Admin Overview", icon: <LayoutDashboard size={18} /> },
-        { to: "/dashboard/category&room", label: "Category & Room", icon: <BedDouble size={18} /> },
         { to: "/dashboard/bookings", label: "All Bookings", icon: <CalendarCheck size={18} /> },
         { to: "/dashboard/income", label: "Sales Report", icon: <DollarSign size={18} /> },
         { to: "/dashboard/cancellations", label: "Cancellations", icon: <XCircle size={18} /> },
@@ -177,7 +175,7 @@ const Dashboard = () => {
                 <p className="text-[10px] font-bold tracking-wider text-slate-400 uppercase px-3 mb-2">Main Menu</p>
                 {links.map(link => {
                     if (link.isSubmenu) {
-                        const isParentActive = pathname.startsWith("/dashboard/settings")
+                        const isParentActive = isSettingsRoute
                         return (
                             <div key={link.to} className="space-y-1">
                                 <button
@@ -188,11 +186,10 @@ const Dashboard = () => {
                                             navigate("/dashboard/settings")
                                         }
                                     }}
-                                    className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-all duration-150 select-none ${
-                                        isParentActive
-                                            ? "bg-teal-600 text-white shadow-md shadow-teal-600/20"
-                                            : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
-                                    }`}
+                                    className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-all duration-150 select-none ${isParentActive
+                                        ? "bg-teal-600 text-white shadow-md shadow-teal-600/20"
+                                        : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                                        }`}
                                 >
                                     <div className="flex items-center gap-3">
                                         {link.icon}
@@ -200,9 +197,8 @@ const Dashboard = () => {
                                     </div>
                                     <ChevronDown
                                         size={16}
-                                        className={`transition-transform duration-200 ${
-                                            settingsExpanded ? "rotate-180" : ""
-                                        } ${isParentActive ? "text-teal-100" : "text-slate-400"}`}
+                                        className={`transition-transform duration-200 ${settingsExpanded ? "rotate-180" : ""
+                                            } ${isParentActive ? "text-teal-100" : "text-slate-400"}`}
                                     />
                                 </button>
 
@@ -211,19 +207,25 @@ const Dashboard = () => {
                                     <div className="ml-3 pl-3 py-1 border-l-2 border-slate-200/90 space-y-1 transition-all">
                                         {link.subLinks.map(sub => {
                                             const isSubActive = sub.end
-                                                ? pathname === "/dashboard/settings"
-                                                : pathname === sub.to
+                                                ? pathname === sub.to
+                                                : (
+                                                    pathname === sub.to ||
+                                                    pathname.startsWith(sub.to + "/") ||
+                                                    (sub.to === "/dashboard/settings/room-setup" && (
+                                                        pathname === "/dashboard/category&room" ||
+                                                        pathname.startsWith("/dashboard/category&room/")
+                                                    ))
+                                                )
 
                                             return (
                                                 <Link
                                                     key={sub.to}
                                                     to={sub.to}
                                                     onClick={() => setSidebarOpen(false)}
-                                                    className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-all duration-150 ${
-                                                        isSubActive
-                                                            ? "bg-teal-50 text-teal-800 font-bold border-l-2 border-teal-600 -ml-[14px] pl-[12px] shadow-2xs"
-                                                            : "text-slate-500 hover:text-slate-900 hover:bg-slate-100/70"
-                                                    }`}
+                                                    className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-all duration-150 ${isSubActive
+                                                        ? "bg-teal-50 text-teal-800 font-bold border-l-2 border-teal-600 -ml-[14px] pl-[12px] shadow-2xs"
+                                                        : "text-slate-500 hover:text-slate-900 hover:bg-slate-100/70"
+                                                        }`}
                                                 >
                                                     <span className={isSubActive ? "text-teal-600" : "text-slate-400"}>
                                                         {sub.icon}
