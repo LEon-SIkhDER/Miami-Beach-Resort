@@ -95,8 +95,18 @@ const ReservationVoucherModal = ({
     const totalNights = booking.details?.totalNights || 
         (checkInDate && checkOutDate ? Math.max(1, Math.ceil((new Date(checkOutDate) - new Date(checkInDate)) / (1000 * 60 * 60 * 24))) : 1)
 
+    const rawExtraServices = Array.isArray(booking.extraServices) && booking.extraServices.length > 0 
+        ? booking.extraServices 
+        : Array.isArray(initialBooking?.extraServices) && initialBooking.extraServices.length > 0
+        ? initialBooking.extraServices
+        : booking.extraServices && typeof booking.extraServices === 'object' && booking.extraServices.name
+        ? [booking.extraServices]
+        : null
+
     const extraService = booking.extraService || booking.financials?.extraService || initialBooking?.extraService || ""
-    const extraServiceCost = Number(booking.extraServiceCost || booking.financials?.extraServiceCost || initialBooking?.extraServiceCost || 0)
+    const extraServiceCost = rawExtraServices && rawExtraServices.length > 0
+        ? rawExtraServices.reduce((sum, s) => sum + Number(s.totalCost || (Number(s.unitPrice || 0) * Number(s.quantity || 1)) || 0), 0)
+        : Number(booking.extraServiceCost || booking.financials?.extraServiceCost || initialBooking?.extraServiceCost || 0)
 
     const rawRooms = Array.isArray(booking.rooms) && booking.rooms.length > 0 
         ? booking.rooms 
@@ -379,8 +389,26 @@ const ReservationVoucherModal = ({
                                         </tr>
                                     ))}
 
-                                    {/* Extra Services Row if present */}
-                                    {extraServiceCost > 0 && (
+                                    {/* Extra Services Rows if present */}
+                                    {rawExtraServices && rawExtraServices.length > 0 ? (
+                                        rawExtraServices.map((srv, sIdx) => {
+                                            const sName = srv.name || "Extra Service"
+                                            const sUnitPrice = Number(srv.unitPrice || 0)
+                                            const sQty = Number(srv.quantity || 1)
+                                            const sTotal = Number(srv.totalCost || (sUnitPrice * sQty) || 0)
+                                            return (
+                                                <tr key={`extra-${sIdx}`} style={{ borderBottom: '1px solid #000000' }}>
+                                                    <td style={{ border: '1px solid #000000', padding: '3px 4px', textAlign: 'left', fontWeight: '500' }}>{sName}</td>
+                                                    <td style={{ border: '1px solid #000000', padding: '3px 4px', textAlign: 'center' }}>—</td>
+                                                    <td style={{ border: '1px solid #000000', padding: '3px 4px', textAlign: 'center' }}>—</td>
+                                                    <td style={{ border: '1px solid #000000', padding: '3px 4px', textAlign: 'right' }}>BDT {sUnitPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                                                    <td style={{ border: '1px solid #000000', padding: '3px 4px', textAlign: 'center' }}>{sQty}</td>
+                                                    <td style={{ border: '1px solid #000000', padding: '3px 4px', textAlign: 'center' }}>—</td>
+                                                    <td style={{ border: '1px solid #000000', padding: '3px 4px', textAlign: 'right' }}>{sTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                                                </tr>
+                                            )
+                                        })
+                                    ) : extraServiceCost > 0 ? (
                                         <tr style={{ borderBottom: '1px solid #000000' }}>
                                             <td style={{ border: '1px solid #000000', padding: '3px 4px', textAlign: 'left', fontWeight: '500' }}>{extraService || "Extra Service"}</td>
                                             <td style={{ border: '1px solid #000000', padding: '3px 4px', textAlign: 'center' }}>—</td>
@@ -390,7 +418,7 @@ const ReservationVoucherModal = ({
                                             <td style={{ border: '1px solid #000000', padding: '3px 4px', textAlign: 'center' }}>—</td>
                                             <td style={{ border: '1px solid #000000', padding: '3px 4px', textAlign: 'right' }}>{Number(extraServiceCost).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                                         </tr>
-                                    )}
+                                    ) : null}
 
                                     {/* Summary Rows */}
                                     <tr style={{ borderBottom: '1px solid #000000' }}>

@@ -31,7 +31,8 @@ import {
     Smartphone,
     X,
     KeyRound,
-    Trash2
+    Trash2,
+    Edit2
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 
@@ -54,11 +55,12 @@ const GeneralSettings = () => {
     const [isAddModalOpen, setIsAddModalOpen] = useState(false)
     const [newService, setNewService] = useState({
         name: "",
-        category: "General",
         price: "",
         billingType: "Per Night",
         description: ""
     })
+    const [isEditModalOpen, setIsEditModalOpen] = useState(false)
+    const [editingService, setEditingService] = useState(null)
 
     // Fetch extra services from backend on mount
     useEffect(() => {
@@ -175,7 +177,6 @@ const GeneralSettings = () => {
 
         const payload = {
             name: newService.name.trim(),
-            category: newService.category || "General",
             price: Number(newService.price),
             currency: "৳",
             billingType: newService.billingType || "Per Night",
@@ -195,7 +196,7 @@ const GeneralSettings = () => {
                 localStorage.setItem("miami_extra_services", JSON.stringify(next))
                 return next
             })
-            setNewService({ name: "", category: "General", price: "", billingType: "Per Night", description: "" })
+            setNewService({ name: "", price: "", billingType: "Per Night", description: "" })
             setIsAddModalOpen(false)
             toast.success("Extra service added successfully!", { id: toastId })
         } catch (err) {
@@ -206,9 +207,71 @@ const GeneralSettings = () => {
                 localStorage.setItem("miami_extra_services", JSON.stringify(next))
                 return next
             })
-            setNewService({ name: "", category: "General", price: "", billingType: "Per Night", description: "" })
+            setNewService({ name: "", price: "", billingType: "Per Night", description: "" })
             setIsAddModalOpen(false)
             toast.success("Extra service added successfully!", { id: toastId })
+        }
+    }
+
+    const handleOpenEditModal = (service) => {
+        setEditingService({
+            _id: service._id || service.id,
+            name: service.name || "",
+            price: service.price !== undefined && service.price !== null ? service.price : "",
+            billingType: service.billingType || "Per Night",
+            description: service.description || "",
+            active: service.active !== undefined ? service.active : true
+        })
+        setIsEditModalOpen(true)
+    }
+
+    const handleUpdateService = async (e) => {
+        e.preventDefault()
+        if (!editingService?.name?.trim() || editingService?.price === "" || editingService?.price === undefined) {
+            toast.error("Please enter a valid service name and price")
+            return
+        }
+
+        const serviceId = editingService._id
+        const payload = {
+            name: editingService.name.trim(),
+            price: Number(editingService.price),
+            billingType: editingService.billingType || "Per Night",
+            description: editingService.description?.trim() || "",
+            active: editingService.active !== undefined ? editingService.active : true
+        }
+
+        const toastId = toast.loading("Updating extra service...")
+        try {
+            await axios.patch(`${SERVER_URL}/extra-services/${serviceId}`, payload)
+            setExtraServices(prev => {
+                const next = prev.map(item => {
+                    if (item._id === serviceId || item.id === serviceId) {
+                        return { ...item, ...payload }
+                    }
+                    return item
+                })
+                localStorage.setItem("miami_extra_services", JSON.stringify(next))
+                return next
+            })
+            setIsEditModalOpen(false)
+            setEditingService(null)
+            toast.success("Extra service updated successfully!", { id: toastId })
+        } catch (err) {
+            console.error("Failed to update extra service on server:", err)
+            setExtraServices(prev => {
+                const next = prev.map(item => {
+                    if (item._id === serviceId || item.id === serviceId) {
+                        return { ...item, ...payload }
+                    }
+                    return item
+                })
+                localStorage.setItem("miami_extra_services", JSON.stringify(next))
+                return next
+            })
+            setIsEditModalOpen(false)
+            setEditingService(null)
+            toast.success("Extra service updated successfully!", { id: toastId })
         }
     }
 
@@ -257,8 +320,9 @@ const GeneralSettings = () => {
     ]
 
     const filteredServices = extraServices.filter(s =>
-        s.name.toLowerCase().includes(serviceSearch.toLowerCase()) ||
-        s.category.toLowerCase().includes(serviceSearch.toLowerCase())
+        s.name?.toLowerCase().includes(serviceSearch.toLowerCase()) ||
+        s.billingType?.toLowerCase().includes(serviceSearch.toLowerCase()) ||
+        (s.category && s.category.toLowerCase().includes(serviceSearch.toLowerCase()))
     )
 
     const renderServiceIcon = (iconName) => {
@@ -321,11 +385,10 @@ const GeneralSettings = () => {
                                 key={tab.id}
                                 type="button"
                                 onClick={() => handleTabSelect(tab.id)}
-                                className={`flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl text-xs sm:text-sm font-semibold whitespace-nowrap transition-all duration-150 cursor-pointer ${
-                                    isActive
+                                className={`flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl text-xs sm:text-sm font-semibold whitespace-nowrap transition-all duration-150 cursor-pointer ${isActive
                                         ? "bg-teal-600 text-white shadow-md shadow-teal-600/20"
                                         : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
-                                }`}
+                                    }`}
                             >
                                 <span className={isActive ? "text-teal-100" : "text-teal-600"}>
                                     {tab.icon}
@@ -333,11 +396,10 @@ const GeneralSettings = () => {
                                 <span>{tab.label}</span>
                                 {tab.badge && (
                                     <span
-                                        className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                                            isActive
+                                        className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${isActive
                                                 ? "bg-teal-500/50 text-white"
                                                 : "bg-slate-100 text-slate-600"
-                                        }`}
+                                            }`}
                                     >
                                         {tab.badge}
                                     </span>
@@ -456,25 +518,23 @@ const GeneralSettings = () => {
                                 return (
                                     <div
                                         key={serviceId}
-                                        className={`bg-white rounded-2xl border transition-all duration-200 p-5 flex flex-col justify-between ${
-                                            service.active
+                                        className={`bg-white rounded-2xl border transition-all duration-200 p-5 flex flex-col justify-between ${service.active
                                                 ? "border-slate-200 hover:border-teal-300 hover:shadow-md shadow-xs"
                                                 : "border-dashed border-slate-200 bg-slate-50/50 opacity-70"
-                                        }`}
+                                            }`}
                                     >
                                         <div>
                                             <div className="flex items-start justify-between gap-3 mb-3">
                                                 <div className="flex items-center gap-3">
-                                                    <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${
-                                                        service.active
+                                                    <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${service.active
                                                             ? "bg-teal-50 text-teal-700 border border-teal-100"
                                                             : "bg-slate-100 text-slate-400 border border-slate-200"
-                                                    }`}>
-                                                        {renderServiceIcon(service.icon || service.category)}
+                                                        }`}>
+                                                        {renderServiceIcon(service.icon || "Sparkles")}
                                                     </div>
                                                     <div>
-                                                        <span className="text-[10px] font-bold tracking-wider uppercase px-2 py-0.5 rounded-md bg-slate-100 text-slate-600">
-                                                            {service.category || "General"}
+                                                        <span className="text-[10px] font-bold tracking-wider uppercase px-2 py-0.5 rounded-md bg-teal-50 text-teal-700 border border-teal-100">
+                                                            {service.billingType || "Per Night"}
                                                         </span>
                                                     </div>
                                                 </div>
@@ -484,11 +544,10 @@ const GeneralSettings = () => {
                                                     <button
                                                         type="button"
                                                         onClick={() => toggleServiceActive(serviceId, service.active)}
-                                                        className={`p-1 rounded-lg transition-colors cursor-pointer ${
-                                                            service.active
+                                                        className={`p-1 rounded-lg transition-colors cursor-pointer ${service.active
                                                                 ? "text-teal-600 hover:bg-teal-50"
                                                                 : "text-slate-400 hover:bg-slate-100"
-                                                        }`}
+                                                            }`}
                                                         title={service.active ? "Deactivate Service" : "Activate Service"}
                                                     >
                                                         {service.active ? (
@@ -496,6 +555,16 @@ const GeneralSettings = () => {
                                                         ) : (
                                                             <ToggleLeft size={28} className="text-slate-300" />
                                                         )}
+                                                    </button>
+
+                                                    {/* Edit Button */}
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleOpenEditModal(service)}
+                                                        className="p-1.5 rounded-lg text-slate-400 hover:text-teal-600 hover:bg-teal-50 transition-colors cursor-pointer"
+                                                        title="Edit Service"
+                                                    >
+                                                        <Edit2 size={16} />
                                                     </button>
 
                                                     {/* Delete Button */}
@@ -531,11 +600,10 @@ const GeneralSettings = () => {
                                                 </p>
                                             </div>
 
-                                            <span className={`text-[11px] font-bold px-2.5 py-1 rounded-full ${
-                                                service.active
+                                            <span className={`text-[11px] font-bold px-2.5 py-1 rounded-full ${service.active
                                                     ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
                                                     : "bg-slate-100 text-slate-500 border border-slate-200"
-                                            }`}>
+                                                }`}>
                                                 {service.active ? "Available" : "Disabled"}
                                             </span>
                                         </div>
@@ -562,7 +630,7 @@ const GeneralSettings = () => {
                                     Demo 2: Core Booking, Check-in & Stay Policies
                                 </h2>
                                 <p className="text-xs sm:text-sm text-slate-600 mt-1 max-w-3xl">
-                                    This demo page outlines the operational stay parameters enforced by Miami Beach Resort. 
+                                    This demo page outlines the operational stay parameters enforced by Miami Beach Resort.
                                     These settings dictate reception schedules, room turnaround windows, automatic reservation release timings, and guest age allowances.
                                 </p>
                             </div>
@@ -729,7 +797,7 @@ const GeneralSettings = () => {
                                     Demo 3: Payment Gateways, VAT & Fiscal Settings
                                 </h2>
                                 <p className="text-xs sm:text-sm text-slate-600 mt-1 max-w-3xl">
-                                    Configure Bangladesh statutory tax percentages, resort service charge rates, bKash/Nagad merchant credentials, 
+                                    Configure Bangladesh statutory tax percentages, resort service charge rates, bKash/Nagad merchant credentials,
                                     and credit card processing policies for guest reservations and on-premise dining.
                                 </p>
                             </div>
@@ -872,7 +940,7 @@ const GeneralSettings = () => {
                             </div>
 
                             <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-100 text-xs text-slate-600">
-                                <span className="font-bold">Currency Base:</span> All bookings are settled primarily in BDT (Bangladeshi Taka). 
+                                <span className="font-bold">Currency Base:</span> All bookings are settled primarily in BDT (Bangladeshi Taka).
                                 Real-time foreign exchange cards are settled through automated SSLCommerz or City Bank gateway.
                             </div>
                         </div>
@@ -895,7 +963,7 @@ const GeneralSettings = () => {
                                     Demo 4: Cancellation Tiers, Refunds & Coastal Waivers
                                 </h2>
                                 <p className="text-xs sm:text-sm text-slate-600 mt-1 max-w-3xl">
-                                    Establishes transparent refund matrices for guest itinerary cancellations. 
+                                    Establishes transparent refund matrices for guest itinerary cancellations.
                                     Also governs weather-related maritime hazard protection policies specific to Cox's Bazar coastlines.
                                 </p>
                             </div>
@@ -953,7 +1021,7 @@ const GeneralSettings = () => {
                         </div>
 
                         <p className="text-xs text-slate-600 leading-relaxed">
-                            When the Bangladesh Meteorological Department issues <strong>Cyclone Warning Signal No. 4 or higher</strong> for Cox's Bazar maritime port, 
+                            When the Bangladesh Meteorological Department issues <strong>Cyclone Warning Signal No. 4 or higher</strong> for Cox's Bazar maritime port,
                             the resort activates automatic fee-free rescheduling or issues a 100% credit voucher valid for 12 months.
                         </p>
 
@@ -988,7 +1056,7 @@ const GeneralSettings = () => {
                                     Demo 5: Automated Guest Notifications & SMS Dispatch
                                 </h2>
                                 <p className="text-xs sm:text-sm text-slate-600 mt-1 max-w-3xl">
-                                    Manage automated communications sent across every touchpoint of the guest journey. 
+                                    Manage automated communications sent across every touchpoint of the guest journey.
                                     Supports local SMS telecommunication channels, branded HTML emails, and WhatsApp concierge alerts.
                                 </p>
                             </div>
@@ -1095,7 +1163,7 @@ const GeneralSettings = () => {
                                     Demo 6: Housekeeping, Keycard & Front Desk Operations
                                 </h2>
                                 <p className="text-xs sm:text-sm text-slate-600 mt-1 max-w-3xl">
-                                    Daily operational parameters for room turnover, RFID card issuance, beach towel custody, 
+                                    Daily operational parameters for room turnover, RFID card issuance, beach towel custody,
                                     and housekeeping inspection schedules.
                                 </p>
                             </div>
@@ -1171,53 +1239,33 @@ const GeneralSettings = () => {
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                 <div>
                                     <label className="block text-xs font-bold text-slate-700 mb-1">
-                                        Category
-                                    </label>
-                                    <select
-                                        value={newService.category}
-                                        onChange={(e) => setNewService(prev => ({ ...prev, category: e.target.value }))}
-                                        className="w-full px-3 py-2 text-xs sm:text-sm rounded-xl border border-slate-200 focus:outline-none focus:border-teal-500"
-                                    >
-                                        <option value="Transportation">Transportation</option>
-                                        <option value="Accommodation">Accommodation</option>
-                                        <option value="Dining">Dining</option>
-                                        <option value="Wellness">Wellness</option>
-                                        <option value="Adventure">Adventure</option>
-                                        <option value="Housekeeping">Housekeeping</option>
-                                    </select>
-                                </div>
-
-                                <div>
-                                    <label className="block text-xs font-bold text-slate-700 mb-1">
                                         Billing Type
                                     </label>
                                     <select
                                         value={newService.billingType}
                                         onChange={(e) => setNewService(prev => ({ ...prev, billingType: e.target.value }))}
-                                        className="w-full px-3 py-2 text-xs sm:text-sm rounded-xl border border-slate-200 focus:outline-none focus:border-teal-500"
+                                        className="select select-sm select-bordered w-full rounded-xl bg-white border-slate-200 text-xs sm:text-sm font-medium text-slate-800 focus:border-teal-500 focus:outline-none h-[38px] min-h-[38px]"
                                     >
                                         <option value="Per Night">Per Night</option>
-                                        <option value="Per Trip">Per Trip</option>
                                         <option value="Per Person">Per Person</option>
-                                        <option value="Per Event">Per Event</option>
-                                        <option value="Per Load">Per Load</option>
+                                        <option value="One-time">One-time</option>
                                     </select>
                                 </div>
-                            </div>
 
-                            <div>
-                                <label className="block text-xs font-bold text-slate-700 mb-1">
-                                    Price (BDT ৳) *
-                                </label>
-                                <input
-                                    type="number"
-                                    required
-                                    min="0"
-                                    placeholder="e.g. 2500"
-                                    value={newService.price}
-                                    onChange={(e) => setNewService(prev => ({ ...prev, price: e.target.value }))}
-                                    className="w-full px-3.5 py-2 text-xs sm:text-sm rounded-xl border border-slate-200 focus:outline-none focus:border-teal-500"
-                                />
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                                        Price (BDT ৳) *
+                                    </label>
+                                    <input
+                                        type="number"
+                                        required
+                                        min="0"
+                                        placeholder="e.g. 2500"
+                                        value={newService.price}
+                                        onChange={(e) => setNewService(prev => ({ ...prev, price: e.target.value }))}
+                                        className="w-full px-3.5 py-2 text-xs sm:text-sm rounded-xl border border-slate-200 focus:outline-none focus:border-teal-500"
+                                    />
+                                </div>
                             </div>
 
                             <div>
@@ -1246,6 +1294,130 @@ const GeneralSettings = () => {
                                     className="btn btn-sm bg-teal-600 hover:bg-teal-700 text-white rounded-xl border-none cursor-pointer"
                                 >
                                     Create Service
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {/* ========================================================================= */}
+            {/* EDIT EXTRA SERVICE MODAL */}
+            {/* ========================================================================= */}
+            {isEditModalOpen && editingService && (
+                <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4">
+                    <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-4">
+                        <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                            <div className="flex items-center gap-2">
+                                <Edit2 size={18} className="text-teal-600" />
+                                <h3 className="text-base font-bold text-slate-900">Edit Extra Service</h3>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setIsEditModalOpen(false)
+                                    setEditingService(null)
+                                }}
+                                className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer"
+                            >
+                                <X size={18} />
+                            </button>
+                        </div>
+
+                        <form onSubmit={handleUpdateService} className="space-y-4">
+                            <div>
+                                <label className="block text-xs font-bold text-slate-700 mb-1">
+                                    Service Name *
+                                </label>
+                                <input
+                                    type="text"
+                                    required
+                                    placeholder="e.g. Scuba Diving Experience, Extra Beach Towel"
+                                    value={editingService.name}
+                                    onChange={(e) => setEditingService(prev => ({ ...prev, name: e.target.value }))}
+                                    className="w-full px-3.5 py-2 text-xs sm:text-sm rounded-xl border border-slate-200 focus:outline-none focus:border-teal-500"
+                                />
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                                        Billing Type
+                                    </label>
+                                    <select
+                                        value={editingService.billingType}
+                                        onChange={(e) => setEditingService(prev => ({ ...prev, billingType: e.target.value }))}
+                                        className="select select-sm select-bordered w-full rounded-xl bg-white border-slate-200 text-xs sm:text-sm font-medium text-slate-800 focus:border-teal-500 focus:outline-none h-[38px] min-h-[38px]"
+                                    >
+                                        <option value="Per Night">Per Night</option>
+                                        <option value="Per Person">Per Person</option>
+                                        <option value="One-time">One-time</option>
+                                        {editingService.billingType && !["Per Night", "Per Person", "One-time"].includes(editingService.billingType) && (
+                                            <option value={editingService.billingType}>{editingService.billingType}</option>
+                                        )}
+                                    </select>
+                                </div>
+
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                                        Price (BDT ৳) *
+                                    </label>
+                                    <input
+                                        type="number"
+                                        required
+                                        min="0"
+                                        placeholder="e.g. 2500"
+                                        value={editingService.price}
+                                        onChange={(e) => setEditingService(prev => ({ ...prev, price: e.target.value }))}
+                                        className="w-full px-3.5 py-2 text-xs sm:text-sm rounded-xl border border-slate-200 focus:outline-none focus:border-teal-500"
+                                    />
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="block text-xs font-bold text-slate-700 mb-1">
+                                    Description / Inclusions
+                                </label>
+                                <textarea
+                                    rows="3"
+                                    placeholder="Brief explanation shown to guests during room booking..."
+                                    value={editingService.description}
+                                    onChange={(e) => setEditingService(prev => ({ ...prev, description: e.target.value }))}
+                                    className="w-full px-3.5 py-2 text-xs sm:text-sm rounded-xl border border-slate-200 focus:outline-none focus:border-teal-500"
+                                />
+                            </div>
+
+                            <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-200/80">
+                                <div>
+                                    <span className="text-xs font-bold text-slate-800 block">Service Status</span>
+                                    <span className="text-[11px] text-slate-500">
+                                        {editingService.active ? "Active - Available for guest bookings" : "Disabled - Hidden from bookings"}
+                                    </span>
+                                </div>
+                                <input
+                                    type="checkbox"
+                                    checked={editingService.active}
+                                    onChange={(e) => setEditingService(prev => ({ ...prev, active: e.target.checked }))}
+                                    className="toggle toggle-success"
+                                />
+                            </div>
+
+                            <div className="flex items-center justify-end gap-2 pt-2">
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setIsEditModalOpen(false)
+                                        setEditingService(null)
+                                    }}
+                                    className="btn btn-sm btn-ghost rounded-xl text-slate-600 cursor-pointer"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="submit"
+                                    className="btn btn-sm bg-teal-600 hover:bg-teal-700 text-white rounded-xl border-none cursor-pointer"
+                                >
+                                    Save Changes
                                 </button>
                             </div>
                         </form>

@@ -36,7 +36,8 @@ import {
     ArrowRight,
     FileEdit,
     ShieldCheck,
-    Tag
+    Tag,
+    Sparkles
 } from 'lucide-react'
 import { 
     formatDate, 
@@ -550,6 +551,68 @@ const BookingDetails = () => {
                                     </tr>
                                 )
                             })}
+
+                            {/* Extra Services items if present */}
+                            {Array.isArray(booking.extraServices) && booking.extraServices.length > 0 ? (
+                                booking.extraServices.map((srv, sIdx) => {
+                                    const sName = srv.name || "Extra Service"
+                                    const sUnitPrice = Number(srv.unitPrice || 0)
+                                    const sQty = Number(srv.quantity || 1)
+                                    const sTotal = Number(srv.totalCost || (sUnitPrice * sQty) || 0)
+                                    return (
+                                        <tr key={`extra-srv-${sIdx}`} className="bg-amber-50/30">
+                                            <td>
+                                                <div className="flex items-center gap-3 py-1">
+                                                    <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center shrink-0">
+                                                        <Sparkles size={18} />
+                                                    </div>
+                                                    <div>
+                                                        <span className="font-bold text-slate-900 block">{sName}</span>
+                                                        <span className="text-xs text-amber-800 font-semibold bg-amber-100/60 px-1.5 py-0.5 rounded">
+                                                            {srv.billingType || "Add-on Amenity"}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td>
+                                                <span className="text-xs text-slate-400 font-medium">—</span>
+                                            </td>
+                                            <td>
+                                                <p className="font-semibold text-slate-800">{sQty} {srv.billingType === "Per Night" ? "night(s)" : srv.billingType === "Per Person" ? "person(s)" : "time(s)"}</p>
+                                                <p className="text-xs text-slate-400">৳{sUnitPrice.toLocaleString()} / unit</p>
+                                            </td>
+                                            <td className="text-right font-extrabold text-slate-900 text-sm sm:text-base">
+                                                ৳{sTotal.toLocaleString()}
+                                            </td>
+                                        </tr>
+                                    )
+                                })
+                            ) : Number(booking.extraServiceCost || 0) > 0 ? (
+                                <tr className="bg-amber-50/30">
+                                    <td>
+                                        <div className="flex items-center gap-3 py-1">
+                                            <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center shrink-0">
+                                                <Sparkles size={18} />
+                                            </div>
+                                            <div>
+                                                <span className="font-bold text-slate-900 block">{booking.extraService || "Extra Service"}</span>
+                                                <span className="text-xs text-amber-800 font-semibold bg-amber-100/60 px-1.5 py-0.5 rounded">
+                                                    Add-on Amenity
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <span className="text-xs text-slate-400 font-medium">—</span>
+                                    </td>
+                                    <td>
+                                        <p className="font-semibold text-slate-800">1 unit</p>
+                                    </td>
+                                    <td className="text-right font-extrabold text-slate-900 text-sm sm:text-base">
+                                        ৳{Number(booking.extraServiceCost || 0).toLocaleString()}
+                                    </td>
+                                </tr>
+                            ) : null}
                         </tbody>
                     </table>
                 </div>

@@ -98,13 +98,22 @@ const CalendarBookingModal = ({
     const [categoryBlocks, setCategoryBlocks] = useState([])
 
     // Payment / Confirmation / Extra Services fields
-    const [extraService, setExtraService] = useState('')
-    const [extraServiceCost, setExtraServiceCost] = useState('')
+    const [selectedExtraServices, setSelectedExtraServices] = useState([])
     const [paymentMethod, setPaymentMethod] = useState('')
     const [reference, setReference] = useState('')
     const [paidAmount, setPaidAmount] = useState('')
     const [transactionId, setTransactionId] = useState('')
     const [notes, setNotes] = useState('')
+
+    // Fetch extra services from DB
+    const { data: dbExtraServices = [] } = useQuery({
+        queryKey: ["all-extra-services-for-booking"],
+        queryFn: async () => {
+            const res = await axiosSecure.get("/extra-services")
+            return Array.isArray(res.data) ? res.data : []
+        },
+        enabled: isOpen
+    })
 
     // Staff/Admin users for reference dropdown
     const { data: allUsers = [] } = useQuery({
@@ -216,8 +225,7 @@ const CalendarBookingModal = ({
             setMobile('')
             setUserEmail('')
             setAddress('')
-            setExtraService('')
-            setExtraServiceCost('')
+            setSelectedExtraServices([])
             setPaymentMethod('')
             isReferenceManuallyChanged.current = false
             const defaultRef = resolveCurrentAuthorityName(allUsers)
@@ -271,8 +279,6 @@ const CalendarBookingModal = ({
         return result
     }, [categoryBlocks, categories])
 
-    if (!isOpen || !initialData) return null
-
     const isB2B = role === "b2b"
 
     // Standard room subtotal calculation (sum of category prices * nights for all checked rooms)
@@ -282,7 +288,126 @@ const CalendarBookingModal = ({
         return sum + (price * nights)
     }, 0)
 
-    const extraCost = extraServiceCost !== '' ? Math.max(0, Number(extraServiceCost)) : 0
+    const activeDbServices = useMemo(() => {
+        return dbExtraServices.filter(s => s.active !== false && s.status !== "Inactive")
+    }, [dbExtraServices])
+
+    const defaultStayNights = useMemo(() => {
+        if (flatBookedRooms.length > 0) {
+            return Math.max(...flatBookedRooms.map(r => r.nights || 1), 1)
+        }
+        return 1
+    }, [flatBookedRooms])
+
+    const defaultGuestCount = useMemo(() => {
+        if (flatBookedRooms.length > 0) {
+            const guests = flatBookedRooms.reduce((sum, r) => sum + (Number(r.adults) || 0) + (Number(r.children) || 0), 0)
+            return Math.max(1, guests)
+        }
+        return 1
+    }, [flatBookedRooms])
+
+    const resolvedExtraServicesList = useMemo(() => {
+        return selectedExtraServices
+            .filter(item => item.serviceId)
+            .map(item => {
+                const s = dbExtraServices.find(dbS => String(dbS._id) === String(item.serviceId) || dbS.name === item.serviceId)
+                const unitPrice = Number(s?.price || 0)
+                const qty = Math.max(1, Number(item.quantity || 1))
+                const totalCost = unitPrice * qty
+                return {
+                    id: item.id,
+                    serviceId: item.serviceId,
+                    name: s?.name || item.serviceId || "Extra Service",
+                    billingType: s?.billingType || "One-time",
+                    unitPrice: unitPrice,
+                    quantity: qty,
+                    totalCost: totalCost,
+                    serviceObj: s
+                }
+            })
+    }, [selectedExtraServices, dbExtraServices])
+
+    const extraCost = useMemo(() => {
+        return resolvedExtraServicesList.reduce((sum, s) => sum + s.totalCost, 0)
+    }, [resolvedExtraServicesList])
+
+    const selectedServiceIds = useMemo(() => {
+        return new Set(selectedExtraServices.map(s => String(s.serviceId)).filter(Boolean))
+    }, [selectedExtraServices])
+
+    const availableToAdd = useMemo(() => {
+        return activeDbServices.filter(s => !selectedServiceIds.has(String(s._id)))
+    }, [activeDbServices, selectedServiceIds])
+
+    const hasUnselectedService = useMemo(() => {
+        return selectedExtraServices.some(s => !s.serviceId)
+    }, [selectedExtraServices])
+
+    const handleAddExtraService = () => {
+        if (availableToAdd.length === 0 || hasUnselectedService) return
+
+        setSelectedExtraServices(prev => [
+            ...prev,
+            {
+                id: `es-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`,
+                serviceId: "",
+                quantity: 1
+            }
+        ])
+    }
+
+    const handleServiceChange = (rowId, newServiceId) => {
+        if (!newServiceId) {
+            setSelectedExtraServices(prev => prev.map(item => {
+                if (item.id !== rowId) return item
+                return { ...item, serviceId: "", quantity: 1 }
+            }))
+            return
+        }
+
+        const service = dbExtraServices.find(s => String(s._id) === String(newServiceId) || s.name === newServiceId)
+        let defaultQty = 1
+        if (service?.billingType === "Per Night") {
+            defaultQty = defaultStayNights
+        } else if (service?.billingType === "Per Person") {
+            defaultQty = defaultGuestCount
+        }
+
+        setSelectedExtraServices(prev => prev.map(item => {
+            if (item.id !== rowId) return item
+            return {
+                ...item,
+                serviceId: newServiceId,
+                quantity: defaultQty
+            }
+        }))
+    }
+
+    const handleQuantityChange = (rowId, newQty) => {
+        const parsed = Math.max(1, parseInt(newQty) || 1)
+        setSelectedExtraServices(prev => prev.map(item => {
+            if (item.id !== rowId) return item
+            return { ...item, quantity: parsed }
+        }))
+    }
+
+    const handleRemoveExtraService = (rowId) => {
+        setSelectedExtraServices(prev => prev.filter(item => item.id !== rowId))
+    }
+
+    const getBillingTypeLabel = (billingType) => {
+        switch (billingType) {
+            case "Per Night":
+                return "Number of Nights"
+            case "Per Person":
+                return "Person Count"
+            case "One-time":
+            default:
+                return "Time(s) / Quantity"
+        }
+    }
+
     const standardTotal = roomSubtotal + extraCost
     const finalTotal = standardTotal
 
@@ -291,6 +416,8 @@ const CalendarBookingModal = ({
 
     // Live remaining payment due
     const dueAmount = Math.max(0, finalTotal - effectivePaid)
+
+    if (!isOpen || !initialData) return null
 
     // Toggle room checkbox inside a category block
     const handleToggleRoom = (blockId, roomNo) => {
@@ -425,6 +552,12 @@ const CalendarBookingModal = ({
             }
         }
 
+        // Extra services validation: must have service selected if row added
+        if (hasUnselectedService) {
+            toast.error("Please select an extra service type for all added services, or remove the empty service row.")
+            return
+        }
+
         // Adult value required for booking
         const missingAdults = flatBookedRooms.find(r => !r.adults || Number(r.adults) <= 0)
         if (missingAdults) {
@@ -506,7 +639,15 @@ const CalendarBookingModal = ({
                 paidAmount: Number(submittedPaid || 0),
                 dueAmount: Number(submittedDue || 0),
                 advanceAmount: Number(submittedPaid || 0),
-                extraService: extraService.trim(),
+                extraServices: resolvedExtraServicesList.map(s => ({
+                    serviceId: s.serviceId || "",
+                    name: s.name,
+                    billingType: s.billingType || "One-time",
+                    unitPrice: Number(s.unitPrice || 0),
+                    quantity: Number(s.quantity || 1),
+                    totalCost: Number(s.totalCost || 0)
+                })),
+                extraService: resolvedExtraServicesList.map(s => s.name).filter(Boolean).join(", "),
                 extraServiceCost: extraCost,
                 paymentMethod: isB2B ? "Pending" : (paymentMethod.trim() || (submittedPaid > 0 ? "Cash" : "")),
                 reference: isB2B ? (currentUser?.displayName || currentUser?.email || "B2B Partner") : reference.trim(),
@@ -941,50 +1082,168 @@ const CalendarBookingModal = ({
 
                     {/* Extra Services Section */}
                     <div className="space-y-3 pt-1">
-                        <h4 className="font-bold text-slate-900 uppercase tracking-wider text-xs flex items-center gap-1.5 border-b border-slate-100 pb-1.5">
-                            <Sparkles size={14} className="text-amber-500" /> Extra Services & Facilities (Optional)
-                        </h4>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 p-3.5 rounded-2xl bg-amber-50/40 border border-amber-200/70">
-                            {/* Extra Service Selection */}
-                            <div className="form-control">
-                                <label className="label py-0.5">
-                                    <span className="label-text font-bold text-slate-800 text-xs">Extra Service Type</span>
-                                </label>
-                                <select
-                                    value={extraService}
-                                    onChange={e => setExtraService(e.target.value)}
-                                    className="select select-sm select-bordered rounded-xl bg-white text-xs font-semibold"
-                                >
-                                    <option value="">-- No Extra Service Selected --</option>
-                                    <option value="Swimming Pool Access">Swimming Pool Access</option>
-                                    <option value="Extra Bed">Extra Bed</option>
-                                    <option value="Swimming Pool Access & Extra Bed">Swimming Pool Access & Extra Bed</option>
-                                    {/* <option value="Airport Pickup / Drop">Airport Pickup / Drop</option> */}
-                                    {/* <option value="Sightseeing & Tour Guide">Sightseeing & Tour Guide</option> */}
-                                    {/* <option value="Other Extra Service">Other Extra Service</option> */}
-                                </select>
-                            </div>
-
-                            {/* Extra Service Cost */}
-                            <div className="form-control">
-                                <label className="label py-0.5">
-                                    <span className="label-text font-bold text-slate-800 text-xs">Extra Service Cost (৳)</span>
-                                </label>
-                                <input
-                                    type="number"
-                                    min="0"
-                                    value={extraServiceCost}
-                                    onChange={e => setExtraServiceCost(e.target.value)}
-                                    placeholder="0"
-                                    className="input input-sm input-bordered rounded-xl bg-white text-xs font-bold text-amber-900"
-                                />
-                                {extraCost > 0 && (
-                                    <span className="text-[10px] text-amber-800 font-semibold mt-0.5">
-                                        +৳{extraCost.toLocaleString()} added to subtotal
+                        <div className="flex items-center justify-between border-b border-slate-100 pb-1.5">
+                            <div className="flex items-center gap-2">
+                                <h4 className="font-bold text-slate-900 uppercase tracking-wider text-xs flex items-center gap-1.5">
+                                    <Sparkles size={14} className="text-amber-500" /> Extra Services & Facilities (Optional)
+                                </h4>
+                                {resolvedExtraServicesList.length > 0 && (
+                                    <span className="badge badge-sm font-bold bg-amber-100 text-amber-900 border-none text-[10px]">
+                                        {resolvedExtraServicesList.length} service{resolvedExtraServicesList.length > 1 ? 's' : ''}
                                     </span>
                                 )}
                             </div>
+
+                            <button
+                                type="button"
+                                onClick={handleAddExtraService}
+                                disabled={availableToAdd.length === 0 || hasUnselectedService}
+                                title={
+                                    hasUnselectedService
+                                        ? "Please select a service type before adding another"
+                                        : availableToAdd.length === 0
+                                        ? "All available extra services have been added"
+                                        : "Add another extra service"
+                                }
+                                className={`btn btn-xs rounded-xl flex items-center gap-1 cursor-pointer transition-all ${
+                                    availableToAdd.length === 0 || hasUnselectedService
+                                        ? "btn-disabled bg-slate-100 text-slate-400 border-slate-200"
+                                        : "bg-amber-600 hover:bg-amber-700 text-white border-none shadow-xs"
+                                }`}
+                            >
+                                <Plus size={12} />
+                                <span>Add Extra Service</span>
+                            </button>
                         </div>
+
+                        {selectedExtraServices.length === 0 ? (
+                            <div className="p-4 rounded-2xl bg-amber-50/40 border border-dashed border-amber-200 text-center space-y-2">
+                                <p className="text-xs text-amber-900/80 font-medium">
+                                    No extra services added yet. Click <strong className="text-amber-950 font-bold">Add Extra Service</strong> to include add-on amenities like Extra Bed, Pool Access, or Airport Transfers.
+                                </p>
+                                <button
+                                    type="button"
+                                    onClick={handleAddExtraService}
+                                    disabled={availableToAdd.length === 0}
+                                    className="btn btn-xs bg-amber-600 hover:bg-amber-700 text-white rounded-xl border-none shadow-xs cursor-pointer inline-flex items-center gap-1.5"
+                                >
+                                    <Plus size={13} /> Add Extra Service
+                                </button>
+                            </div>
+                        ) : (
+                            <div className="space-y-2.5">
+                                {selectedExtraServices.map((item, idx) => {
+                                    const otherSelectedIds = new Set(
+                                        selectedExtraServices.filter(x => x.id !== item.id).map(x => String(x.serviceId)).filter(Boolean)
+                                    )
+                                    const currentService = dbExtraServices.find(s => String(s._id) === String(item.serviceId) || s.name === item.serviceId)
+                                    const unitPrice = Number(currentService?.price || 0)
+                                    const itemCost = unitPrice * (Number(item.quantity) || 1)
+                                    const billingType = currentService?.billingType || "One-time"
+
+                                    return (
+                                        <div
+                                            key={item.id || idx}
+                                            className="p-3 rounded-2xl bg-amber-50/40 border border-amber-200/70 relative transition-all"
+                                        >
+                                            <div className="flex items-center justify-between pb-1.5 mb-1.5 border-b border-amber-200/50">
+                                                <span className="text-[11px] font-bold text-amber-900 flex items-center gap-1.5">
+                                                    <Sparkles size={12} className="text-amber-600" />
+                                                    Service #{idx + 1}
+                                                    {currentService ? (
+                                                        <span className="font-semibold text-amber-700 text-[10px] bg-amber-100/80 px-1.5 py-0.5 rounded">
+                                                            {billingType}
+                                                        </span>
+                                                    ) : (
+                                                        <span className="font-medium text-slate-500 text-[10px] bg-slate-100 px-1.5 py-0.5 rounded">
+                                                            Select Service
+                                                        </span>
+                                                    )}
+                                                </span>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleRemoveExtraService(item.id)}
+                                                    title="Remove service"
+                                                    className="p-1 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors cursor-pointer"
+                                                >
+                                                    <Trash2 size={14} />
+                                                </button>
+                                            </div>
+
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-start">
+                                                {/* Service Type Selection */}
+                                                <div className="form-control">
+                                                    <label className="label py-0.5">
+                                                        <span className="label-text font-bold text-slate-800 text-xs">Extra Service Type</span>
+                                                    </label>
+                                                    <select
+                                                        value={item.serviceId || ""}
+                                                        onChange={e => handleServiceChange(item.id, e.target.value)}
+                                                        className="select select-sm select-bordered w-full rounded-xl bg-white text-xs font-semibold"
+                                                    >
+                                                        <option value="">-- Select Extra Service --</option>
+                                                        {activeDbServices.map(s => {
+                                                            const isAlreadySelectedInOther = otherSelectedIds.has(String(s._id))
+                                                            return (
+                                                                <option
+                                                                    key={s._id}
+                                                                    value={s._id}
+                                                                    disabled={isAlreadySelectedInOther}
+                                                                >
+                                                                    {s.name} (৳{Number(s.price || 0).toLocaleString()} • {s.billingType || "One-time"})
+                                                                    {isAlreadySelectedInOther ? " — (Already added)" : ""}
+                                                                </option>
+                                                            )
+                                                        })}
+                                                    </select>
+                                                </div>
+
+                                                {/* Count/Quantity with Dynamic Label */}
+                                                {currentService ? (
+                                                    <div className="form-control">
+                                                        <label className="label py-0.5 flex items-center justify-between">
+                                                            <span className="label-text font-bold text-slate-800 text-xs">
+                                                                {getBillingTypeLabel(billingType)}
+                                                            </span>
+                                                            <span className="text-[10px] text-amber-800 font-semibold">
+                                                                ৳{unitPrice.toLocaleString()} / {billingType === "Per Night" ? "night" : billingType === "Per Person" ? "person" : "time"}
+                                                            </span>
+                                                        </label>
+                                                        <input
+                                                            type="number"
+                                                            min="1"
+                                                            value={item.quantity}
+                                                            onChange={e => handleQuantityChange(item.id, e.target.value)}
+                                                            placeholder="Enter count"
+                                                            className="input input-sm input-bordered w-full rounded-xl bg-white text-xs font-bold text-amber-900"
+                                                        />
+                                                        <div className="flex items-center justify-between text-[11px] text-amber-900/90 font-medium mt-1 px-1">
+                                                            <span>Subtotal:</span>
+                                                            <span className="font-bold font-mono text-amber-950">
+                                                                ৳{unitPrice.toLocaleString()} × {item.quantity} = ৳{itemCost.toLocaleString()}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                ) : (
+                                                    <div className="form-control justify-center">
+                                                        <div className="h-[36px] mt-4 flex items-center px-3 rounded-xl bg-amber-100/40 border border-dashed border-amber-300 text-[11px] text-amber-800 font-medium">
+                                                            Select a service type on the left to configure count
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    )
+                                })}
+
+                                {selectedExtraServices.length > 0 && (
+                                    <div className="flex items-center justify-between px-2 pt-1 text-xs text-amber-900 font-semibold">
+                                        <span>Total Extra Services ({selectedExtraServices.length}):</span>
+                                        <strong className="font-mono text-amber-950 text-sm">৳{extraCost.toLocaleString()}</strong>
+                                    </div>
+                                )}
+                            </div>
+                        )}
                     </div>
 
                     {/* Financials & Payment Fields */}

@@ -87,7 +87,14 @@ export const getRoomTotal = (roomItem = {}) => {
 }
 
 export const getBookingSubtotal = (booking = {}) => {
-    const extraCost = Number(booking.extraServiceCost || booking.financials?.extraServiceCost || 0)
+    const extraCost = Number(
+        booking.extraServiceCost ||
+        (Array.isArray(booking.extraServices)
+            ? booking.extraServices.reduce((sum, s) => sum + Number(s.totalCost || (Number(s.unitPrice || 0) * Number(s.quantity || 1)) || 0), 0)
+            : booking.extraServices?.totalCost) ||
+        booking.financials?.extraServiceCost ||
+        0
+    )
     const rooms = getBookingRooms(booking)
     if (rooms.length) {
         const total = rooms.reduce((sum, room) => sum + getRoomTotal(room), 0)
