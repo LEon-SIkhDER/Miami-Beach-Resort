@@ -475,7 +475,7 @@ const Bookings = () => {
 
                                     {/* Total Bill */}
                                     <td className="font-bold text-slate-900 whitespace-nowrap">
-                                        ৳{Number(b.totalAmount !== undefined ? b.totalAmount : totalAmount).toLocaleString()}
+                                        ৳{Number(totalAmount || 0).toLocaleString()}
                                     </td>
 
                                     {/* Status Badge */}

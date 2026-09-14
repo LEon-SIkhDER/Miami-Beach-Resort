@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import useAxiosSecure from '../../../hooks/useAxiosSecure'
@@ -35,6 +35,8 @@ const PAYMENT_METHODS = [
     { value: "Other", label: "Other" }
 ]
 
+const EMPTY_ARRAY = []
+
 const AddPaymentModal = ({
     isOpen,
     onClose,
@@ -45,6 +47,7 @@ const AddPaymentModal = ({
 }) => {
     const axiosSecure = useAxiosSecure()
     const queryClient = useQueryClient()
+    const lastInitializedKey = useRef(null)
     const [isSubmitting, setIsSubmitting] = useState(false)
 
     const subtotal = booking ? getBookingSubtotal(booking) : 0
@@ -60,7 +63,7 @@ const AddPaymentModal = ({
     const [note, setNote] = useState('')
 
     // Staff/Admin users for reference dropdown
-    const { data: allUsers = [] } = useQuery({
+    const { data: allUsers = EMPTY_ARRAY } = useQuery({
         queryKey: ["all-users-for-payment-modal"],
         queryFn: async () => {
             const res = await axiosSecure.get("/users")
@@ -72,14 +75,23 @@ const AddPaymentModal = ({
     const eligibleReferences = allUsers.filter(u => u.role && u.role !== "user")
 
     useEffect(() => {
-        if (isOpen && booking) {
-            setAmount('')
-            setPaymentMethod('')
-            setReference(booking.reference || '')
-            setTransactionId('')
-            setNote('')
+        if (!isOpen || !booking) {
+            lastInitializedKey.current = null
+            return
         }
-    }, [isOpen, booking, dueBalance])
+
+        const currentKey = String(booking._id || booking.bookingId || "selected")
+        if (lastInitializedKey.current === currentKey) {
+            return
+        }
+        lastInitializedKey.current = currentKey
+
+        setAmount('')
+        setPaymentMethod('')
+        setReference(booking.reference || '')
+        setTransactionId('')
+        setNote('')
+    }, [isOpen, booking])
 
     if (!isOpen || !booking) return null
 

@@ -578,7 +578,9 @@ const BookingDetails = () => {
                                                 <span className="text-xs text-slate-400 font-medium">—</span>
                                             </td>
                                             <td>
-                                                <p className="font-semibold text-slate-800">{sQty} {srv.billingType === "Per Night" ? "night(s)" : srv.billingType === "Per Person" ? "person(s)" : "time(s)"}</p>
+                                                <p className="font-semibold text-slate-800">
+                                                    {sQty} {srv.billingType === "Per Night" ? "night(s)" : srv.billingType === "Per Person" ? "person(s)" : srv.billingType === "Per Quantity" ? "item(s)" : "time(s)"}
+                                                </p>
                                                 <p className="text-xs text-slate-400">৳{sUnitPrice.toLocaleString()} / unit</p>
                                             </td>
                                             <td className="text-right font-extrabold text-slate-900 text-sm sm:text-base">
@@ -659,14 +661,20 @@ const BookingDetails = () => {
                                         ৳{dueAmount.toLocaleString()}
                                     </span>
                                 </div>
-                                {dueAmount > 0 && !isCancelled && (
-                                    <button
-                                        onClick={() => setIsAddPaymentOpen(true)}
-                                        className="btn btn-xs bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl gap-1 border-none shadow-xs w-full"
-                                    >
-                                        <CreditCard size={12} />
-                                        <span>Collect Due Payment (৳{dueAmount.toLocaleString()})</span>
-                                    </button>
+                                {["request_booking", "pending"].includes(booking.status) ? (
+                                    <span className="text-xs text-amber-700 font-medium italic block pt-1 text-center">
+                                        * Confirm booking first to collect payment
+                                    </span>
+                                ) : (
+                                    dueAmount > 0 && !isCancelled && (
+                                        <button
+                                            onClick={() => setIsAddPaymentOpen(true)}
+                                            className="btn btn-xs bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl gap-1 border-none shadow-xs w-full"
+                                        >
+                                            <CreditCard size={12} />
+                                            <span>Collect Due Payment (৳{dueAmount.toLocaleString()})</span>
+                                        </button>
+                                    )
                                 )}
                             </div>
                         )

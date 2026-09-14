@@ -31,7 +31,8 @@ import {
     LogIn,
     LogOut,
     ArrowRight,
-    Printer
+    Printer,
+    Sparkles
 } from 'lucide-react'
 import { 
     formatDate,
@@ -73,6 +74,8 @@ const getStatusBadge = (status) => {
     }
 }
 
+const EMPTY_ARRAY = []
+
 const CalendarBookingDetailsModal = ({
     isOpen,
     onClose,
@@ -113,7 +116,7 @@ const CalendarBookingDetailsModal = ({
     })
 
     // Fetch Out of Order records
-    const { data: outOfOrderList = [] } = useQuery({
+    const { data: outOfOrderList = EMPTY_ARRAY } = useQuery({
         queryKey: ["out-of-order-for-details-modal"],
         queryFn: async () => {
             const res = await axiosSecure.get("/out-of-order")
@@ -429,6 +432,68 @@ const CalendarBookingDetailsModal = ({
                                 </div>
                             </div>
 
+                            {/* Extra Services / Add-on Amenities */}
+                            {((Array.isArray(booking.extraServices) && booking.extraServices.length > 0) || Number(booking.extraServiceCost || 0) > 0) && (
+                                <div className="space-y-2.5">
+                                    <h5 className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                                        <Sparkles size={14} className="text-amber-600" />
+                                        <span>Extra Services & Amenities</span>
+                                    </h5>
+
+                                    <div className="grid grid-cols-1 gap-2">
+                                        {Array.isArray(booking.extraServices) && booking.extraServices.length > 0 ? (
+                                            booking.extraServices.map((srv, sIdx) => {
+                                                const sUnitPrice = Number(srv.unitPrice || 0)
+                                                const sQty = Number(srv.quantity || 1)
+                                                const sTotal = Number(srv.totalCost || (sUnitPrice * sQty) || 0)
+                                                return (
+                                                    <div 
+                                                        key={sIdx}
+                                                        className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 p-3 rounded-2xl bg-amber-50/40 border border-amber-200/60 text-xs shadow-2xs"
+                                                    >
+                                                        <div className="space-y-0.5">
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="badge badge-sm bg-amber-600 text-white font-bold">
+                                                                    Service {sIdx + 1}
+                                                                </span>
+                                                                <span className="font-bold text-slate-900 text-xs sm:text-sm">
+                                                                    {srv.name || "Extra Service"}
+                                                                </span>
+                                                                <span className="badge badge-xs bg-amber-100 text-amber-900 font-semibold border border-amber-300">
+                                                                    {srv.billingType || "Add-on Amenity"}
+                                                                </span>
+                                                            </div>
+                                                            <p className="text-[11px] text-slate-500 pt-0.5">
+                                                                {sQty} {srv.billingType === "Per Night" ? "night(s)" : srv.billingType === "Per Person" ? "person(s)" : srv.billingType === "Per Quantity" ? "item(s)" : "time(s)"} × ৳{sUnitPrice.toLocaleString()}
+                                                            </p>
+                                                        </div>
+                                                        <div className="sm:text-right shrink-0">
+                                                            <span className="font-extrabold text-amber-900 text-xs sm:text-sm">
+                                                                ৳{sTotal.toLocaleString()}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                )
+                                            })
+                                        ) : (
+                                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 p-3 rounded-2xl bg-amber-50/40 border border-amber-200/60 text-xs shadow-2xs">
+                                                <div className="space-y-0.5">
+                                                    <span className="font-bold text-slate-900 text-xs sm:text-sm">
+                                                        {booking.extraService || "Extra Service"}
+                                                    </span>
+                                                    <p className="text-[11px] text-slate-500">Add-on Amenity</p>
+                                                </div>
+                                                <div className="sm:text-right shrink-0">
+                                                    <span className="font-extrabold text-amber-900 text-xs sm:text-sm">
+                                                        ৳{Number(booking.extraServiceCost || 0).toLocaleString()}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+
                             {/* Financial Summary & Payment Breakdown */}
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-4 rounded-2xl bg-teal-50/40 border border-teal-100 text-xs">
                                 <div className="space-y-1.5">
@@ -449,20 +514,26 @@ const CalendarBookingDetailsModal = ({
 
                                     {/* Action inside body: Record / Collect Due Payment */}
                                     <div className="pt-2">
-                                        {!["cancel", "cancelled", "checked_out"].includes(booking.status) && (
-                                            dueAmount > 0 ? (
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setIsAddPaymentOpen(true)}
-                                                    className="btn btn-xs bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl gap-1 border-none shadow-xs w-full"
-                                                >
-                                                    <CreditCard size={12} />
-                                                    <span>Collect Due Payment (৳{dueAmount.toLocaleString()})</span>
-                                                </button>
-                                            ) : (
-                                                <span className="badge badge-xs bg-emerald-100 text-emerald-800 font-bold border-none">
-                                                    Fully Paid ✅
-                                                </span>
+                                        {["request_booking", "pending"].includes(booking.status) ? (
+                                            <span className="text-[11px] text-amber-700 font-medium italic block pt-0.5">
+                                                * Confirm booking to collect payment
+                                            </span>
+                                        ) : (
+                                            !["cancel", "cancelled", "checked_out"].includes(booking.status) && (
+                                                dueAmount > 0 ? (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setIsAddPaymentOpen(true)}
+                                                        className="btn btn-xs bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl gap-1 border-none shadow-xs w-full"
+                                                    >
+                                                        <CreditCard size={12} />
+                                                        <span>Collect Due Payment (৳{dueAmount.toLocaleString()})</span>
+                                                    </button>
+                                                ) : (
+                                                    <span className="badge badge-xs bg-emerald-100 text-emerald-800 font-bold border-none">
+                                                        Fully Paid ✅
+                                                    </span>
+                                                )
                                             )
                                         )}
                                     </div>

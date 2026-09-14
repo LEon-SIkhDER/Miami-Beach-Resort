@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { useQuery } from '@tanstack/react-query'
 import { AuthContext } from '../../../Context/AuthContext'
 import useAxiosSecure from '../../../hooks/useAxiosSecure'
+import useBillingTypes from '../../../hooks/useBillingTypes'
 import DatePicker from 'react-datepicker'
 import 'react-datepicker/dist/react-datepicker.css'
 import toast from 'react-hot-toast'
@@ -73,6 +74,7 @@ const CalendarBookingModal = ({
     role
 }) => {
     const axiosSecure = useAxiosSecure()
+    const { getUnitLabel, getInputLabel } = useBillingTypes()
     const { user: authUser } = useContext(AuthContext) || {}
     const activeUser = currentUser || authUser
     const isReferenceManuallyChanged = useRef(false)
@@ -397,15 +399,7 @@ const CalendarBookingModal = ({
     }
 
     const getBillingTypeLabel = (billingType) => {
-        switch (billingType) {
-            case "Per Night":
-                return "Number of Nights"
-            case "Per Person":
-                return "Person Count"
-            case "One-time":
-            default:
-                return "Time(s) / Quantity"
-        }
+        return getInputLabel(billingType)
     }
 
     const standardTotal = roomSubtotal + extraCost
@@ -567,27 +561,27 @@ const CalendarBookingModal = ({
 
         // Strict validation for Confirm Booking (booking_confirmed)
         if (targetStatus === "booking_confirmed") {
-            // 1. Payment Done (৳) required and must be greater than 0
-            const paidNum = Number(paidAmount)
-            if (paidAmount === '' || isNaN(paidNum) || paidNum < 0) {
-                toast.error("Payment Done (৳) amount must be greater than 0 to confirm booking.")
+            const paidNum = Number(paidAmount || 0)
+            if (paidAmount !== '' && (isNaN(paidNum) || paidNum < 0)) {
+                toast.error("Payment Done amount cannot be negative.")
                 return
             }
 
-            // 3. Payment Method required
-            if (!paymentMethod.trim()) {
-                toast.error("Payment Method is required to confirm booking.")
-                return
+            // Only require Payment Method & Transaction ID if advance payment is provided (> 0)
+            if (paidNum > 0) {
+                if (!paymentMethod.trim()) {
+                    toast.error("Payment Method is required when advance payment is provided.")
+                    return
+                }
+
+                const isNoTrxMethod = ["Cash", "Other"].includes(paymentMethod.trim())
+                if (!isNoTrxMethod && !transactionId.trim()) {
+                    toast.error(`Transaction ID / Receipt No is required for ${paymentMethod}.`)
+                    return
+                }
             }
 
-            // 4. Transaction ID / Receipt is required unless payment method does not return a transaction ID (e.g. Cash, Other)
-            const isNoTrxMethod = ["Cash", "Other"].includes(paymentMethod.trim())
-            if (!isNoTrxMethod && !transactionId.trim()) {
-                toast.error(`Transaction ID / Receipt No is required for ${paymentMethod}.`)
-                return
-            }
-
-            // 5. Reference is required
+            // Reference is required
             if (!reference.trim()) {
                 toast.error("Staff / Admin Reference is required to confirm booking.")
                 return
@@ -649,9 +643,9 @@ const CalendarBookingModal = ({
                 })),
                 extraService: resolvedExtraServicesList.map(s => s.name).filter(Boolean).join(", "),
                 extraServiceCost: extraCost,
-                paymentMethod: isB2B ? "Pending" : (paymentMethod.trim() || (submittedPaid > 0 ? "Cash" : "")),
+                paymentMethod: isB2B ? "Pending" : (submittedPaid > 0 ? (paymentMethod.trim() || "Cash") : (paymentMethod.trim() || "Pay on Arrival / Unpaid")),
                 reference: isB2B ? (currentUser?.displayName || currentUser?.email || "B2B Partner") : reference.trim(),
-                transactionId: isB2B ? "" : transactionId.trim(),
+                transactionId: isB2B || submittedPaid === 0 ? "" : transactionId.trim(),
                 notes: notes.trim(),
                 guestType: "Walk-In",
                 requestedByRole: role || "admin",
@@ -1206,7 +1200,7 @@ const CalendarBookingModal = ({
                                                                 {getBillingTypeLabel(billingType)}
                                                             </span>
                                                             <span className="text-[10px] text-amber-800 font-semibold">
-                                                                ৳{unitPrice.toLocaleString()} / {billingType === "Per Night" ? "night" : billingType === "Per Person" ? "person" : "time"}
+                                                                ৳{unitPrice.toLocaleString()} / {getUnitLabel(billingType)}
                                                             </span>
                                                         </label>
                                                         <input
@@ -1300,19 +1294,27 @@ const CalendarBookingModal = ({
                                             className="input input-sm input-bordered rounded-xl bg-white text-xs font-bold text-emerald-800"
                                         />
                                         {/* Quick payment helper buttons */}
-                                        <div className="flex items-center gap-1.5 mt-1.5">
+                                        <div className="flex flex-wrap items-center gap-1 mt-1.5">
+                                            <button
+                                                type="button"
+                                                onClick={() => { setPaidAmount('0'); setPaymentMethod(''); setTransactionId(''); }}
+                                                className="btn btn-xs btn-outline border-amber-300 text-amber-800 hover:bg-amber-50 rounded-lg text-[10px] font-bold px-2"
+                                                title="Reserve with 0 advance (Pay on Arrival)"
+                                            >
+                                                0 (Unpaid)
+                                            </button>
                                             <button
                                                 type="button"
                                                 onClick={() => setPaidAmount(String(finalTotal))}
-                                                className="btn btn-xs btn-outline border-emerald-300 text-emerald-700 hover:bg-emerald-50 rounded-lg text-[10px] font-bold"
+                                                className="btn btn-xs btn-outline border-emerald-300 text-emerald-700 hover:bg-emerald-50 rounded-lg text-[10px] font-bold px-2"
                                             >
-                                                Full Paid (৳{finalTotal.toLocaleString()})
+                                                Full (৳{finalTotal.toLocaleString()})
                                             </button>
                                             {finalTotal > 1000 && (
                                                 <button
                                                     type="button"
                                                     onClick={() => setPaidAmount(String(Math.round(finalTotal / 2)))}
-                                                    className="btn btn-xs btn-outline border-slate-300 text-slate-600 hover:bg-slate-50 rounded-lg text-[10px]"
+                                                    className="btn btn-xs btn-outline border-slate-300 text-slate-600 hover:bg-slate-50 rounded-lg text-[10px] px-2"
                                                 >
                                                     50% (৳{Math.round(finalTotal / 2).toLocaleString()})
                                                 </button>

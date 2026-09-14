@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useContext, useMemo } from 'react'
+import React, { useState, useEffect, useContext, useMemo, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { AuthContext } from '../../../Context/AuthContext'
 import useRole from '../../../hooks/useRole'
 import useAxiosSecure from '../../../hooks/useAxiosSecure'
+import useBillingTypes from '../../../hooks/useBillingTypes'
 import toast from 'react-hot-toast'
 import DatePicker from 'react-datepicker'
 import 'react-datepicker/dist/react-datepicker.css'
@@ -74,11 +75,15 @@ const STATUS_OPTIONS = [
     { value: "cancel", label: "Cancelled" }
 ]
 
+const EMPTY_ARRAY = []
+
 const EditBookingModal = ({ booking, isOpen, onClose, onSuccess }) => {
     const { user: currentUser } = useContext(AuthContext)
     const { role } = useRole()
     const axiosSecure = useAxiosSecure()
+    const { getUnitLabel, getInputLabel } = useBillingTypes()
     const queryClient = useQueryClient()
+    const lastInitializedBookingId = useRef(null)
     const [isSubmitting, setIsSubmitting] = useState(false)
     const [name, setName] = useState('')
     const [mobile, setMobile] = useState('')
@@ -95,7 +100,7 @@ const EditBookingModal = ({ booking, isOpen, onClose, onSuccess }) => {
     const [categoryBlocks, setCategoryBlocks] = useState([])
 
     // Fetch extra services from DB
-    const { data: dbExtraServices = [] } = useQuery({
+    const { data: dbExtraServices = EMPTY_ARRAY } = useQuery({
         queryKey: ["all-extra-services-for-booking"],
         queryFn: async () => {
             const res = await axiosSecure.get("/extra-services")
@@ -105,7 +110,7 @@ const EditBookingModal = ({ booking, isOpen, onClose, onSuccess }) => {
     })
 
     // Fetch all categories for room assignment & pricing
-    const { data: categories = [] } = useQuery({
+    const { data: categories = EMPTY_ARRAY } = useQuery({
         queryKey: ["all-categories-for-edit-booking"],
         queryFn: async () => {
             const res = await axiosSecure.get("/categoryandroom")
@@ -115,7 +120,7 @@ const EditBookingModal = ({ booking, isOpen, onClose, onSuccess }) => {
     })
 
     // Fetch users for reference
-    const { data: allUsers = [] } = useQuery({
+    const { data: allUsers = EMPTY_ARRAY } = useQuery({
         queryKey: ["all-users-for-edit-booking-reference"],
         queryFn: async () => {
             const res = await axiosSecure.get("/users")
@@ -127,7 +132,7 @@ const EditBookingModal = ({ booking, isOpen, onClose, onSuccess }) => {
     const eligibleReferences = allUsers.filter(u => u.role && u.role !== "user")
 
     // Fetch active bookings to verify room occupancy
-    const { data: activeBookings = [] } = useQuery({
+    const { data: activeBookings = EMPTY_ARRAY } = useQuery({
         queryKey: ["active-bookings-for-edit-modal"],
         queryFn: async () => {
             const res = await axiosSecure.get("/bookings")
@@ -137,7 +142,7 @@ const EditBookingModal = ({ booking, isOpen, onClose, onSuccess }) => {
     })
 
     // Fetch Out of Order records
-    const { data: outOfOrderList = [] } = useQuery({
+    const { data: outOfOrderList = EMPTY_ARRAY } = useQuery({
         queryKey: ["out-of-order-for-edit-modal"],
         queryFn: async () => {
             const res = await axiosSecure.get("/out-of-order")
@@ -197,119 +202,128 @@ const EditBookingModal = ({ booking, isOpen, onClose, onSuccess }) => {
     }
 
     useEffect(() => {
-        if (booking && isOpen) {
-            setName(booking.name || '')
-            setMobile(booking.mobile || '')
-            setAddress(booking.address || '')
-            setUserEmail(booking.userEmail || booking.email || '')
-            setStatus(booking.status || 'request_booking')
-            const existingMethod = booking.paymentMethod ||
-                booking.paymentHistory?.[0]?.paymentMethod ||
-                booking.paymentHistory?.find(p => p.paymentMethod)?.paymentMethod || ''
-            setPaymentMethod(existingMethod)
-            const existingTrxId = booking.transactionId ||
-                booking.paymentHistory?.[0]?.transactionId ||
-                booking.paymentHistory?.find(p => p.transactionId)?.transactionId || ''
-            setTransactionId(existingTrxId)
-            setReference(booking.reference || '')
-            setNotes(booking.notes || '')
+        if (!isOpen || !booking) {
+            lastInitializedBookingId.current = null
+            return
+        }
 
-            const rawRooms = getBookingRooms(booking)
-            const blockMap = new Map()
+        const currentBookingKey = String(booking._id || booking.bookingId || "selected")
+        if (lastInitializedBookingId.current === currentBookingKey) {
+            return
+        }
+        lastInitializedBookingId.current = currentBookingKey
 
-            rawRooms.forEach((r, idx) => {
-                const catId = String(r.categoryId || r.roomId || '')
-                const checkInStr = r.checkIn ? formatLocalDate(parseLocalDate(r.checkIn)) : ''
-                const checkOutStr = r.checkOut ? formatLocalDate(parseLocalDate(r.checkOut)) : ''
-                const key = `${catId}_${checkInStr}_${checkOutStr}`
+        setName(booking.name || '')
+        setMobile(booking.mobile || '')
+        setAddress(booking.address || '')
+        setUserEmail(booking.userEmail || booking.email || '')
+        setStatus(booking.status || 'request_booking')
+        const existingMethod = booking.paymentMethod ||
+            booking.paymentHistory?.[0]?.paymentMethod ||
+            booking.paymentHistory?.find(p => p.paymentMethod)?.paymentMethod || ''
+        setPaymentMethod(existingMethod)
+        const existingTrxId = booking.transactionId ||
+            booking.paymentHistory?.[0]?.transactionId ||
+            booking.paymentHistory?.find(p => p.transactionId)?.transactionId || ''
+        setTransactionId(existingTrxId)
+        setReference(booking.reference || '')
+        setNotes(booking.notes || '')
 
-                const cat = categories.find(c => String(c._id) === catId) || categories.find(c => c.name === r.categoryName)
-                const cleanRoomNo = r.roomNo ? String(r.roomNo).trim() : ''
+        const rawRooms = getBookingRooms(booking)
+        const blockMap = new Map()
 
-                if (!blockMap.has(key)) {
-                    blockMap.set(key, {
-                        blockId: `cat-block-${idx + 1}-${Date.now()}`,
-                        categoryId: cat?._id || catId || (categories[0]?._id || ''),
-                        categoryName: cat?.name || r.categoryName || 'Category',
-                        checkInDate: parseLocalDate(r.checkIn) || new Date(),
-                        checkOutDate: parseLocalDate(r.checkOut) || addDays(new Date(), 1),
-                        negotiatedPrice: r.pricePerNight !== undefined ? Number(r.pricePerNight) : Number(cat?.price || 0),
-                        adults: r.adults !== undefined && r.adults !== null && r.adults !== '' ? r.adults : '',
-                        children: Number(r.children !== undefined ? r.children : (r.babies || 0)),
-                        selectedRooms: cleanRoomNo ? [cleanRoomNo] : [],
-                        isInitial: idx === 0
-                    })
-                } else {
-                    const existing = blockMap.get(key)
-                    if (cleanRoomNo && !existing.selectedRooms.includes(cleanRoomNo)) {
-                        existing.selectedRooms.push(cleanRoomNo)
-                    }
+        rawRooms.forEach((r, idx) => {
+            const catId = String(r.categoryId || r.roomId || '')
+            const checkInStr = r.checkIn ? formatLocalDate(parseLocalDate(r.checkIn)) : ''
+            const checkOutStr = r.checkOut ? formatLocalDate(parseLocalDate(r.checkOut)) : ''
+            const key = `${catId}_${checkInStr}_${checkOutStr}`
+
+            const cat = categories.find(c => String(c._id) === catId) || categories.find(c => c.name === r.categoryName)
+            const cleanRoomNo = r.roomNo ? String(r.roomNo).trim() : ''
+
+            if (!blockMap.has(key)) {
+                blockMap.set(key, {
+                    blockId: `cat-block-${idx + 1}-${Date.now()}`,
+                    categoryId: cat?._id || catId || (categories[0]?._id || ''),
+                    categoryName: cat?.name || r.categoryName || 'Category',
+                    checkInDate: parseLocalDate(r.checkIn) || new Date(),
+                    checkOutDate: parseLocalDate(r.checkOut) || addDays(new Date(), 1),
+                    negotiatedPrice: r.pricePerNight !== undefined ? Number(r.pricePerNight) : Number(cat?.price || 0),
+                    adults: r.adults !== undefined && r.adults !== null && r.adults !== '' ? r.adults : '',
+                    children: Number(r.children !== undefined ? r.children : (r.babies || 0)),
+                    selectedRooms: cleanRoomNo ? [cleanRoomNo] : [],
+                    isInitial: idx === 0
+                })
+            } else {
+                const existing = blockMap.get(key)
+                if (cleanRoomNo && !existing.selectedRooms.includes(cleanRoomNo)) {
+                    existing.selectedRooms.push(cleanRoomNo)
                 }
-            })
-
-            let initialBlocks = Array.from(blockMap.values())
-            if (initialBlocks.length === 0) {
-                const defaultCat = categories[0]
-                initialBlocks = [{
-                    blockId: `cat-block-1-${Date.now()}`,
-                    categoryId: defaultCat?._id || '',
-                    categoryName: defaultCat?.name || 'Category',
-                    checkInDate: new Date(),
-                    checkOutDate: addDays(new Date(), 1),
-                    negotiatedPrice: Number(defaultCat?.price || 0),
-                    adults: '',
-                    children: '',
-                    selectedRooms: [],
-                    isInitial: true
-                }]
             }
-            setCategoryBlocks(initialBlocks)
+        })
 
-            const initialPaid = booking.paidAmount !== undefined ? booking.paidAmount : (booking.advanceAmount || 0)
-            setPaidAmount(initialPaid !== undefined && initialPaid > 0 ? String(initialPaid) : '')
-            // Initialize extra services from booking.extraServices or legacy booking.extraService
-            if (Array.isArray(booking.extraServices) && booking.extraServices.length > 0) {
-                setSelectedExtraServices(booking.extraServices.map((srv, idx) => ({
-                    id: `es-${idx}-${Date.now()}`,
-                    serviceId: srv.serviceId || srv.name || '',
-                    quantity: Math.max(1, Number(srv.quantity) || 1),
-                    customService: srv
-                })))
-            } else if (booking.extraServices && typeof booking.extraServices === 'object' && (booking.extraServices.serviceId || booking.extraServices.name)) {
-                setSelectedExtraServices([{
-                    id: `es-0-${Date.now()}`,
-                    serviceId: booking.extraServices.serviceId || booking.extraServices.name || '',
-                    quantity: Math.max(1, Number(booking.extraServices.quantity) || 1),
-                    customService: booking.extraServices
-                }])
-            } else if (booking.extraService) {
-                const legacyNames = String(booking.extraService).split(',').map(s => s.trim()).filter(Boolean)
-                if (legacyNames.length > 0) {
-                    const legacyCostTotal = Number(booking.extraServiceCost || 0)
-                    const costPerService = legacyCostTotal / legacyNames.length
-                    setSelectedExtraServices(legacyNames.map((legacyName, idx) => {
-                        const matched = dbExtraServices.find(s => s.name?.toLowerCase() === legacyName.toLowerCase())
-                        const unitPrice = matched ? Number(matched.price || 0) : costPerService
-                        const qty = unitPrice > 0 ? Math.max(1, Math.round(costPerService / unitPrice)) : 1
-                        return {
-                            id: `es-legacy-${idx}-${Date.now()}`,
-                            serviceId: matched ? String(matched._id) : legacyName,
-                            quantity: qty,
-                            customService: {
-                                name: legacyName,
-                                price: unitPrice
-                            }
+        let initialBlocks = Array.from(blockMap.values())
+        if (initialBlocks.length === 0) {
+            const defaultCat = categories[0]
+            initialBlocks = [{
+                blockId: `cat-block-1-${Date.now()}`,
+                categoryId: defaultCat?._id || '',
+                categoryName: defaultCat?.name || 'Category',
+                checkInDate: new Date(),
+                checkOutDate: addDays(new Date(), 1),
+                negotiatedPrice: Number(defaultCat?.price || 0),
+                adults: '',
+                children: '',
+                selectedRooms: [],
+                isInitial: true
+            }]
+        }
+        setCategoryBlocks(initialBlocks)
+
+        const initialPaid = booking.paidAmount !== undefined ? booking.paidAmount : (booking.advanceAmount || 0)
+        setPaidAmount(initialPaid !== undefined && initialPaid > 0 ? String(initialPaid) : '')
+        // Initialize extra services from booking.extraServices or legacy booking.extraService
+        if (Array.isArray(booking.extraServices) && booking.extraServices.length > 0) {
+            setSelectedExtraServices(booking.extraServices.map((srv, idx) => ({
+                id: `es-${idx}-${Date.now()}`,
+                serviceId: srv.serviceId || srv.name || '',
+                quantity: Math.max(1, Number(srv.quantity) || 1),
+                customService: srv
+            })))
+        } else if (booking.extraServices && typeof booking.extraServices === 'object' && (booking.extraServices.serviceId || booking.extraServices.name)) {
+            setSelectedExtraServices([{
+                id: `es-0-${Date.now()}`,
+                serviceId: booking.extraServices.serviceId || booking.extraServices.name || '',
+                quantity: Math.max(1, Number(booking.extraServices.quantity) || 1),
+                customService: booking.extraServices
+            }])
+        } else if (booking.extraService) {
+            const legacyNames = String(booking.extraService).split(',').map(s => s.trim()).filter(Boolean)
+            if (legacyNames.length > 0) {
+                const legacyCostTotal = Number(booking.extraServiceCost || 0)
+                const costPerService = legacyCostTotal / legacyNames.length
+                setSelectedExtraServices(legacyNames.map((legacyName, idx) => {
+                    const matched = dbExtraServices.find(s => s.name?.toLowerCase() === legacyName.toLowerCase())
+                    const unitPrice = matched ? Number(matched.price || 0) : costPerService
+                    const qty = unitPrice > 0 ? Math.max(1, Math.round(costPerService / unitPrice)) : 1
+                    return {
+                        id: `es-legacy-${idx}-${Date.now()}`,
+                        serviceId: matched ? String(matched._id) : legacyName,
+                        quantity: qty,
+                        customService: {
+                            name: legacyName,
+                            price: unitPrice
                         }
-                    }))
-                } else {
-                    setSelectedExtraServices([])
-                }
+                    }
+                }))
             } else {
                 setSelectedExtraServices([])
             }
-            setAdvanceAmount(booking.advanceAmount || 0)
+        } else {
+            setSelectedExtraServices([])
         }
-    }, [booking, isOpen, categories, dbExtraServices])
+        setAdvanceAmount(booking.advanceAmount || 0)
+    }, [booking, isOpen])
 
     // Flatten all checked rooms across category blocks
     const flatBookedRooms = useMemo(() => {
@@ -473,15 +487,7 @@ const EditBookingModal = ({ booking, isOpen, onClose, onSuccess }) => {
     }
 
     const getBillingTypeLabel = (billingType) => {
-        switch (billingType) {
-            case "Per Night":
-                return "Number of Nights"
-            case "Per Person":
-                return "Person Count"
-            case "One-time":
-            default:
-                return "Time(s) / Quantity"
-        }
+        return getInputLabel(billingType)
     }
 
     if (!isOpen || !booking) return null
@@ -1243,7 +1249,7 @@ const EditBookingModal = ({ booking, isOpen, onClose, onSuccess }) => {
                                                                 {getBillingTypeLabel(billingType)}
                                                             </span>
                                                             <span className="text-[10px] text-amber-800 font-semibold">
-                                                                ৳{unitPrice.toLocaleString()} / {billingType === "Per Night" ? "night" : billingType === "Per Person" ? "person" : "time"}
+                                                                ৳{unitPrice.toLocaleString()} / {getUnitLabel(billingType)}
                                                             </span>
                                                         </label>
                                                         <input

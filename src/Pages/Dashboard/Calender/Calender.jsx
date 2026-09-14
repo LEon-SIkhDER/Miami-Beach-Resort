@@ -15,6 +15,8 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getBookingRooms, getBookingTotal, getBookingPaidAmount, getBookingDueAmount } from "../../../utils/bookingUtils";
 import toast from "react-hot-toast";
 
+const EMPTY_ARRAY = [];
+
 const Calender = () => {
     const { user } = useContext(AuthContext);
     const { role } = useRole();
@@ -93,7 +95,7 @@ const Calender = () => {
 
     // 1. Fetch pending request bookings count & items
     const {
-        data: requestBookings = [],
+        data: requestBookings = EMPTY_ARRAY,
         refetch: refetchRequestBookings
     } = useQuery({
         queryKey: ["requestBookings"],
@@ -105,7 +107,7 @@ const Calender = () => {
 
     // 2. Fetch all real categories from database
     const {
-        data: dbCategories = [],
+        data: dbCategories = EMPTY_ARRAY,
         isLoading: isCategoriesLoading,
         refetch: refetchCategories
     } = useQuery({
@@ -118,7 +120,7 @@ const Calender = () => {
 
     // 3. Fetch all active bookings from database
     const {
-        data: allBookings = [],
+        data: allBookings = EMPTY_ARRAY,
         isLoading: isBookingsLoading,
         refetch: refetchBookings
     } = useQuery({
@@ -131,7 +133,7 @@ const Calender = () => {
 
     // 4. Fetch Out of Order records
     const {
-        data: outOfOrderList = [],
+        data: outOfOrderList = EMPTY_ARRAY,
         refetch: refetchOOO
     } = useQuery({
         queryKey: ["out-of-order-calendar"],
@@ -398,10 +400,15 @@ const Calender = () => {
     const handleCellClick = (bookingInfo, oooInfo, category, roomNo, dateObj) => {
         if (oooInfo) {
             setSelectedOOORoom({
+                _id: oooInfo._id,
                 roomNo: String(roomNo).trim(),
                 categoryId: category._id,
                 categoryName: category.category,
-                startDate: dateObj.iso
+                startDate: oooInfo.startDate || dateObj.iso,
+                endDate: oooInfo.endDate,
+                reason: oooInfo.reason,
+                notes: oooInfo.notes,
+                isExistingOOO: true
             });
             setIsOutOfOrderOpen(true);
         } else if (bookingInfo?._id) {

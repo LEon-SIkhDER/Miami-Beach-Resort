@@ -35,12 +35,17 @@ import {
     Edit2
 } from 'lucide-react'
 import toast from 'react-hot-toast'
+import useBillingTypes from '../../../hooks/useBillingTypes'
+import ManageBillingTypesModal from './ManageBillingTypesModal'
 
 const SERVER_URL = import.meta.env.VITE_SERVER_URL || "https://miami-beach-resort.vercel.app"
 
 const GeneralSettings = () => {
     const [searchParams, setSearchParams] = useSearchParams()
     const activeTab = searchParams.get('tab') || 'extra-services'
+
+    const { billingTypes, billingTypeNames } = useBillingTypes()
+    const [isBillingTypesModalOpen, setIsBillingTypesModalOpen] = useState(false)
 
     const [extraServices, setExtraServices] = useState(() => {
         try {
@@ -431,13 +436,22 @@ const GeneralSettings = () => {
                                     </p>
                                 </div>
                             </div>
-                            <button
-                                type="button"
-                                onClick={() => setIsAddModalOpen(true)}
-                                className="btn btn-sm bg-teal-700 hover:bg-teal-800 text-white font-semibold rounded-xl border-none shadow-sm flex items-center gap-2 self-start sm:self-auto shrink-0 cursor-pointer"
-                            >
-                                <Plus size={16} /> Add Extra Service
-                            </button>
+                            <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto shrink-0">
+                                <button
+                                    type="button"
+                                    onClick={() => setIsBillingTypesModalOpen(true)}
+                                    className="btn btn-sm bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 font-semibold rounded-xl shadow-xs flex items-center gap-1.5 cursor-pointer"
+                                >
+                                    <SlidersHorizontal size={14} className="text-teal-600" /> Billing Types
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setIsAddModalOpen(true)}
+                                    className="btn btn-sm bg-teal-700 hover:bg-teal-800 text-white font-semibold rounded-xl border-none shadow-sm flex items-center gap-2 cursor-pointer"
+                                >
+                                    <Plus size={16} /> Add Extra Service
+                                </button>
+                            </div>
                         </div>
 
                         {/* Real Count Stats (Only shown when services exist) */}
@@ -492,13 +506,22 @@ const GeneralSettings = () => {
                             <p className="text-xs sm:text-sm text-slate-500 mt-1.5 max-w-md mx-auto">
                                 There are currently no extra services configured. Click the button below to add your first guest amenity or add-on.
                             </p>
-                            <button
-                                type="button"
-                                onClick={() => setIsAddModalOpen(true)}
-                                className="btn btn-sm bg-teal-600 hover:bg-teal-700 text-white font-semibold rounded-xl border-none shadow-sm mt-5 inline-flex items-center gap-2 cursor-pointer"
-                            >
-                                <Plus size={16} /> Add Extra Service
-                            </button>
+                            <div className="flex flex-wrap items-center justify-center gap-2.5 mt-5">
+                                <button
+                                    type="button"
+                                    onClick={() => setIsBillingTypesModalOpen(true)}
+                                    className="btn btn-sm bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 font-semibold rounded-xl shadow-xs inline-flex items-center gap-1.5 cursor-pointer"
+                                >
+                                    <SlidersHorizontal size={14} className="text-teal-600" /> Billing Types
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setIsAddModalOpen(true)}
+                                    className="btn btn-sm bg-teal-600 hover:bg-teal-700 text-white font-semibold rounded-xl border-none shadow-sm inline-flex items-center gap-2 cursor-pointer"
+                                >
+                                    <Plus size={16} /> Add Extra Service
+                                </button>
+                            </div>
                         </div>
                     )}
 
@@ -1246,9 +1269,9 @@ const GeneralSettings = () => {
                                         onChange={(e) => setNewService(prev => ({ ...prev, billingType: e.target.value }))}
                                         className="select select-sm select-bordered w-full rounded-xl bg-white border-slate-200 text-xs sm:text-sm font-medium text-slate-800 focus:border-teal-500 focus:outline-none h-[38px] min-h-[38px]"
                                     >
-                                        <option value="Per Night">Per Night</option>
-                                        <option value="Per Person">Per Person</option>
-                                        <option value="One-time">One-time</option>
+                                        {billingTypes.map(bt => (
+                                            <option key={bt.id} value={bt.name}>{bt.name}</option>
+                                        ))}
                                     </select>
                                 </div>
 
@@ -1349,10 +1372,10 @@ const GeneralSettings = () => {
                                         onChange={(e) => setEditingService(prev => ({ ...prev, billingType: e.target.value }))}
                                         className="select select-sm select-bordered w-full rounded-xl bg-white border-slate-200 text-xs sm:text-sm font-medium text-slate-800 focus:border-teal-500 focus:outline-none h-[38px] min-h-[38px]"
                                     >
-                                        <option value="Per Night">Per Night</option>
-                                        <option value="Per Person">Per Person</option>
-                                        <option value="One-time">One-time</option>
-                                        {editingService.billingType && !["Per Night", "Per Person", "One-time"].includes(editingService.billingType) && (
+                                        {billingTypes.map(bt => (
+                                            <option key={bt.id} value={bt.name}>{bt.name}</option>
+                                        ))}
+                                        {editingService.billingType && !billingTypeNames.includes(editingService.billingType) && (
                                             <option value={editingService.billingType}>{editingService.billingType}</option>
                                         )}
                                     </select>
@@ -1424,6 +1447,13 @@ const GeneralSettings = () => {
                     </div>
                 </div>
             )}
+
+            {/* Manage Billing Types Modal */}
+            <ManageBillingTypesModal
+                isOpen={isBillingTypesModalOpen}
+                onClose={() => setIsBillingTypesModalOpen(false)}
+                extraServices={extraServices}
+            />
         </div>
     )
 }

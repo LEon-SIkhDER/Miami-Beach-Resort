@@ -112,18 +112,6 @@ export const getBookingTotal = (booking = {}) => {
     const subtotal = getBookingSubtotal(booking)
     const discount = getBookingDiscount(booking)
 
-    if (booking.totalAmount !== undefined && booking.totalAmount !== null && !isNaN(Number(booking.totalAmount))) {
-        const t = Number(booking.totalAmount)
-        // If stored totalAmount equals subtotal and there is a discount, net payable is subtotal - discount
-        if (discount > 0 && Math.abs(t - subtotal) < 0.01) {
-            return Math.max(0, subtotal - discount)
-        }
-        // If stored totalAmount is explicitly set (e.g. customized authority price)
-        if (t > 0 && t <= subtotal) {
-            return t
-        }
-    }
-
     return Math.max(0, subtotal - discount)
 }
 

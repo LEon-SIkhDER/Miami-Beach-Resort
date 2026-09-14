@@ -67,7 +67,9 @@ const getRequestBookingStatusBadge = (status) => {
     }
 }
 
-const RequestBookingsModal = ({ isOpen, onClose, requestBookings = [], role, currentUser, onSuccess }) => {
+const EMPTY_ARRAY = []
+
+const RequestBookingsModal = ({ isOpen, onClose, requestBookings = EMPTY_ARRAY, role, currentUser, onSuccess }) => {
     const axiosSecure = useAxiosSecure()
     const queryClient = useQueryClient()
 

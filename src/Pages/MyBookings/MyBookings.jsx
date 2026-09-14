@@ -409,7 +409,7 @@ const MyBookings = () => {
                             const isConfirmed = ["booking_confirmed", "confirmed", "checked_id", "checked_in", "checked_out"].includes(b.status)
                             const isPending = b.status === "request_booking"
                             const paidAmount = Number(b.paidAmount || b.advanceAmount || 0)
-                            const dueAmount = Math.max(0, Number(b.totalAmount !== undefined ? b.totalAmount : totalAmount) - paidAmount)
+                            const dueAmount = Math.max(0, totalAmount - paidAmount)
 
                             return (
                                 <div 
@@ -462,6 +462,16 @@ const MyBookings = () => {
                                                         </span>
                                                     </div>
                                                 ))}
+                                                {(b.extraService || Number(b.extraServiceCost || 0) > 0) && (
+                                                    <div className="flex justify-between items-start text-xs text-amber-900 bg-amber-50/70 px-2 py-1 rounded-lg border border-amber-200/50">
+                                                        <span className="font-medium">
+                                                            ✨ {b.extraService || "Extra Service"}
+                                                        </span>
+                                                        <span className="font-mono font-bold">
+                                                            ৳{Number(b.extraServiceCost || 0).toLocaleString()}
+                                                        </span>
+                                                    </div>
+                                                )}
                                                 <div className="pt-2 border-t border-slate-200 text-slate-500 text-[11px] flex items-center justify-between">
                                                     <span>Total Rooms:</span>
                                                     <span className="font-bold text-slate-800">{rooms.length} Room{rooms.length > 1 ? 's' : ''}</span>
@@ -502,7 +512,7 @@ const MyBookings = () => {
                                             <div className="space-y-1.5 pt-1 text-xs">
                                                 <div className="flex justify-between">
                                                     <span className="text-slate-500">Total Bill:</span>
-                                                    <span className="font-bold text-slate-900">৳{Number(b.totalAmount !== undefined ? b.totalAmount : totalAmount).toLocaleString()}</span>
+                                                    <span className="font-bold text-slate-900">৳{Number(totalAmount || 0).toLocaleString()}</span>
                                                 </div>
                                                 <div className="flex justify-between">
                                                     <span className="text-slate-500">Paid:</span>
@@ -616,11 +626,50 @@ const MyBookings = () => {
                             </div>
                         </div>
 
+                        {/* Extra Services list if present */}
+                        {((Array.isArray(detailsBooking.extraServices) && detailsBooking.extraServices.length > 0) || Number(detailsBooking.extraServiceCost || 0) > 0) && (
+                            <div className="space-y-2">
+                                <p className="font-bold text-slate-900 text-xs uppercase tracking-wider text-amber-700">Extra Services & Amenities</p>
+                                <div className="divide-y divide-slate-100 border border-amber-200/80 rounded-2xl overflow-hidden bg-white text-xs">
+                                    {Array.isArray(detailsBooking.extraServices) && detailsBooking.extraServices.length > 0 ? (
+                                        detailsBooking.extraServices.map((srv, sIdx) => {
+                                            const sUnitPrice = Number(srv.unitPrice || 0)
+                                            const sQty = Number(srv.quantity || 1)
+                                            const sTotal = Number(srv.totalCost || (sUnitPrice * sQty) || 0)
+                                            return (
+                                                <div key={sIdx} className="p-3 flex items-center justify-between">
+                                                    <div>
+                                                        <p className="font-bold text-slate-900">{srv.name || "Extra Service"}</p>
+                                                        <p className="text-[11px] text-slate-500">
+                                                            {sQty} × ৳{sUnitPrice.toLocaleString()} • {srv.billingType || "One-time"}
+                                                        </p>
+                                                    </div>
+                                                    <p className="font-bold text-amber-900 text-sm">
+                                                        ৳{sTotal.toLocaleString()}
+                                                    </p>
+                                                </div>
+                                            )
+                                        })
+                                    ) : (
+                                        <div className="p-3 flex items-center justify-between">
+                                            <div>
+                                                <p className="font-bold text-slate-900">{detailsBooking.extraService || "Extra Service"}</p>
+                                                <p className="text-[11px] text-slate-500">Add-on Amenity</p>
+                                            </div>
+                                            <p className="font-bold text-amber-900 text-sm">
+                                                ৳{Number(detailsBooking.extraServiceCost || 0).toLocaleString()}
+                                            </p>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+
                         {/* Total & Payments */}
                         <div className="bg-teal-50/60 p-4 rounded-2xl border border-teal-100 space-y-2.5 text-xs">
                             <div className="flex justify-between items-center text-sm font-bold text-slate-900">
                                 <span>Grand Total:</span>
-                                <span>৳{Number(detailsBooking.totalAmount !== undefined ? detailsBooking.totalAmount : getBookingTotal(detailsBooking)).toLocaleString()}</span>
+                                <span>৳{Number(getBookingTotal(detailsBooking)).toLocaleString()}</span>
                             </div>
                             <div className="flex justify-between items-center text-slate-600">
                                 <span>Total Paid:</span>

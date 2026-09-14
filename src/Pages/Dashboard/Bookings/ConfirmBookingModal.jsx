@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useContext, useMemo } from 'react'
+import React, { useState, useEffect, useContext, useMemo, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { AuthContext } from '../../../Context/AuthContext'
 import useRole from '../../../hooks/useRole'
 import useAxiosSecure from '../../../hooks/useAxiosSecure'
+import useBillingTypes from '../../../hooks/useBillingTypes'
 import toast from 'react-hot-toast'
 import { 
     CheckCircle2, 
@@ -27,11 +28,15 @@ import {
     getNightCount
 } from '../../../utils/bookingUtils'
 
+const EMPTY_ARRAY = []
+
 const ConfirmBookingModal = ({ booking, isOpen, onClose, onSuccess, targetStatus = "booking_confirmed" }) => {
     const { user: currentUser } = useContext(AuthContext)
     const { role } = useRole()
     const axiosSecure = useAxiosSecure()
+    const { getUnitLabel, getInputLabel } = useBillingTypes()
     const queryClient = useQueryClient()
+    const lastInitializedBookingId = useRef(null)
     const [isSubmitting, setIsSubmitting] = useState(false)
     const [assignedRooms, setAssignedRooms] = useState([])
     const [selectedExtraServices, setSelectedExtraServices] = useState([])
@@ -41,7 +46,7 @@ const ConfirmBookingModal = ({ booking, isOpen, onClose, onSuccess, targetStatus
     const [transactionId, setTransactionId] = useState('')
 
     // Fetch extra services from DB
-    const { data: dbExtraServices = [] } = useQuery({
+    const { data: dbExtraServices = EMPTY_ARRAY } = useQuery({
         queryKey: ["all-extra-services-for-booking"],
         queryFn: async () => {
             const res = await axiosSecure.get("/extra-services")
@@ -52,7 +57,7 @@ const ConfirmBookingModal = ({ booking, isOpen, onClose, onSuccess, targetStatus
 
 
     // Fetch all categories to get room numbers under each category
-    const { data: categories = [] } = useQuery({
+    const { data: categories = EMPTY_ARRAY } = useQuery({
         queryKey: ["all-categories-for-confirm"],
         queryFn: async () => {
             const res = await axiosSecure.get("/categoryandroom")
@@ -62,7 +67,7 @@ const ConfirmBookingModal = ({ booking, isOpen, onClose, onSuccess, targetStatus
     })
 
     // Fetch all staff/admin users for reference dropdown (role !== 'user')
-    const { data: allUsers = [] } = useQuery({
+    const { data: allUsers = EMPTY_ARRAY } = useQuery({
         queryKey: ["all-users-for-reference"],
         queryFn: async () => {
             const res = await axiosSecure.get("/users")
@@ -72,7 +77,7 @@ const ConfirmBookingModal = ({ booking, isOpen, onClose, onSuccess, targetStatus
     })
 
     // Fetch active bookings to check which specific physical room numbers are occupied
-    const { data: activeBookings = [] } = useQuery({
+    const { data: activeBookings = EMPTY_ARRAY } = useQuery({
         queryKey: ["active-bookings-for-conflict"],
         queryFn: async () => {
             const res = await axiosSecure.get("/bookings")
@@ -85,75 +90,84 @@ const ConfirmBookingModal = ({ booking, isOpen, onClose, onSuccess, targetStatus
 
     // Initialize state when modal opens with booking data
     useEffect(() => {
-        if (booking && isOpen) {
-            const rawRooms = getBookingRooms(booking)
-            setAssignedRooms(rawRooms.map((r) => {
-                const checkIn = r.checkIn || booking.checkIn
-                const checkOut = r.checkOut || booking.checkOut
-                const nights = Number(r.nights) || getNightCount(checkIn, checkOut) || 1
-                return {
-                    ...r,
-                    checkIn,
-                    checkOut,
-                    nights,
-                    roomNo: r.roomNo || "",
-                    adults: r.adults !== undefined && r.adults !== null && r.adults !== '' && Number(r.adults) > 0 ? Number(r.adults) : '',
-                    children: r.children !== undefined && r.children !== null ? Number(r.children) : (r.babies !== undefined && r.babies !== null ? Number(r.babies) : 0),
-                    babies: r.babies !== undefined && r.babies !== null ? Number(r.babies) : (r.children !== undefined && r.children !== null ? Number(r.children) : 0)
-                }
-            }))
-            setPaidAmount(booking.paidAmount !== undefined && booking.paidAmount > 0 ? String(booking.paidAmount) : '')
-            setPaymentMethod(booking.paymentMethod || '')
-            // Initialize extra services from booking.extraServices or legacy booking.extraService
-            if (Array.isArray(booking.extraServices) && booking.extraServices.length > 0) {
-                setSelectedExtraServices(booking.extraServices.map((srv, idx) => ({
-                    id: `es-${idx}-${Date.now()}`,
-                    serviceId: srv.serviceId || srv.name || '',
-                    quantity: Math.max(1, Number(srv.quantity) || 1),
-                    customService: srv
-                })))
-            } else if (booking.extraServices && typeof booking.extraServices === 'object' && (booking.extraServices.serviceId || booking.extraServices.name)) {
-                setSelectedExtraServices([{
-                    id: `es-0-${Date.now()}`,
-                    serviceId: booking.extraServices.serviceId || booking.extraServices.name || '',
-                    quantity: Math.max(1, Number(booking.extraServices.quantity) || 1),
-                    customService: booking.extraServices
-                }])
-            } else if (booking.extraService) {
-                const legacyNames = String(booking.extraService).split(',').map(s => s.trim()).filter(Boolean)
-                if (legacyNames.length > 0) {
-                    const legacyCostTotal = Number(booking.extraServiceCost || 0)
-                    const costPerService = legacyCostTotal / legacyNames.length
-                    setSelectedExtraServices(legacyNames.map((legacyName, idx) => {
-                        const matched = dbExtraServices.find(s => s.name?.toLowerCase() === legacyName.toLowerCase())
-                        const unitPrice = matched ? Number(matched.price || 0) : costPerService
-                        const qty = unitPrice > 0 ? Math.max(1, Math.round(costPerService / unitPrice)) : 1
-                        return {
-                            id: `es-legacy-${idx}-${Date.now()}`,
-                            serviceId: matched ? String(matched._id) : legacyName,
-                            quantity: qty,
-                            customService: {
-                                name: legacyName,
-                                price: unitPrice
-                            }
+        if (!isOpen || !booking) {
+            lastInitializedBookingId.current = null
+            return
+        }
+
+        const currentKey = `${String(booking._id || booking.bookingId || "selected")}_${targetStatus}`
+        if (lastInitializedBookingId.current === currentKey) {
+            return
+        }
+        lastInitializedBookingId.current = currentKey
+
+        const rawRooms = getBookingRooms(booking)
+        setAssignedRooms(rawRooms.map((r) => {
+            const checkIn = r.checkIn || booking.checkIn
+            const checkOut = r.checkOut || booking.checkOut
+            const nights = Number(r.nights) || getNightCount(checkIn, checkOut) || 1
+            return {
+                ...r,
+                checkIn,
+                checkOut,
+                nights,
+                roomNo: r.roomNo || "",
+                adults: r.adults !== undefined && r.adults !== null && r.adults !== '' && Number(r.adults) > 0 ? Number(r.adults) : '',
+                children: r.children !== undefined && r.children !== null ? Number(r.children) : (r.babies !== undefined && r.babies !== null ? Number(r.babies) : 0),
+                babies: r.babies !== undefined && r.babies !== null ? Number(r.babies) : (r.children !== undefined && r.children !== null ? Number(r.children) : 0)
+            }
+        }))
+        setPaidAmount(booking.paidAmount !== undefined && booking.paidAmount > 0 ? String(booking.paidAmount) : '')
+        setPaymentMethod(booking.paymentMethod || '')
+        // Initialize extra services from booking.extraServices or legacy booking.extraService
+        if (Array.isArray(booking.extraServices) && booking.extraServices.length > 0) {
+            setSelectedExtraServices(booking.extraServices.map((srv, idx) => ({
+                id: `es-${idx}-${Date.now()}`,
+                serviceId: srv.serviceId || srv.name || '',
+                quantity: Math.max(1, Number(srv.quantity) || 1),
+                customService: srv
+            })))
+        } else if (booking.extraServices && typeof booking.extraServices === 'object' && (booking.extraServices.serviceId || booking.extraServices.name)) {
+            setSelectedExtraServices([{
+                id: `es-0-${Date.now()}`,
+                serviceId: booking.extraServices.serviceId || booking.extraServices.name || '',
+                quantity: Math.max(1, Number(booking.extraServices.quantity) || 1),
+                customService: booking.extraServices
+            }])
+        } else if (booking.extraService) {
+            const legacyNames = String(booking.extraService).split(',').map(s => s.trim()).filter(Boolean)
+            if (legacyNames.length > 0) {
+                const legacyCostTotal = Number(booking.extraServiceCost || 0)
+                const costPerService = legacyCostTotal / legacyNames.length
+                setSelectedExtraServices(legacyNames.map((legacyName, idx) => {
+                    const matched = dbExtraServices.find(s => s.name?.toLowerCase() === legacyName.toLowerCase())
+                    const unitPrice = matched ? Number(matched.price || 0) : costPerService
+                    const qty = unitPrice > 0 ? Math.max(1, Math.round(costPerService / unitPrice)) : 1
+                    return {
+                        id: `es-legacy-${idx}-${Date.now()}`,
+                        serviceId: matched ? String(matched._id) : legacyName,
+                        quantity: qty,
+                        customService: {
+                            name: legacyName,
+                            price: unitPrice
                         }
-                    }))
-                } else {
-                    setSelectedExtraServices([])
-                }
+                    }
+                }))
             } else {
                 setSelectedExtraServices([])
             }
-            setReference(booking.reference || "")
-            const existingTrxId = booking.transactionId || 
-                booking.paymentHistory?.[0]?.transactionId || 
-                booking.paymentHistory?.find(p => p.transactionId)?.transactionId || ""
-            setTransactionId(existingTrxId)
+        } else {
+            setSelectedExtraServices([])
         }
-    }, [booking, isOpen, targetStatus, dbExtraServices])
+        setReference(booking.reference || "")
+        const existingTrxId = booking.transactionId || 
+            booking.paymentHistory?.[0]?.transactionId || 
+            booking.paymentHistory?.find(p => p.transactionId)?.transactionId || ""
+        setTransactionId(existingTrxId)
+    }, [booking, isOpen, targetStatus])
 
     // Out of order rooms check
-    const { data: outOfOrderList = [] } = useQuery({
+    const { data: outOfOrderList = EMPTY_ARRAY } = useQuery({
         queryKey: ["out-of-order-for-confirm-modal"],
         queryFn: async () => {
             const res = await axiosSecure.get("/out-of-order")
@@ -327,15 +341,7 @@ const ConfirmBookingModal = ({ booking, isOpen, onClose, onSuccess, targetStatus
     }
 
     const getBillingTypeLabel = (billingType) => {
-        switch (billingType) {
-            case "Per Night":
-                return "Number of Nights"
-            case "Per Person":
-                return "Person Count"
-            case "One-time":
-            default:
-                return "Time(s) / Quantity"
-        }
+        return getInputLabel(billingType)
     }
 
     const roomSubtotal = assignedRooms.reduce((sum, r) => {
@@ -385,21 +391,24 @@ const ConfirmBookingModal = ({ booking, isOpen, onClose, onSuccess, targetStatus
             return
         }
 
-        const paidNum = Number(paidAmount)
-        if (paidAmount === '' || isNaN(paidNum) || paidNum < 0) {
-            toast.error("Payment Done (৳) amount must be greater than 0 to confirm booking.")
+        const paidNum = Number(paidAmount || 0)
+        if (paidAmount !== '' && (isNaN(paidNum) || paidNum < 0)) {
+            toast.error("Payment Done amount cannot be negative.")
             return
         }
 
-        if (!paymentMethod.trim()) {
-            toast.error("Please select a Payment Method.")
-            return
-        }
+        // Only require Payment Method & Transaction ID if advance payment is greater than 0
+        if (paidNum > 0) {
+            if (!paymentMethod.trim()) {
+                toast.error("Please select a Payment Method.")
+                return
+            }
 
-        const isDigitalMethod = !["Cash", "Other"].includes(paymentMethod.trim())
-        if (isDigitalMethod && !transactionId.trim()) {
-            toast.error(`Transaction ID / Receipt No is required for ${paymentMethod}.`)
-            return
+            const isDigitalMethod = !["Cash", "Other"].includes(paymentMethod.trim())
+            if (isDigitalMethod && !transactionId.trim()) {
+                toast.error(`Transaction ID / Receipt No is required for ${paymentMethod}.`)
+                return
+            }
         }
 
         if (!reference.trim()) {
@@ -443,9 +452,9 @@ const ConfirmBookingModal = ({ booking, isOpen, onClose, onSuccess, targetStatus
                 })),
                 extraService: resolvedExtraServicesList.map(s => s.name).filter(Boolean).join(", "),
                 extraServiceCost: extraCost,
-                paymentMethod: paymentMethod.trim() || (effectivePaid > 0 ? "Cash" : ""),
+                paymentMethod: effectivePaid > 0 ? (paymentMethod.trim() || "Cash") : (paymentMethod.trim() || "Pay on Arrival / Unpaid"),
                 reference: reference.trim(),
-                transactionId: transactionId.trim(),
+                transactionId: effectivePaid > 0 ? transactionId.trim() : "",
                 changedBy: {
                     name: currentUser?.displayName || "Admin / Staff",
                     email: currentUser?.email || "",
@@ -820,7 +829,7 @@ const ConfirmBookingModal = ({ booking, isOpen, onClose, onSuccess, targetStatus
                                                                 {getBillingTypeLabel(billingType)}
                                                             </span>
                                                             <span className="text-[10px] text-amber-800 font-semibold">
-                                                                ৳{unitPrice.toLocaleString()} / {billingType === "Per Night" ? "night" : billingType === "Per Person" ? "person" : "time"}
+                                                                ৳{unitPrice.toLocaleString()} / {getUnitLabel(billingType)}
                                                             </span>
                                                         </label>
                                                         <input
@@ -876,7 +885,8 @@ const ConfirmBookingModal = ({ booking, isOpen, onClose, onSuccess, targetStatus
                             <div className="form-control">
                                 <label className="label py-0.5 block">
                                     <span className="label-text font-bold text-slate-800 text-xs flex items-center gap-1">
-                                        <CreditCard size={13} className="text-teal-600" /> Payment Done (৳) <span className="text-red-500 font-bold">*</span>
+                                        <CreditCard size={13} className="text-teal-600" /> Payment Done (৳)
+                                        <span className="text-slate-400 font-normal text-[10px]">(0 if unpaid)</span>
                                     </span>
                                 </label>
                                 <input
@@ -886,22 +896,30 @@ const ConfirmBookingModal = ({ booking, isOpen, onClose, onSuccess, targetStatus
                                     value={paidAmount}
                                     onChange={e => setPaidAmount(e.target.value)}
                                     placeholder="0"
-                                    className={`input input-sm input-bordered w-full rounded-xl bg-white text-xs font-bold text-emerald-800 ${effectivePaid <= 0 ? 'border-amber-400' : ''}`}
+                                    className="input input-sm input-bordered w-full rounded-xl bg-white text-xs font-bold text-emerald-800"
                                 />
                                 {/* Quick payment helper buttons */}
-                                <div className="flex gap-1.5 mt-1.5">
+                                <div className="flex flex-wrap gap-1 mt-1.5">
+                                    <button
+                                        type="button"
+                                        onClick={() => { setPaidAmount('0'); setPaymentMethod(''); setTransactionId(''); }}
+                                        className="btn btn-xs btn-outline border-amber-300 text-amber-800 hover:bg-amber-50 rounded-lg text-[10px] font-bold px-2"
+                                        title="Confirm with 0 advance (Pay on Arrival)"
+                                    >
+                                        0 (Unpaid)
+                                    </button>
                                     <button
                                         type="button"
                                         onClick={() => setPaidAmount(String(finalTotal))}
-                                        className="btn btn-xs btn-outline border-emerald-300 text-emerald-700 hover:bg-emerald-50 rounded-lg text-[10px] font-bold"
+                                        className="btn btn-xs btn-outline border-emerald-300 text-emerald-700 hover:bg-emerald-50 rounded-lg text-[10px] font-bold px-2"
                                     >
-                                        Full Paid (৳{finalTotal.toLocaleString()})
+                                        Full (৳{finalTotal.toLocaleString()})
                                     </button>
                                     {finalTotal > 1000 && (
                                         <button
                                             type="button"
                                             onClick={() => setPaidAmount(String(Math.round(finalTotal / 2)))}
-                                            className="btn btn-xs btn-outline border-slate-300 text-slate-600 hover:bg-slate-50 rounded-lg text-[10px]"
+                                            className="btn btn-xs btn-outline border-slate-300 text-slate-600 hover:bg-slate-50 rounded-lg text-[10px] px-2"
                                         >
                                             50% (৳{Math.round(finalTotal / 2).toLocaleString()})
                                         </button>
@@ -913,15 +931,15 @@ const ConfirmBookingModal = ({ booking, isOpen, onClose, onSuccess, targetStatus
                             <div className="form-control">
                                 <label className="label py-0.5">
                                     <span className="label-text font-bold text-slate-800 text-xs flex items-center gap-1">
-                                        <CreditCard size={13} className="text-teal-600" /> Payment Method <span className="text-red-500 font-bold">*</span>
+                                        <CreditCard size={13} className="text-teal-600" /> Payment Method {effectivePaid > 0 && <span className="text-red-500 font-bold">*</span>}
                                     </span>
                                 </label>
                                 <select
                                     value={paymentMethod}
                                     onChange={e => setPaymentMethod(e.target.value)}
-                                    className={`select select-sm select-bordered w-full rounded-xl bg-white text-xs font-semibold ${!paymentMethod ? 'border-amber-400' : ''}`}
+                                    className={`select select-sm select-bordered w-full rounded-xl bg-white text-xs font-semibold ${effectivePaid > 0 && !paymentMethod ? 'border-amber-400' : ''}`}
                                 >
-                                    <option value="">-- Select Payment Method --</option>
+                                    <option value="">{effectivePaid > 0 ? "-- Select Payment Method --" : "-- Pay on Arrival / Unpaid --"}</option>
                                     <option value="bKash">bKash (Mobile)</option>
                                     <option value="Nagad">Nagad (Mobile)</option>
                                     <option value="Rocket">Rocket (DBBL)</option>
@@ -942,18 +960,18 @@ const ConfirmBookingModal = ({ booking, isOpen, onClose, onSuccess, targetStatus
                                         <span className="flex items-center gap-1">
                                             <Receipt size={13} className="text-teal-600" /> Trx / Receipt
                                         </span>
-                                        {paymentMethod && !["Cash", "Other"].includes(paymentMethod) && (
+                                        {effectivePaid > 0 && paymentMethod && !["Cash", "Other"].includes(paymentMethod) && (
                                             <span className="text-red-500 font-bold text-[10px]">* Required</span>
                                         )}
                                     </span>
                                 </label>
                                 <input
                                     type="text"
-                                    required={Boolean(paymentMethod && !["Cash", "Other"].includes(paymentMethod))}
+                                    required={Boolean(effectivePaid > 0 && paymentMethod && !["Cash", "Other"].includes(paymentMethod))}
                                     value={transactionId}
                                     onChange={e => setTransactionId(e.target.value)}
-                                    placeholder={paymentMethod === "Cash" || paymentMethod === "Other" ? "Optional for Cash / Other" : "e.g. TRX-982314 / Slip No"}
-                                    className={`input input-sm input-bordered w-full rounded-xl bg-white text-xs ${paymentMethod && !["Cash", "Other"].includes(paymentMethod) && !transactionId.trim() ? 'border-amber-400' : ''}`}
+                                    placeholder={effectivePaid <= 0 || paymentMethod === "Cash" || paymentMethod === "Other" ? "Optional" : "e.g. TRX-982314 / Slip No"}
+                                    className={`input input-sm input-bordered w-full rounded-xl bg-white text-xs ${effectivePaid > 0 && paymentMethod && !["Cash", "Other"].includes(paymentMethod) && !transactionId.trim() ? 'border-amber-400' : ''}`}
                                 />
                             </div>
                         </div>

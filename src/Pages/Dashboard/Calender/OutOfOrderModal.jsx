@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import useAxiosSecure from '../../../hooks/useAxiosSecure'
@@ -17,7 +17,8 @@ import {
     Clock,
     Plus,
     FileText,
-    ShieldAlert
+    ShieldAlert,
+    Pencil
 } from 'lucide-react'
 import { formatDate } from '../../../utils/bookingUtils'
 
@@ -42,19 +43,28 @@ const formatLocalDate = (date) => {
     return `${year}-${month}-${day}`
 }
 
+const EMPTY_ARRAY = []
+
 const OutOfOrderModal = ({
     isOpen,
     onClose,
     initialRoom, // { roomNo, categoryId, categoryName, startDate }
-    categories = [],
+    categories = EMPTY_ARRAY,
     currentUser,
     role,
     onSuccess
 }) => {
     const axiosSecure = useAxiosSecure()
     const queryClient = useQueryClient()
-    const [activeTab, setActiveTab] = useState('create') // 'create' | 'list'
+    const lastInitializedKey = useRef(null)
+
+    const normalizedRole = String(role || '').trim().toLowerCase()
+    const canManageOOO = normalizedRole === "admin" || normalizedRole === "manager"
+    const isReadOnly = !canManageOOO
+
+    const [activeTab, setActiveTab] = useState(() => (canManageOOO ? 'create' : 'list')) // 'create' | 'list'
     const [isSubmitting, setIsSubmitting] = useState(false)
+    const [editingRecordId, setEditingRecordId] = useState(null)
 
     // Form fields
     const [categoryId, setCategoryId] = useState('')
@@ -67,7 +77,7 @@ const OutOfOrderModal = ({
 
     // Fetch active Out of Order records
     const {
-        data: oooList = [],
+        data: oooList = EMPTY_ARRAY,
         isLoading: isOOOLoading,
         refetch: refetchOOO
     } = useQuery({
@@ -79,26 +89,94 @@ const OutOfOrderModal = ({
         enabled: isOpen
     })
 
+    const existingActiveRecord = roomNo ? oooList.find(o => String(o.roomNo).trim() === String(roomNo).trim()) : null
+    const isEditing = Boolean(editingRecordId || existingActiveRecord)
+
+    const handleStartEdit = (record) => {
+        setEditingRecordId(record._id)
+        setRoomNo(String(record.roomNo || '').trim())
+        if (record.categoryId) setCategoryId(record.categoryId)
+        setStartDate(record.startDate ? new Date(record.startDate) : new Date())
+        setEndDate(record.endDate ? new Date(record.endDate) : new Date(new Date().getTime() + 24 * 60 * 60 * 1000))
+        if (OOO_REASONS.includes(record.reason)) {
+            setReason(record.reason)
+            setCustomReason('')
+        } else {
+            setReason("Other Maintenance")
+            setCustomReason(record.reason || '')
+        }
+        setNotes(record.notes || '')
+        setActiveTab('create')
+    }
+
+    const handleResetToCreate = () => {
+        setEditingRecordId(null)
+        setRoomNo('')
+        setStartDate(new Date())
+        setEndDate(new Date(new Date().getTime() + 24 * 60 * 60 * 1000))
+        setReason(OOO_REASONS[0])
+        setCustomReason('')
+        setNotes('')
+        setActiveTab('create')
+    }
+
     useEffect(() => {
-        if (isOpen) {
-            if (initialRoom) {
+        if (!isOpen) {
+            lastInitializedKey.current = null
+            setEditingRecordId(null)
+            return
+        }
+
+        const currentKey = initialRoom ? `${initialRoom.roomNo}_${initialRoom.startDate}_${initialRoom._id || ''}` : "new"
+        if (lastInitializedKey.current === currentKey) {
+            return
+        }
+        lastInitializedKey.current = currentKey
+
+        if (canManageOOO && initialRoom) {
+            if (initialRoom.isExistingOOO) {
+                setEditingRecordId(initialRoom._id || null)
+                setCategoryId(initialRoom.categoryId || (categories[0]?._id || ''))
+                setRoomNo(String(initialRoom.roomNo || '').trim())
+                const start = initialRoom.startDate ? new Date(initialRoom.startDate) : new Date()
+                const end = initialRoom.endDate ? new Date(initialRoom.endDate) : new Date(start.getTime() + 24 * 60 * 60 * 1000)
+                setStartDate(start)
+                setEndDate(end)
+                if (initialRoom.reason && !OOO_REASONS.includes(initialRoom.reason)) {
+                    setReason("Other Maintenance")
+                    setCustomReason(initialRoom.reason)
+                } else {
+                    setReason(initialRoom.reason || OOO_REASONS[0])
+                    setCustomReason('')
+                }
+                setNotes(initialRoom.notes || '')
+                setActiveTab('create')
+            } else {
+                setEditingRecordId(null)
                 setCategoryId(initialRoom.categoryId || (categories[0]?._id || ''))
                 setRoomNo(String(initialRoom.roomNo || '').trim())
                 const start = initialRoom.startDate ? new Date(initialRoom.startDate) : new Date()
                 setStartDate(start)
                 setEndDate(new Date(start.getTime() + 24 * 60 * 60 * 1000))
+                setReason(OOO_REASONS[0])
+                setCustomReason('')
+                setNotes('')
                 setActiveTab('create')
-            } else {
-                setCategoryId(categories[0]?._id || '')
-                setRoomNo('')
-                setStartDate(new Date())
-                setEndDate(new Date(new Date().getTime() + 24 * 60 * 60 * 1000))
             }
+        } else {
+            setEditingRecordId(null)
+            setCategoryId(categories[0]?._id || '')
+            setRoomNo('')
+            setStartDate(new Date())
+            setEndDate(new Date(new Date().getTime() + 24 * 60 * 60 * 1000))
             setReason(OOO_REASONS[0])
             setCustomReason('')
             setNotes('')
+            if (isReadOnly) {
+                setActiveTab('list')
+            }
         }
-    }, [isOpen, initialRoom, categories])
+    }, [isOpen, initialRoom, canManageOOO, isReadOnly, categories])
 
     if (!isOpen) return null
 
@@ -107,6 +185,10 @@ const OutOfOrderModal = ({
 
     const handleSubmit = async (e) => {
         e.preventDefault()
+        if (!canManageOOO) {
+            toast.error("Only Admin or Manager can mark rooms as Out of Order.")
+            return
+        }
         if (!roomNo) {
             toast.error("Please select a room number.")
             return
@@ -116,8 +198,11 @@ const OutOfOrderModal = ({
             return
         }
 
+        const targetRecordId = editingRecordId || existingActiveRecord?._id
+        const isUpdate = Boolean(targetRecordId)
+
         setIsSubmitting(true)
-        const toastId = toast.loading("Marking room as Out of Order...")
+        const toastId = toast.loading(isUpdate ? "Updating Out of Order dates..." : "Marking room as Out of Order...")
 
         try {
             const payload = {
@@ -135,27 +220,44 @@ const OutOfOrderModal = ({
                 }
             }
 
-            const res = await axiosSecure.post("/out-of-order", payload)
+            let res
+            if (targetRecordId) {
+                res = await axiosSecure.patch(`/out-of-order/${targetRecordId}`, payload)
+            } else {
+                res = await axiosSecure.post("/out-of-order", payload)
+            }
+
             if (res.data) {
                 await Promise.all([
                     queryClient.invalidateQueries({ queryKey: ["out-of-order-calendar"] }),
                     queryClient.invalidateQueries({ queryKey: ["out-of-order-records"] }),
                     queryClient.invalidateQueries({ queryKey: ["all-bookings-for-calendar"] }),
+                    queryClient.invalidateQueries({ queryKey: ["out-of-order-for-category-details"] }),
                     refetchOOO()
                 ])
                 if (onSuccess) await onSuccess()
-                toast.success(`Room ${roomNo} is now set Out of Order for maintenance. 🛠️`, { id: toastId })
+                toast.success(
+                    isUpdate
+                        ? `Room ${roomNo} maintenance dates updated! 🛠️`
+                        : `Room ${roomNo} is now set Out of Order for maintenance. 🛠️`,
+                    { id: toastId }
+                )
+                setEditingRecordId(null)
                 setActiveTab('list')
             }
         } catch (err) {
-            console.error("Out of order create error:", err)
-            toast.error(err.response?.data?.message || "Failed to mark room out of order.", { id: toastId })
+            console.error("Out of order save error:", err)
+            toast.error(err.response?.data?.message || "Failed to update Out of Order status.", { id: toastId })
         } finally {
             setIsSubmitting(false)
         }
     }
 
     const handleResolve = async (record) => {
+        if (!canManageOOO) {
+            toast.error("Only Admin or Manager can resolve Out of Order status.")
+            return
+        }
         const confirmed = await showConfirmAlert(
             `Mark Room ${record.roomNo} as Available?`,
             `This will resolve the Out of Order maintenance status (${record.reason}) and make Room ${record.roomNo} available for reservations.`,
@@ -190,6 +292,10 @@ const OutOfOrderModal = ({
     }
 
     const handleDeleteRecord = async (record) => {
+        if (!canManageOOO) {
+            toast.error("Only Admin or Manager can delete Out of Order records.")
+            return
+        }
         const confirmed = await showConfirmAlert(
             `Delete Record for Room ${record.roomNo}?`,
             "Permanently delete this maintenance record.",
@@ -224,9 +330,18 @@ const OutOfOrderModal = ({
                             <Wrench size={20} />
                         </div>
                         <div>
-                            <h3 className="font-bold text-white text-base">Out of Order / Room Maintenance</h3>
+                            <div className="flex items-center gap-2">
+                                <h3 className="font-bold text-white text-base">Out of Order / Room Maintenance</h3>
+                                {isReadOnly && (
+                                    <span className="badge badge-xs bg-amber-400 text-neutral-900 font-extrabold border-none px-2 py-0.5">
+                                        Read Only
+                                    </span>
+                                )}
+                            </div>
                             <p className="text-xs text-amber-300">
-                                Temporarily block rooms from guest booking during repairs
+                                {isReadOnly
+                                    ? "View rooms currently blocked from guest booking for maintenance"
+                                    : "Temporarily block rooms from guest booking during repairs"}
                             </p>
                         </div>
                     </div>
@@ -240,41 +355,90 @@ const OutOfOrderModal = ({
                 </div>
 
                 {/* Tabs */}
-                <div className="flex border-b border-slate-200 bg-slate-50 px-6 shrink-0">
-                    <button
-                        type="button"
-                        onClick={() => setActiveTab('create')}
-                        className={`py-3 px-4 text-xs font-bold border-b-2 flex items-center gap-1.5 transition-colors ${activeTab === 'create'
-                            ? 'border-amber-500 text-neutral-900 bg-white'
-                            : 'border-transparent text-slate-500 hover:text-slate-900'
-                            }`}
-                    >
-                        <Plus size={14} /> Mark Room Out of Order
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => setActiveTab('list')}
-                        className={`py-3 px-4 text-xs font-bold border-b-2 flex items-center gap-1.5 transition-colors ${activeTab === 'list'
-                            ? 'border-amber-500 text-neutral-900 bg-white'
-                            : 'border-transparent text-slate-500 hover:text-slate-900'
-                            }`}
-                    >
-                        <ShieldAlert size={14} /> Active Out of Order ({oooList.length})
-                    </button>
-                </div>
+                {canManageOOO ? (
+                    <div className="flex border-b border-slate-200 bg-slate-50 px-6 shrink-0">
+                        <button
+                            type="button"
+                            onClick={() => {
+                                if (editingRecordId) {
+                                    handleResetToCreate()
+                                } else {
+                                    setActiveTab('create')
+                                }
+                            }}
+                            className={`py-3 px-4 text-xs font-bold border-b-2 flex items-center gap-1.5 transition-colors ${activeTab === 'create'
+                                ? 'border-amber-500 text-neutral-900 bg-white'
+                                : 'border-transparent text-slate-500 hover:text-slate-900'
+                                }`}
+                        >
+                            {editingRecordId ? <Pencil size={14} className="text-amber-600" /> : <Plus size={14} />}
+                            <span>{editingRecordId ? `Edit / Extend Room ${roomNo}` : 'Mark Room Out of Order'}</span>
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setActiveTab('list')}
+                            className={`py-3 px-4 text-xs font-bold border-b-2 flex items-center gap-1.5 transition-colors ${activeTab === 'list'
+                                ? 'border-amber-500 text-neutral-900 bg-white'
+                                : 'border-transparent text-slate-500 hover:text-slate-900'
+                                }`}
+                        >
+                            <ShieldAlert size={14} /> Active Out of Order ({oooList.length})
+                        </button>
+                    </div>
+                ) : (
+                    <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-6 py-2.5 shrink-0">
+                        <div className="text-xs font-bold text-neutral-900 flex items-center gap-1.5">
+                            <ShieldAlert size={14} className="text-amber-600" /> Active Out of Order Rooms ({oooList.length})
+                        </div>
+                        <span className="text-[10px] text-slate-500 font-medium">
+                            Details View · Only Admin or Manager can modify
+                        </span>
+                    </div>
+                )}
 
                 {/* Tab Content */}
                 <div className="p-6 overflow-y-auto flex-1 text-xs sm:text-sm">
-                    {activeTab === 'create' ? (
+                    {canManageOOO && activeTab === 'create' ? (
                         <form onSubmit={handleSubmit} className="space-y-4">
-                            {/* Important Notice */}
-                            <div className="p-3 bg-amber-50 border border-amber-200 rounded-2xl flex items-start gap-2.5 text-xs text-amber-900">
-                                <AlertTriangle size={16} className="text-amber-600 shrink-0 mt-0.5" />
-                                <div>
-                                    <strong className="block font-bold">Booking Protection Active</strong>
-                                    Rooms marked as Out of Order cannot be booked by guests or staff for the selected maintenance period.
+                            {/* Editing or Existing Record Notice */}
+                            {editingRecordId ? (
+                                <div className="p-3 bg-amber-50 border border-amber-300 rounded-2xl flex items-center justify-between gap-2.5 text-xs text-amber-950">
+                                    <div className="flex items-start gap-2.5">
+                                        <Pencil size={16} className="text-amber-600 shrink-0 mt-0.5" />
+                                        <div>
+                                            <strong className="block font-bold">Editing Maintenance for Room {roomNo}</strong>
+                                            <p className="text-[11px] text-slate-600">
+                                                Update the dates, reason, or notes below. Existing active records will be safely updated without creating duplicates.
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={handleResetToCreate}
+                                        className="btn btn-2xs btn-outline border-amber-400 text-amber-900 hover:bg-amber-100 shrink-0 rounded-lg"
+                                    >
+                                        Cancel Edit
+                                    </button>
                                 </div>
-                            </div>
+                            ) : roomNo && existingActiveRecord ? (
+                                <div className="p-3 bg-amber-50 border border-amber-300 rounded-2xl flex items-start gap-2.5 text-xs text-amber-950">
+                                    <AlertTriangle size={16} className="text-amber-600 shrink-0 mt-0.5" />
+                                    <div>
+                                        <strong className="block font-bold">Room {roomNo} is already marked Out of Order</strong>
+                                        <p className="text-[11px] text-slate-600">
+                                            Currently scheduled: <strong>{formatDate(existingActiveRecord.startDate)} → {formatDate(existingActiveRecord.endDate)}</strong> ({existingActiveRecord.reason}). Submitting will update its maintenance dates rather than creating a duplicate record.
+                                        </p>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="p-3 bg-amber-50 border border-amber-200 rounded-2xl flex items-start gap-2.5 text-xs text-amber-900">
+                                    <AlertTriangle size={16} className="text-amber-600 shrink-0 mt-0.5" />
+                                    <div>
+                                        <strong className="block font-bold">Booking Protection Active</strong>
+                                        Rooms marked as Out of Order cannot be booked by guests or staff for the selected maintenance period.
+                                    </div>
+                                </div>
+                            )}
 
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                 {/* Category */}
@@ -413,6 +577,15 @@ const OutOfOrderModal = ({
                             </div>
 
                             <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100">
+                                {editingRecordId && (
+                                    <button
+                                        type="button"
+                                        onClick={handleResetToCreate}
+                                        className="btn btn-sm btn-ghost text-slate-500 hover:text-slate-900 mr-auto"
+                                    >
+                                        Cancel Edit
+                                    </button>
+                                )}
                                 <button
                                     type="button"
                                     onClick={onClose}
@@ -425,8 +598,14 @@ const OutOfOrderModal = ({
                                     disabled={isSubmitting}
                                     className="btn btn-sm bg-neutral-900 hover:bg-neutral-800 text-amber-300 font-bold rounded-xl px-5 shadow-xs border-none"
                                 >
-                                    {isSubmitting ? <span className="loading loading-spinner loading-xs" /> : <Wrench size={14} />}
-                                    <span>Set Out of Order</span>
+                                    {isSubmitting ? (
+                                        <span className="loading loading-spinner loading-xs" />
+                                    ) : isEditing ? (
+                                        <Pencil size={14} />
+                                    ) : (
+                                        <Wrench size={14} />
+                                    )}
+                                    <span>{isEditing ? "Update Maintenance Dates" : "Set Out of Order"}</span>
                                 </button>
                             </div>
                         </form>
@@ -444,66 +623,93 @@ const OutOfOrderModal = ({
                                     <p className="text-xs text-slate-400">No rooms are currently out of order.</p>
                                 </div>
                             ) : (
-                                oooList.map(record => (
-                                    <div
-                                        key={record._id}
-                                        className="p-4 rounded-2xl bg-neutral-900 text-white border border-neutral-800 space-y-2.5 shadow-sm"
-                                    >
-                                        <div className="flex items-center justify-between">
-                                            <div className="flex items-center gap-2">
-                                                <span className="badge badge-sm bg-amber-500 text-neutral-900 font-extrabold border-none">
-                                                    Room {record.roomNo}
-                                                </span>
-                                                <span className="font-bold text-slate-200 text-xs">
-                                                    {record.categoryName}
+                                oooList.map(record => {
+                                    const isSelectedFromCalendar = initialRoom && String(initialRoom.roomNo).trim() === String(record.roomNo).trim()
+                                    return (
+                                        <div
+                                            key={record._id}
+                                            className={`p-4 rounded-2xl bg-neutral-900 text-white border space-y-2.5 shadow-sm transition-all ${
+                                                isSelectedFromCalendar
+                                                    ? "border-amber-400 ring-2 ring-amber-400/40"
+                                                    : "border-neutral-800"
+                                            }`}
+                                        >
+                                            <div className="flex items-center justify-between">
+                                                <div className="flex items-center gap-2">
+                                                    <span className="badge badge-sm bg-amber-500 text-neutral-900 font-extrabold border-none">
+                                                        Room {record.roomNo}
+                                                    </span>
+                                                    <span className="font-bold text-slate-200 text-xs">
+                                                        {record.categoryName}
+                                                    </span>
+                                                    {isSelectedFromCalendar && (
+                                                        <span className="badge badge-xs bg-amber-400/20 text-amber-300 font-bold border border-amber-400/30">
+                                                            Selected Cell
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <span className="badge badge-xs bg-rose-500 text-white font-bold uppercase">
+                                                    Out of Order
                                                 </span>
                                             </div>
-                                            <span className="badge badge-xs bg-rose-500 text-white font-bold uppercase">
-                                                Out of Order
-                                            </span>
-                                        </div>
 
-                                        <div className="text-xs text-slate-300 space-y-1 bg-neutral-800/80 p-2.5 rounded-xl">
-                                            <p className="font-semibold text-amber-300">
-                                                🛠️ {record.reason}
-                                            </p>
-                                            <p className="flex items-center gap-1.5 text-[11px] text-slate-400">
-                                                <Calendar size={12} className="text-teal-400" />
-                                                {formatDate(record.startDate)} → {formatDate(record.endDate)}
-                                            </p>
-                                            {record.notes && (
-                                                <p className="italic text-[11px] text-slate-400">
-                                                    Note: "{record.notes}"
+                                            <div className="text-xs text-slate-300 space-y-1 bg-neutral-800/80 p-2.5 rounded-xl">
+                                                <p className="font-semibold text-amber-300">
+                                                    🛠️ {record.reason}
                                                 </p>
-                                            )}
-                                        </div>
+                                                <p className="flex items-center gap-1.5 text-[11px] text-slate-400">
+                                                    <Calendar size={12} className="text-teal-400" />
+                                                    {formatDate(record.startDate)} → {formatDate(record.endDate)}
+                                                </p>
+                                                {record.notes && (
+                                                    <p className="italic text-[11px] text-slate-400">
+                                                        Note: "{record.notes}"
+                                                    </p>
+                                                )}
+                                            </div>
 
-                                        <div className="flex items-center justify-between pt-1">
-                                            <span className="text-[10px] text-slate-500">
-                                                Set by {record.createdBy?.name || "Staff"}
-                                            </span>
+                                            <div className="flex items-center justify-between pt-1">
+                                                <span className="text-[10px] text-slate-500">
+                                                    Set by {record.createdBy?.name || "Staff"}
+                                                </span>
 
-                                            <div className="flex items-center gap-2">
-                                                <button
-                                                    type="button"
-                                                    onClick={() => handleDeleteRecord(record)}
-                                                    className="btn btn-2xs btn-ghost text-rose-400 hover:bg-rose-950/40"
-                                                    title="Delete record"
-                                                >
-                                                    <Trash2 size={12} />
-                                                </button>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => handleResolve(record)}
-                                                    className="btn btn-xs bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl gap-1 border-none shadow-xs"
-                                                >
-                                                    <CheckCircle2 size={13} />
-                                                    <span>Resolve & Mark Available</span>
-                                                </button>
+                                                {canManageOOO ? (
+                                                    <div className="flex items-center gap-2">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleStartEdit(record)}
+                                                            className="btn btn-xs bg-amber-500 hover:bg-amber-400 text-neutral-900 font-bold rounded-xl gap-1 border-none shadow-xs"
+                                                            title="Edit or extend maintenance dates"
+                                                        >
+                                                            <Pencil size={12} />
+                                                            <span>Edit / Extend</span>
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleDeleteRecord(record)}
+                                                            className="btn btn-2xs btn-ghost text-rose-400 hover:bg-rose-950/40"
+                                                            title="Delete record"
+                                                        >
+                                                            <Trash2 size={12} />
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleResolve(record)}
+                                                            className="btn btn-xs bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl gap-1 border-none shadow-xs"
+                                                        >
+                                                            <CheckCircle2 size={13} />
+                                                            <span>Resolve & Mark Available</span>
+                                                        </button>
+                                                    </div>
+                                                ) : (
+                                                    <span className="text-[11px] font-semibold text-amber-400/90 flex items-center gap-1 bg-amber-950/40 px-2 py-1 rounded-lg border border-amber-800/50">
+                                                        <Clock size={12} /> Under Maintenance
+                                                    </span>
+                                                )}
                                             </div>
                                         </div>
-                                    </div>
-                                ))
+                                    )
+                                })
                             )}
                         </div>
                     )}

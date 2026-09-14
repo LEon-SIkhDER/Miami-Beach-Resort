@@ -141,7 +141,7 @@ const ReservationVoucherModal = ({
     const discountAmount = Number(booking.financials?.discountAmount || initialBooking?.discountAmount || initialBooking?.discount || initialBooking?.specialDiscount || 0)
     const roomSubtotalAmount = rawRooms.reduce((sum, r) => sum + Number(r.total || 0), 0)
     const subtotalAmount = roomSubtotalAmount + extraServiceCost || Number(initialBooking?.totalAmount || 0)
-    const payableTotal = discountAmount > 0 ? Math.max(0, subtotalAmount - discountAmount) : Number(initialBooking?.totalAmount || subtotalAmount)
+    const payableTotal = Math.max(0, subtotalAmount - discountAmount)
     const paidAmount = Number(booking.financials?.paidAmount !== undefined ? booking.financials.paidAmount : (initialBooking?.paidAmount || initialBooking?.advanceAmount || 0))
     const dueAmount = Math.max(0, payableTotal - paidAmount)
 
