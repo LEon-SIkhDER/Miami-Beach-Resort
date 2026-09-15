@@ -29,6 +29,7 @@ import EditCategory from './EditCategory'
 import OutOfOrderModal from '../Calender/OutOfOrderModal'
 import { AuthContext } from '../../../Context/AuthContext'
 import useRole from '../../../hooks/useRole'
+import useAxiosSecure from '../../../hooks/useAxiosSecure'
 import Swal from 'sweetalert2'
 import toast from 'react-hot-toast'
 
@@ -39,6 +40,7 @@ const CategoryRoomDetails = () => {
     const navigate = useNavigate()
     const { user } = useContext(AuthContext)
     const { role } = useRole()
+    const axiosSecure = useAxiosSecure()
     const queryClient = useQueryClient()
 
     // mediaType: 'video' | 'image'
@@ -58,7 +60,7 @@ const CategoryRoomDetails = () => {
     const { data: category, isLoading, refetch } = useQuery({
         queryKey: ["category-detail", id],
         queryFn: async () => {
-            const { data } = await axios.get(`${SERVER_URL}/categoryandroom/${id}`)
+            const { data } = await axiosSecure.get(`/categoryandroom/${id}`)
             return data
         },
         enabled: !!id
@@ -68,7 +70,7 @@ const CategoryRoomDetails = () => {
     const { data: oooList = [], refetch: refetchOOO } = useQuery({
         queryKey: ["out-of-order-for-category-details"],
         queryFn: async () => {
-            const { data } = await axios.get(`${SERVER_URL}/out-of-order`)
+            const { data } = await axiosSecure.get('/out-of-order')
             return data
         }
     })
@@ -158,7 +160,7 @@ const CategoryRoomDetails = () => {
             if (result.isConfirmed) {
                 const toastId = toast.loading("Deleting category...")
                 try {
-                    const { data } = await axios.delete(`${SERVER_URL}/categoryandroom/${category._id}`)
+                    const { data } = await axiosSecure.delete(`/categoryandroom/${category._id}`)
                     if (data.deletedCount !== 1) throw new Error("Delete failed")
                     toast.success("Category deleted", { id: toastId })
                     navigate("/dashboard/category&room")
@@ -191,7 +193,7 @@ const CategoryRoomDetails = () => {
 
         const toastId = toast.loading("Resolving room maintenance...")
         try {
-            await axios.patch(`${SERVER_URL}/out-of-order/${oooRecord._id}`, {
+            await axiosSecure.patch(`/out-of-order/${oooRecord._id}`, {
                 status: "resolved",
                 resolvedBy: {
                     name: user?.displayName || "Staff",
@@ -220,7 +222,7 @@ const CategoryRoomDetails = () => {
         setIsSavingSchedule(true)
         const toastId = toast.loading("Scheduling price change...")
         try {
-            const { data } = await axios.post(`${SERVER_URL}/categoryandroom/${category._id}/schedule-price`, {
+            const { data } = await axiosSecure.post(`/categoryandroom/${category._id}/schedule-price`, {
                 effectiveDate: scheduleDate,
                 price: Number(schedulePrice),
                 note: scheduleNote.trim()
@@ -255,7 +257,7 @@ const CategoryRoomDetails = () => {
 
         const toastId = toast.loading("Canceling scheduled price...")
         try {
-            await axios.delete(`${SERVER_URL}/categoryandroom/${category._id}/schedule-price/${effectiveDate}`)
+            await axiosSecure.delete(`/categoryandroom/${category._id}/schedule-price/${effectiveDate}`)
             await Promise.all([
                 refetch(),
                 queryClient.invalidateQueries({ queryKey: ["all-categories-for-calendar"] }),

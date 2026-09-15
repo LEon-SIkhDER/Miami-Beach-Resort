@@ -158,7 +158,11 @@ const RoomDetails = () => {
         setBookingModalOpen(true)
     }
 
-    const handleCloseModal = () => {
+    const handleCloseModal = (e) => {
+        if (isSubmitting) {
+            e?.preventDefault?.()
+            return
+        }
         setBookingModalOpen(false)
         setBookingRooms([])
         setAvailabilityMsg(null)
@@ -825,7 +829,9 @@ const RoomDetails = () => {
                             </div>
                         </form>
                     </div>
-                    <div className="modal-backdrop bg-slate-900/50 backdrop-blur-xs" onClick={handleCloseModal} />
+                    <form method="dialog" className="modal-backdrop bg-slate-900/50 backdrop-blur-xs">
+                        <button onClick={handleCloseModal}>close</button>
+                    </form>
                 </dialog>
             )}
         </div>

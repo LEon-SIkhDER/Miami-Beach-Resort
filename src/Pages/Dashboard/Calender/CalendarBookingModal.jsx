@@ -574,7 +574,7 @@ const CalendarBookingModal = ({
                     return
                 }
 
-                const isNoTrxMethod = ["Cash", "Other"].includes(paymentMethod.trim())
+                const isNoTrxMethod = ["Cash", "Other", "Pay on Arrival", "Pay on Arrival / Unpaid", "Pending"].some(m => m.toLowerCase() === paymentMethod.trim().toLowerCase())
                 if (!isNoTrxMethod && !transactionId.trim()) {
                     toast.error(`Transaction ID / Receipt No is required for ${paymentMethod}.`)
                     return
@@ -683,8 +683,18 @@ const CalendarBookingModal = ({
     }
 
     return createPortal(
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-slate-900/60 backdrop-blur-xs overflow-y-auto">
-            <div className="bg-white rounded-3xl shadow-2xl border border-slate-100 w-full max-w-3xl max-h-[92vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+        <div 
+            onClick={(e) => {
+                if (e.target === e.currentTarget && !submittingStatus) {
+                    onClose?.()
+                }
+            }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-slate-900/60 backdrop-blur-xs overflow-y-auto"
+        >
+            <div 
+                onClick={(e) => e.stopPropagation()}
+                className="bg-white rounded-3xl shadow-2xl border border-slate-100 w-full max-w-3xl max-h-[92vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200"
+            >
                 {/* Header */}
                 <div className="flex items-center justify-between px-6 py-4 border-b border-teal-100 bg-teal-50/60 shrink-0">
                     <div className="flex items-center gap-2.5">
@@ -1355,7 +1365,7 @@ const CalendarBookingModal = ({
                                                 <span className="flex items-center gap-1">
                                                     <Receipt size={13} className="text-teal-600" /> Transaction ID / Receipt
                                                 </span>
-                                                {effectivePaid > 0 && !["Cash", "Other"].includes(paymentMethod) && (
+                                                {effectivePaid > 0 && !["Cash", "Other", "Pay on Arrival", "Pay on Arrival / Unpaid", "Pending"].some(m => m.toLowerCase() === paymentMethod.trim().toLowerCase()) && (
                                                     <span className="text-red-500 font-bold text-[10px]">* Required</span>
                                                 )}
                                             </span>
@@ -1365,7 +1375,7 @@ const CalendarBookingModal = ({
                                             value={transactionId}
                                             onChange={e => setTransactionId(e.target.value)}
                                             placeholder="e.g. TRX123456 or Bank Slip No."
-                                            className={`input input-sm input-bordered rounded-xl bg-white text-xs ${effectivePaid > 0 && !["Cash", "Other"].includes(paymentMethod) && !transactionId.trim() ? 'border-amber-400' : ''}`}
+                                            className={`input input-sm input-bordered rounded-xl bg-white text-xs ${effectivePaid > 0 && !["Cash", "Other", "Pay on Arrival", "Pay on Arrival / Unpaid", "Pending"].some(m => m.toLowerCase() === paymentMethod.trim().toLowerCase()) && !transactionId.trim() ? 'border-amber-400' : ''}`}
                                         />
                                     </div>
                                 </div>

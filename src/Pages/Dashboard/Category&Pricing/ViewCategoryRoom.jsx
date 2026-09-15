@@ -214,7 +214,7 @@ const ViewCategoryRoom = ({ children, className, category }) => {
                         </div>
                     </div>
                     <form method="dialog" className="modal-backdrop bg-slate-900/40 backdrop-blur-xs">
-                        <button type="button" onClick={handleClose}>close</button>
+                        <button onClick={handleClose}>close</button>
                     </form>
                 </dialog>,
                 document.body

@@ -453,9 +453,19 @@ const SalesReportPdfModal = ({
 
     // Modal Mode: Shows on-screen preview with Print and Save as PDF buttons
     return createPortal(
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-900/70 backdrop-blur-xs overflow-y-auto print:static print:p-0 print:m-0 print:bg-white print:overflow-visible print:block print:w-full print:h-auto">
+        <div 
+            onClick={(e) => {
+                if (e.target === e.currentTarget) {
+                    onClose?.()
+                }
+            }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-900/70 backdrop-blur-xs overflow-y-auto print:static print:p-0 print:m-0 print:bg-white print:overflow-visible print:block print:w-full print:h-auto"
+        >
             {/* Modal Box */}
-            <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-5xl max-h-[96vh] flex flex-col overflow-hidden print:static print:border-none print:shadow-none print:max-w-none print:max-h-none print:w-full print:h-auto print:rounded-none print:overflow-visible">
+            <div 
+                onClick={(e) => e.stopPropagation()}
+                className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-5xl max-h-[96vh] flex flex-col overflow-hidden print:static print:border-none print:shadow-none print:max-w-none print:max-h-none print:w-full print:h-auto print:rounded-none print:overflow-visible"
+            >
                 {/* Modal Action Bar (Hidden in Print) */}
                 <div className="flex items-center justify-between px-5 py-3 border-b border-slate-200 bg-slate-50/95 shrink-0 print:hidden">
                     <div className="flex items-center gap-2.5">

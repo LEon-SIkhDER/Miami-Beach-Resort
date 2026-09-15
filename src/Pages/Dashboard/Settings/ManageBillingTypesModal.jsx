@@ -122,7 +122,14 @@ const ManageBillingTypesModal = ({ isOpen, onClose, extraServices = [] }) => {
     }
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs transition-opacity duration-200">
+        <div 
+            className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs transition-opacity duration-200"
+            onClick={(e) => {
+                if (e.target === e.currentTarget && !isAdding && !isUpdating && !isDeleting) {
+                    onClose?.()
+                }
+            }}
+        >
             <div 
                 className="bg-white rounded-2xl sm:rounded-3xl shadow-2xl border border-slate-200 w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150"
                 onClick={e => e.stopPropagation()}

@@ -642,20 +642,23 @@ const EditBookingModal = ({ booking, isOpen, onClose, onSuccess }) => {
             }
 
             const paidNum = Number(paidAmount)
-            if (paidAmount === '' || isNaN(paidNum) || paidNum < 0) {
-                toast.error("Payment Done (৳) amount must be greater than 0 for confirmed bookings.")
+            if (paidAmount !== '' && (isNaN(paidNum) || paidNum < 0)) {
+                toast.error("Payment Done amount cannot be negative.")
                 return
             }
 
-            if (!paymentMethod.trim()) {
-                toast.error("Payment Method is required.")
-                return
-            }
+            // Only require Payment Method & Transaction ID if payment is provided (> 0)
+            if (paidNum > 0) {
+                if (!paymentMethod.trim()) {
+                    toast.error("Payment Method is required when payment is provided.")
+                    return
+                }
 
-            const isNoTrxMethod = ["Cash", "Other"].includes(paymentMethod.trim())
-            if (!isNoTrxMethod && !transactionId.trim()) {
-                toast.error(`Transaction ID / Receipt No is required for ${paymentMethod}.`)
-                return
+                const isNoTrxMethod = ["Cash", "Other", "Pay on Arrival", "Pay on Arrival / Unpaid", "Pending"].some(m => m.toLowerCase() === paymentMethod.trim().toLowerCase())
+                if (!isNoTrxMethod && !transactionId.trim()) {
+                    toast.error(`Transaction ID / Receipt No is required for ${paymentMethod}.`)
+                    return
+                }
             }
 
             if (!reference.trim()) {
@@ -713,9 +716,9 @@ const EditBookingModal = ({ booking, isOpen, onClose, onSuccess }) => {
                 })),
                 extraService: resolvedExtraServicesList.map(s => s.name).filter(Boolean).join(", "),
                 extraServiceCost: extraCost,
-                paymentMethod: paymentMethod.trim() || booking.paymentMethod || (effectivePaid > 0 ? "Cash" : ""),
+                paymentMethod: effectivePaid > 0 ? (paymentMethod.trim() || "Cash") : (paymentMethod.trim() || "Pay on Arrival / Unpaid"),
                 reference: reference.trim(),
-                transactionId: transactionId.trim(),
+                transactionId: effectivePaid > 0 ? transactionId.trim() : "",
                 notes: notes.trim(),
                 changedBy: {
                     name: currentUser?.displayName || currentUser?.email || "Admin / Staff",
@@ -737,7 +740,7 @@ const EditBookingModal = ({ booking, isOpen, onClose, onSuccess }) => {
                 ])
                 if (onSuccess) {
                     try {
-                        await onSuccess()
+                        await onSuccess(res.data)
                     } catch (e) {
                         console.error("onSuccess callback error:", e)
                     }
@@ -752,8 +755,18 @@ const EditBookingModal = ({ booking, isOpen, onClose, onSuccess }) => {
     }
 
     return createPortal(
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-slate-900/60 backdrop-blur-xs overflow-y-auto">
-            <div className="bg-white rounded-3xl shadow-2xl border border-slate-100 w-full max-w-3xl max-h-[92vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+        <div 
+            onClick={(e) => {
+                if (e.target === e.currentTarget && !isSubmitting) {
+                    onClose?.()
+                }
+            }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-slate-900/60 backdrop-blur-xs overflow-y-auto"
+        >
+            <div 
+                onClick={(e) => e.stopPropagation()}
+                className="bg-white rounded-3xl shadow-2xl border border-slate-100 w-full max-w-3xl max-h-[92vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200"
+            >
                 {/* Header */}
                 <div className="flex items-center justify-between px-6 py-4 border-b border-teal-100 bg-teal-50/60 shrink-0">
                     <div className="flex items-center gap-2.5">
@@ -1327,6 +1340,14 @@ const EditBookingModal = ({ booking, isOpen, onClose, onSuccess }) => {
                                     <div className="flex items-center gap-1.5 mt-1.5">
                                         <button
                                             type="button"
+                                            onClick={() => { setPaidAmount('0'); setPaymentMethod(''); setTransactionId(''); }}
+                                            className="btn btn-xs btn-outline border-amber-300 text-amber-800 hover:bg-amber-50 rounded-lg text-[10px] font-bold"
+                                            title="Set to 0 (Pay on Arrival / Unpaid)"
+                                        >
+                                            0 (Unpaid)
+                                        </button>
+                                        <button
+                                            type="button"
                                             onClick={() => setPaidAmount(String(netPayable))}
                                             className="btn btn-xs btn-outline border-emerald-300 text-emerald-700 hover:bg-emerald-50 rounded-lg text-[10px] font-bold"
                                         >
@@ -1348,15 +1369,15 @@ const EditBookingModal = ({ booking, isOpen, onClose, onSuccess }) => {
                                 <div className="form-control">
                                     <label className="label py-0.5">
                                         <span className="label-text font-bold text-slate-800 text-xs flex items-center gap-1">
-                                            <CreditCard size={13} className="text-teal-600" /> Payment Method
+                                            <CreditCard size={13} className="text-teal-600" /> Payment Method {effectivePaid > 0 && <span className="text-red-500 font-bold">*</span>}
                                         </span>
                                     </label>
                                     <select
                                         value={paymentMethod}
                                         onChange={e => setPaymentMethod(e.target.value)}
-                                        className="select select-sm select-bordered rounded-xl bg-white text-xs font-semibold"
+                                        className={`select select-sm select-bordered rounded-xl bg-white text-xs font-semibold ${effectivePaid > 0 && !paymentMethod.trim() ? 'border-amber-400' : ''}`}
                                     >
-                                        <option value="">-- Select Payment Method --</option>
+                                        <option value="">{effectivePaid > 0 ? "-- Select Payment Method --" : "-- Pay on Arrival / Unpaid --"}</option>
                                         <option value="bKash">bKash (Mobile)</option>
                                         <option value="Nagad">Nagad (Mobile)</option>
                                         <option value="Rocket">Rocket (DBBL)</option>
@@ -1377,7 +1398,7 @@ const EditBookingModal = ({ booking, isOpen, onClose, onSuccess }) => {
                                             <span className="flex items-center gap-1">
                                                 <Receipt size={13} className="text-teal-600" /> Transaction ID / Receipt
                                             </span>
-                                            {effectivePaid > 0 && !["Cash", "Other"].includes(paymentMethod) && (
+                                            {effectivePaid > 0 && !["Cash", "Other", "Pay on Arrival", "Pay on Arrival / Unpaid", "Pending"].some(m => m.toLowerCase() === paymentMethod.trim().toLowerCase()) && (
                                                 <span className="text-red-500 font-bold text-[10px]">* Required</span>
                                             )}
                                         </span>
@@ -1387,7 +1408,7 @@ const EditBookingModal = ({ booking, isOpen, onClose, onSuccess }) => {
                                         value={transactionId}
                                         onChange={e => setTransactionId(e.target.value)}
                                         placeholder="e.g. TRX123456 or Bank Slip No."
-                                        className={`input input-sm input-bordered rounded-xl bg-white text-xs ${effectivePaid > 0 && !["Cash", "Other"].includes(paymentMethod) && !transactionId.trim() ? 'border-amber-400' : ''}`}
+                                        className={`input input-sm input-bordered rounded-xl bg-white text-xs ${effectivePaid > 0 && !["Cash", "Other", "Pay on Arrival", "Pay on Arrival / Unpaid", "Pending"].some(m => m.toLowerCase() === paymentMethod.trim().toLowerCase()) && !transactionId.trim() ? 'border-amber-400' : ''}`}
                                     />
                                 </div>
                             </div>

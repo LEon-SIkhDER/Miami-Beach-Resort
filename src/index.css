@@ -91,7 +91,19 @@ html {
   box-shadow: 0 24px 48px -12px rgba(4, 38, 31, 0.18), 0 0 0 1px rgba(197, 168, 128, 0.35);
 }
 
-/* ── react-datepicker: Royal Palace Theme ── */
+/* ── react-datepicker: Full-width wrapper support & Royal Palace Theme ── */
+.react-datepicker-wrapper.w-full,
+.react-datepicker-wrapper:has(.w-full) {
+  display: block;
+  width: 100%;
+}
+
+.react-datepicker-wrapper.w-full .react-datepicker__input-container,
+.react-datepicker-wrapper:has(.w-full) .react-datepicker__input-container {
+  display: block;
+  width: 100%;
+}
+
 .booking-calendar {
   font-family: 'Plus Jakarta Sans', sans-serif;
   border: 1px solid rgba(197, 168, 128, 0.3);

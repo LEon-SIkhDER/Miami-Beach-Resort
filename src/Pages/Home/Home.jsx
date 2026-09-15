@@ -193,7 +193,11 @@ const Home = () => {
         })
     }
 
-    const handleCloseModal = () => {
+    const handleCloseModal = (e) => {
+        if (isSubmitting) {
+            e?.preventDefault?.()
+            return
+        }
         setBookingModalOpen(false)
         setSelectedCategory(null)
         setBookingRooms([])
@@ -1250,7 +1254,9 @@ const Home = () => {
 
                         </form>
                     </div>
-                    <div className="modal-backdrop bg-[#021813]/70 backdrop-blur-xs" onClick={handleCloseModal} />
+                    <form method="dialog" className="modal-backdrop bg-[#021813]/70 backdrop-blur-xs">
+                        <button onClick={handleCloseModal}>close</button>
+                    </form>
                 </dialog>
             )}
 

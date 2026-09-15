@@ -1,13 +1,12 @@
-import axios from 'axios';
 import React, { useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import { X } from 'lucide-react';
 import CategoryImageUploader from './CategoryImageUploader';
 import { getYouTubeEmbedUrl } from './categoryRoomUtils';
-
-const SERVER_URL = import.meta.env.VITE_SERVER_URL || "https://miami-beach-resort.vercel.app"
+import useAxiosSecure from '../../../hooks/useAxiosSecure';
 
 const AddCategory = ({ children, className, refetch }) => {
+    const axiosSecure = useAxiosSecure()
     const modalRef = useRef()
     const formRef = useRef()
     const [uploadedImages, setUploadedImages] = useState([])
@@ -20,8 +19,11 @@ const AddCategory = ({ children, className, refetch }) => {
         modalRef.current?.showModal()
     }
 
-    const handleClose = () => {
-        if (isSubmitting) return
+    const handleClose = (e) => {
+        if (isSubmitting) {
+            e?.preventDefault?.()
+            return
+        }
         modalRef.current?.close()
     }
 
@@ -56,7 +58,7 @@ const AddCategory = ({ children, className, refetch }) => {
         const toastId = toast.loading("Adding Category...")
         try {
             setIsSubmitting(true)
-            const { data: result } = await axios.post(`${SERVER_URL}/categoryandroom`, payload)
+            const { data: result } = await axiosSecure.post('/categoryandroom', payload)
             if (!result.insertedId) {
                 throw new Error("Failed to add category")
             }
@@ -223,7 +225,7 @@ const AddCategory = ({ children, className, refetch }) => {
                     </form>
                 </div>
                 <form method={isSubmitting ? undefined : "dialog"} className="modal-backdrop bg-slate-900/40 backdrop-blur-xs">
-                    <button type="button" onClick={handleClose}>close</button>
+                    <button onClick={handleClose}>close</button>
                 </form>
             </dialog>
         </>

@@ -83,8 +83,18 @@ const CancelBookingModal = ({ booking, isOpen, onClose, onSuccess, currentUser, 
     }
 
     return createPortal(
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs overflow-y-auto">
-            <div className="bg-white rounded-3xl shadow-2xl border border-slate-100 w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+        <div 
+            onClick={(e) => {
+                if (e.target === e.currentTarget && !isSubmitting) {
+                    onClose?.()
+                }
+            }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs overflow-y-auto"
+        >
+            <div 
+                onClick={(e) => e.stopPropagation()}
+                className="bg-white rounded-3xl shadow-2xl border border-slate-100 w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-200"
+            >
                 {/* Header */}
                 <div className="flex items-center justify-between px-6 py-4 border-b border-rose-100 bg-rose-50/60 shrink-0">
                     <div className="flex items-center gap-2.5">

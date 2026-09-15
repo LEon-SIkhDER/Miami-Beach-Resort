@@ -730,6 +730,9 @@ const MyBookings = () => {
                             </button>
                         </div>
                     </div>
+                    <form method="dialog" className="modal-backdrop bg-slate-900/50 backdrop-blur-xs">
+                        <button onClick={() => setDetailsBooking(null)}>close</button>
+                    </form>
                 </dialog>
             )}
 

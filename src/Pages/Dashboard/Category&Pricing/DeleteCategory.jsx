@@ -1,9 +1,10 @@
-import axios from 'axios';
 import React from 'react';
 import toast from 'react-hot-toast';
 import Swal from 'sweetalert2';
+import useAxiosSecure from '../../../hooks/useAxiosSecure';
 
 const DeleteCategory = ({ children, className, category, refetch }) => {
+    const axiosSecure = useAxiosSecure();
     const handleDelete = async () => {
         Swal.fire({
             title: "Are you sure?",
@@ -17,7 +18,7 @@ const DeleteCategory = ({ children, className, category, refetch }) => {
             if (result.isConfirmed) {
                 const toastId = toast.loading("Deleting")
                 try {
-                    const { data: result } = await axios.delete(`https://miami-beach-resort.vercel.app/categoryandroom/${category._id}`)
+                    const { data: result } = await axiosSecure.delete(`/categoryandroom/${category._id}`)
                     if (result.deletedCount !== 1) {
                         throw new Error("Delete Failed")
                     }
@@ -27,7 +28,7 @@ const DeleteCategory = ({ children, className, category, refetch }) => {
 
                 } catch (error) {
                     toast.dismiss(toastId)
-                    toast.success(error.message || "Something went wrong")
+                    toast.error(error.message || "Something went wrong")
                 }
             }
         });

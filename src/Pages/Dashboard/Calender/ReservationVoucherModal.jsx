@@ -167,9 +167,19 @@ const ReservationVoucherModal = ({
     }
 
     return createPortal(
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-900/70 backdrop-blur-xs overflow-y-auto print:static print:p-0 print:m-0 print:bg-white print:overflow-visible print:block print:w-full print:h-auto">
+        <div 
+            onClick={(e) => {
+                if (e.target === e.currentTarget) {
+                    onClose?.()
+                }
+            }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-900/70 backdrop-blur-xs overflow-y-auto print:static print:p-0 print:m-0 print:bg-white print:overflow-visible print:block print:w-full print:h-auto"
+        >
             {/* Modal Box */}
-            <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 w-full max-w-4xl max-h-[96vh] flex flex-col overflow-hidden print:static print:border-none print:shadow-none print:max-w-none print:max-h-none print:w-full print:h-auto print:rounded-none print:overflow-visible">
+            <div 
+                onClick={(e) => e.stopPropagation()}
+                className="bg-white rounded-3xl shadow-2xl border border-slate-200 w-full max-w-4xl max-h-[96vh] flex flex-col overflow-hidden print:static print:border-none print:shadow-none print:max-w-none print:max-h-none print:w-full print:h-auto print:rounded-none print:overflow-visible"
+            >
                 
                 {/* Modal Action Bar (Hidden in Print) */}
                 <div className="flex items-center justify-between px-6 py-3 border-b border-slate-200 bg-slate-50/90 shrink-0 print:hidden">
@@ -389,36 +399,37 @@ const ReservationVoucherModal = ({
                                         </tr>
                                     ))}
 
-                                    {/* Extra Services Rows if present */}
+                                    {/* Extra Services in Summary Rows (Bottom Right) */}
                                     {rawExtraServices && rawExtraServices.length > 0 ? (
                                         rawExtraServices.map((srv, sIdx) => {
                                             const sName = srv.name || "Extra Service"
                                             const sUnitPrice = Number(srv.unitPrice || 0)
                                             const sQty = Number(srv.quantity || 1)
                                             const sTotal = Number(srv.totalCost || (sUnitPrice * sQty) || 0)
+                                            const label = sName.toLowerCase().startsWith('extra')
+                                                ? `${sName} (${sQty}):`
+                                                : `Extra Service - ${sName} (${sQty}):`
                                             return (
                                                 <tr key={`extra-${sIdx}`} style={{ borderBottom: '1px solid #000000' }}>
-                                                    <td style={{ border: '1px solid #000000', padding: '3px 4px', textAlign: 'left', fontWeight: '500' }}>{sName}</td>
-                                                    <td style={{ border: '1px solid #000000', padding: '3px 4px', textAlign: 'center' }}>—</td>
-                                                    <td style={{ border: '1px solid #000000', padding: '3px 4px', textAlign: 'center' }}>—</td>
-                                                    <td style={{ border: '1px solid #000000', padding: '3px 4px', textAlign: 'right' }}>BDT {sUnitPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                                                    <td style={{ border: '1px solid #000000', padding: '3px 4px', textAlign: 'center' }}>{sQty}</td>
-                                                    <td style={{ border: '1px solid #000000', padding: '3px 4px', textAlign: 'center' }}>—</td>
-                                                    <td style={{ border: '1px solid #000000', padding: '3px 4px', textAlign: 'right' }}>{sTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                                                    <td colSpan={6} style={{ border: '1px solid #000000', padding: '3px 4px', textAlign: 'right', fontWeight: 'bold' }}>{label}</td>
+                                                    <td style={{ border: '1px solid #000000', padding: '3px 4px', textAlign: 'right', fontWeight: 'bold' }}>{sTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                                                 </tr>
                                             )
                                         })
                                     ) : extraServiceCost > 0 ? (
                                         <tr style={{ borderBottom: '1px solid #000000' }}>
-                                            <td style={{ border: '1px solid #000000', padding: '3px 4px', textAlign: 'left', fontWeight: '500' }}>{extraService || "Extra Service"}</td>
-                                            <td style={{ border: '1px solid #000000', padding: '3px 4px', textAlign: 'center' }}>—</td>
-                                            <td style={{ border: '1px solid #000000', padding: '3px 4px', textAlign: 'center' }}>—</td>
-                                            <td style={{ border: '1px solid #000000', padding: '3px 4px', textAlign: 'right' }}>BDT {Number(extraServiceCost).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                                            <td style={{ border: '1px solid #000000', padding: '3px 4px', textAlign: 'center' }}>1</td>
-                                            <td style={{ border: '1px solid #000000', padding: '3px 4px', textAlign: 'center' }}>—</td>
-                                            <td style={{ border: '1px solid #000000', padding: '3px 4px', textAlign: 'right' }}>{Number(extraServiceCost).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                                            <td colSpan={6} style={{ border: '1px solid #000000', padding: '3px 4px', textAlign: 'right', fontWeight: 'bold' }}>Extra Service{extraService ? ` - ${extraService}` : ""} (1):</td>
+                                            <td style={{ border: '1px solid #000000', padding: '3px 4px', textAlign: 'right', fontWeight: 'bold' }}>{Number(extraServiceCost).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                                         </tr>
                                     ) : null}
+
+                                    {/* Discount Row if present */}
+                                    {discountAmount > 0 && (
+                                        <tr style={{ borderBottom: '1px solid #000000' }}>
+                                            <td colSpan={6} style={{ border: '1px solid #000000', padding: '3px 4px', textAlign: 'right', fontWeight: 'bold' }}>Special Discount:</td>
+                                            <td style={{ border: '1px solid #000000', padding: '3px 4px', textAlign: 'right', fontWeight: 'bold' }}>-{Number(discountAmount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                                        </tr>
+                                    )}
 
                                     {/* Summary Rows */}
                                     <tr style={{ borderBottom: '1px solid #000000' }}>

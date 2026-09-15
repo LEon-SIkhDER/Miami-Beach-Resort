@@ -9,16 +9,18 @@ import AddCategory from './AddCategory';
 import EditCategory from './EditCategory';
 import { parseFacilityList, parseRoomNumbers } from './categoryRoomUtils';
 import useRole from '../../../hooks/useRole';
+import useAxiosSecure from '../../../hooks/useAxiosSecure';
 
 const SERVER_URL = import.meta.env.VITE_SERVER_URL || "https://miami-beach-resort.vercel.app"
 
 const CategoryAndPricing = () => {
     const { role } = useRole()
     const isAdmin = role === "admin"
+    const axiosSecure = useAxiosSecure()
     const { data: categories = [], refetch } = useQuery({
         queryKey: ["categories"],
         queryFn: async () => {
-            const { data } = await axios.get(`${SERVER_URL}/categoryandroom`)
+            const { data } = await axiosSecure.get('/categoryandroom')
             return data
         }
     })
@@ -36,7 +38,7 @@ const CategoryAndPricing = () => {
             if (result.isConfirmed) {
                 const toastId = toast.loading("Deleting category...")
                 try {
-                    const { data } = await axios.delete(`${SERVER_URL}/categoryandroom/${category._id}`)
+                    const { data } = await axiosSecure.delete(`/categoryandroom/${category._id}`)
                     if (data.deletedCount !== 1) throw new Error("Delete failed")
                     await refetch()
                     toast.success("Category deleted", { id: toastId })

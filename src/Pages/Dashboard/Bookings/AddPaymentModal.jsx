@@ -118,7 +118,7 @@ const AddPaymentModal = ({
             return
         }
 
-        const isDigitalPayment = !["Cash", "Other"].includes(paymentMethod)
+        const isDigitalPayment = !["Cash", "Other", "Pay on Arrival", "Pay on Arrival / Unpaid", "Pending"].some(m => m.toLowerCase() === String(paymentMethod).trim().toLowerCase())
         if (isDigitalPayment && !transactionId.trim()) {
             toast.error(`Transaction ID / Receipt No is required for ${paymentMethod}.`)
             return
@@ -170,8 +170,18 @@ const AddPaymentModal = ({
     }
 
     return createPortal(
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs overflow-y-auto">
-            <div className="bg-white rounded-3xl shadow-2xl border border-slate-100 w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+        <div 
+            onClick={(e) => {
+                if (e.target === e.currentTarget && !isSubmitting) {
+                    onClose?.()
+                }
+            }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs overflow-y-auto"
+        >
+            <div 
+                onClick={(e) => e.stopPropagation()}
+                className="bg-white rounded-3xl shadow-2xl border border-slate-100 w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-200"
+            >
                 {/* Header */}
                 <div className="flex items-center justify-between px-6 py-4 border-b border-emerald-100 bg-emerald-50/70 shrink-0">
                     <div className="flex items-center gap-2.5">
@@ -294,32 +304,7 @@ const AddPaymentModal = ({
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        {/* Reference */}
-                        <div className="form-control">
-                            <label className="label py-0.5">
-                                <span className="label-text font-semibold text-slate-700 text-xs flex items-center gap-1">
-                                    <UserCheck size={13} className="text-teal-600" /> Reference
-                                </span>
-                            </label>
-                            <select
-                                value={reference}
-                                onChange={e => setReference(e.target.value)}
-                                className="select select-sm select-bordered rounded-xl bg-white text-xs font-medium"
-                            >
-                                <option value="">-- Optional --</option>
-                                {eligibleReferences.map(u => (
-                                    <option key={u._id} value={u.name || u.email}>
-                                        {u.name || u.email} ({u.role || "staff"})
-                                    </option>
-                                ))}
-                                {eligibleReferences.length === 0 && (
-                                    <>
-                                        <option value="Direct Frontdesk">Direct Frontdesk (frontdesk)</option>
-                                        <option value="Admin Management">Admin Management (admin)</option>
-                                    </>
-                                )}
-                            </select>
-                        </div>
+
 
                         {/* Transaction ID */}
                         <div className="form-control">
@@ -328,18 +313,18 @@ const AddPaymentModal = ({
                                     <span className="flex items-center gap-1">
                                         <Receipt size={13} className="text-teal-600" /> Trx / Receipt No
                                     </span>
-                                    {paymentMethod && !["Cash", "Other"].includes(paymentMethod) && (
+                                    {paymentMethod && !["Cash", "Other", "Pay on Arrival", "Pay on Arrival / Unpaid", "Pending"].some(m => m.toLowerCase() === paymentMethod.trim().toLowerCase()) && (
                                         <span className="text-red-500 font-bold text-[10px]">* Required</span>
                                     )}
                                 </span>
                             </label>
                             <input
                                 type="text"
-                                required={Boolean(paymentMethod && !["Cash", "Other"].includes(paymentMethod))}
+                                required={Boolean(paymentMethod && !["Cash", "Other", "Pay on Arrival", "Pay on Arrival / Unpaid", "Pending"].some(m => m.toLowerCase() === paymentMethod.trim().toLowerCase()))}
                                 value={transactionId}
                                 onChange={e => setTransactionId(e.target.value)}
-                                placeholder={paymentMethod === "Cash" || paymentMethod === "Other" ? "Optional for Cash / Other" : "e.g. TRX-938201 / Slip No"}
-                                className={`input input-sm input-bordered rounded-xl bg-white text-xs font-semibold ${paymentMethod && !["Cash", "Other"].includes(paymentMethod) && !transactionId.trim() ? 'border-amber-400' : ''}`}
+                                placeholder={["Cash", "Other", "Pay on Arrival", "Pay on Arrival / Unpaid", "Pending"].some(m => m.toLowerCase() === (paymentMethod || '').trim().toLowerCase()) ? "Optional for Cash / Other" : "e.g. TRX-938201 / Slip No"}
+                                className={`input input-sm input-bordered rounded-xl bg-white text-xs font-semibold ${paymentMethod && !["Cash", "Other", "Pay on Arrival", "Pay on Arrival / Unpaid", "Pending"].some(m => m.toLowerCase() === paymentMethod.trim().toLowerCase()) && !transactionId.trim() ? 'border-amber-400' : ''}`}
                             />
                         </div>
                     </div>

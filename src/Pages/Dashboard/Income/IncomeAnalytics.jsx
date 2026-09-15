@@ -52,6 +52,7 @@ const IncomeAnalytics = () => {
     const [selectedWorker, setSelectedWorker] = useState("all")
     const [selectedGuestType, setSelectedGuestType] = useState("all")
     const [selectedRoom, setSelectedRoom] = useState("all")
+    const [selectedBookingStatus, setSelectedBookingStatus] = useState("all")
     const [startDate, setStartDate] = useState(() => startOfMonth(new Date()))
     const [endDate, setEndDate] = useState(() => endOfMonth(new Date()))
     const [activePreset, setActivePreset] = useState("month")
@@ -289,6 +290,22 @@ const IncomeAnalytics = () => {
                 }
             }
 
+            // Booking Status filter
+            if (selectedBookingStatus !== "all") {
+                const itemStatus = String(item.status || "").toLowerCase().trim()
+                if (selectedBookingStatus === "confirmed") {
+                    if (!["booking_confirmed", "confirmed"].includes(itemStatus)) return false
+                } else if (selectedBookingStatus === "checked_in") {
+                    if (!["checked_in", "checked_id"].includes(itemStatus)) return false
+                } else if (selectedBookingStatus === "checked_out") {
+                    if (itemStatus !== "checked_out") return false
+                } else if (selectedBookingStatus === "cancelled") {
+                    if (!["cancel", "cancelled"].includes(itemStatus)) return false
+                } else if (selectedBookingStatus === "request_booking") {
+                    if (itemStatus !== "request_booking") return false
+                }
+            }
+
             // Search query
             if (debouncedSearch && debouncedSearch.trim()) {
                 const s = debouncedSearch.toLowerCase().trim()
@@ -307,7 +324,7 @@ const IncomeAnalytics = () => {
 
             return true
         })
-    }, [allBookingItems, selectedCategory, selectedRole, selectedWorker, selectedGuestType, selectedRoom, debouncedSearch])
+    }, [allBookingItems, selectedCategory, selectedRole, selectedWorker, selectedGuestType, selectedRoom, selectedBookingStatus, debouncedSearch])
 
     // Pagination configuration & calculations
     const limit = 25
@@ -323,7 +340,7 @@ const IncomeAnalytics = () => {
     // Reset pagination to page 1 whenever filter criteria changes
     useEffect(() => {
         setPageState(1)
-    }, [debouncedSearch, selectedCategory, selectedRole, selectedWorker, selectedGuestType, selectedRoom, startDate, endDate])
+    }, [debouncedSearch, selectedCategory, selectedRole, selectedWorker, selectedGuestType, selectedRoom, selectedBookingStatus, startDate, endDate])
 
     const totalPages = Math.max(1, Math.ceil((filteredItems?.length || 0) / limit))
 
@@ -339,7 +356,7 @@ const IncomeAnalytics = () => {
         return safeItems.slice(startIndex, startIndex + limit)
     }, [filteredItems, pageState, limit])
 
-    const isAnyFilterActive = isDateFiltered || selectedRole !== "all" || selectedWorker !== "all" || selectedCategory !== "all" || selectedGuestType !== "all" || selectedRoom !== "all" || !!search.trim()
+    const isAnyFilterActive = isDateFiltered || selectedRole !== "all" || selectedWorker !== "all" || selectedCategory !== "all" || selectedGuestType !== "all" || selectedRoom !== "all" || selectedBookingStatus !== "all" || !!search.trim()
 
     // Dynamic totals calculation across all active filters
     const totalFilteredSales = useMemo(() => {
@@ -488,6 +505,7 @@ const IncomeAnalytics = () => {
                 category: selectedCategory,
                 room: selectedRoom,
                 guestType: selectedGuestType,
+                bookingStatus: selectedBookingStatus,
                 search: search.trim()
             },
             categoryBreakdown: filteredRoomBreakdown,
@@ -507,6 +525,7 @@ const IncomeAnalytics = () => {
                 category: selectedCategory,
                 room: selectedRoom,
                 guestType: selectedGuestType,
+                bookingStatus: selectedBookingStatus,
                 search: search.trim()
             },
             categoryBreakdown: filteredRoomBreakdown,
@@ -593,6 +612,7 @@ const IncomeAnalytics = () => {
                                     setSelectedCategory("all")
                                     setSelectedGuestType("all")
                                     setSelectedRoom("all")
+                                    setSelectedBookingStatus("all")
                                     setSearch("")
                                 }}
                                 className="btn btn-sm btn-ghost text-rose-600 hover:bg-rose-50 rounded-xl gap-1 mt-4 text-xs font-bold"
@@ -628,8 +648,8 @@ const IncomeAnalytics = () => {
                     </div>
                 </div>
 
-                {/* Row 2: Worker, Category, Room No & Guest-Type Filter Selectors */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3 pt-2 border-t border-slate-100">
+                {/* Row 2: Worker, Category, Room No, Guest-Type & Booking Status Filter Selectors */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-7 gap-3 pt-2 border-t border-slate-100">
                     {/* Role Filter */}
                     <div className="form-control">
                         <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 flex items-center gap-1">
@@ -659,7 +679,7 @@ const IncomeAnalytics = () => {
                     {/* Specific Worker / Agent / B2B Person Filter */}
                     <div className="form-control">
                         <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 flex items-center gap-1">
-                            <UserCheck size={12} className="text-indigo-600" /> Filter by Specific Worker / Reference
+                            <UserCheck size={12} className="text-indigo-600" /> Filter by Specific Worker
                         </label>
                         <select
                             value={selectedWorker}
@@ -742,6 +762,28 @@ const IncomeAnalytics = () => {
                         </select>
                     </div>
 
+                    {/* Booking Status Filter */}
+                    <div className="form-control">
+                        <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 flex items-center gap-1">
+                            <Filter size={12} className="text-rose-500" /> Booking Status
+                        </label>
+                        <select
+                            value={selectedBookingStatus}
+                            onChange={e => {
+                                const newStatus = e.target.value
+                                startTransition(() => setSelectedBookingStatus(newStatus))
+                            }}
+                            className="select select-sm select-bordered rounded-xl bg-white text-xs font-semibold text-slate-800"
+                        >
+                            <option value="all">All Statuses</option>
+                            <option value="confirmed">Confirmed</option>
+                            <option value="checked_in">Checked In</option>
+                            <option value="checked_out">Checked Out</option>
+                            <option value="request_booking">Pending / Request</option>
+                            <option value="cancelled">Cancelled</option>
+                        </select>
+                    </div>
+
                     {/* Search Field */}
                     <div className="form-control">
                         <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 flex items-center gap-1">
@@ -795,6 +837,18 @@ const IncomeAnalytics = () => {
                         {selectedGuestType !== "all" && (
                             <span className="bg-blue-50 px-2 py-0.5 rounded-lg text-blue-700 font-semibold">
                                 Guest-Type: <strong>{selectedGuestType}</strong>
+                            </span>
+                        )}
+                        {selectedBookingStatus !== "all" && (
+                            <span className="bg-rose-50 px-2 py-0.5 rounded-lg text-rose-700 font-semibold">
+                                Status: <strong>
+                                    {selectedBookingStatus === "confirmed" ? "Confirmed"
+                                        : selectedBookingStatus === "checked_in" ? "Checked In"
+                                        : selectedBookingStatus === "checked_out" ? "Checked Out"
+                                        : selectedBookingStatus === "request_booking" ? "Pending / Request"
+                                        : selectedBookingStatus === "cancelled" ? "Cancelled"
+                                        : selectedBookingStatus}
+                                </strong>
                             </span>
                         )}
                         {search.trim() && (
@@ -1279,6 +1333,7 @@ const IncomeAnalytics = () => {
                     category: selectedCategory,
                     room: selectedRoom,
                     guestType: selectedGuestType,
+                    bookingStatus: selectedBookingStatus,
                     search: search.trim()
                 }}
                 currentUser={user}

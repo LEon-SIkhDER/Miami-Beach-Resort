@@ -1,14 +1,13 @@
-import axios from 'axios';
 import React, { useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import { X } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import CategoryImageUploader from './CategoryImageUploader';
 import { getYouTubeEmbedUrl } from './categoryRoomUtils';
-
-const SERVER_URL = import.meta.env.VITE_SERVER_URL || "https://miami-beach-resort.vercel.app"
+import useAxiosSecure from '../../../hooks/useAxiosSecure';
 
 const EditCategory = ({ children, className, refetch, category }) => {
+    const axiosSecure = useAxiosSecure()
     const modalRef = useRef()
     const [isSubmitting, setIsSubmitting] = useState(false)
     const [uploadedImages, setUploadedImages] = useState([])
@@ -26,8 +25,11 @@ const EditCategory = ({ children, className, refetch, category }) => {
         modalRef.current?.showModal()
     }
 
-    const handleClose = () => {
-        if (isSubmitting) return
+    const handleClose = (e) => {
+        if (isSubmitting) {
+            e?.preventDefault?.()
+            return
+        }
         modalRef.current?.close()
     }
 
@@ -61,7 +63,7 @@ const EditCategory = ({ children, className, refetch, category }) => {
         const toastId = toast.loading("Updating Category...")
         try {
             setIsSubmitting(true)
-            const { data: result } = await axios.patch(`${SERVER_URL}/categoryandroom/${category._id}`, payload)
+            const { data: result } = await axiosSecure.patch(`/categoryandroom/${category._id}`, payload)
             if (result.modifiedCount !== 1) {
                 throw new Error("Failed to update category")
             }
@@ -241,7 +243,7 @@ const EditCategory = ({ children, className, refetch, category }) => {
                         </form>
                     </div>
                     <form method={isSubmitting ? undefined : "dialog"} className="modal-backdrop bg-slate-900/40 backdrop-blur-xs">
-                        <button type="button" onClick={handleClose}>close</button>
+                        <button onClick={handleClose}>close</button>
                     </form>
                 </dialog>,
                 document.body

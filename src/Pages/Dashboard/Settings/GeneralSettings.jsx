@@ -36,6 +36,7 @@ import {
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import useBillingTypes from '../../../hooks/useBillingTypes'
+import useAxiosSecure from '../../../hooks/useAxiosSecure'
 import ManageBillingTypesModal from './ManageBillingTypesModal'
 
 const SERVER_URL = import.meta.env.VITE_SERVER_URL || "https://miami-beach-resort.vercel.app"
@@ -43,6 +44,7 @@ const SERVER_URL = import.meta.env.VITE_SERVER_URL || "https://miami-beach-resor
 const GeneralSettings = () => {
     const [searchParams, setSearchParams] = useSearchParams()
     const activeTab = searchParams.get('tab') || 'extra-services'
+    const axiosSecure = useAxiosSecure()
 
     const { billingTypes, billingTypeNames } = useBillingTypes()
     const [isBillingTypesModalOpen, setIsBillingTypesModalOpen] = useState(false)
@@ -72,7 +74,7 @@ const GeneralSettings = () => {
         const fetchServices = async () => {
             try {
                 setIsLoadingServices(true)
-                const { data } = await axios.get(`${SERVER_URL}/extra-services`)
+                const { data } = await axiosSecure.get('/extra-services')
                 if (Array.isArray(data)) {
                     setExtraServices(data)
                     localStorage.setItem("miami_extra_services", JSON.stringify(data))
@@ -149,7 +151,7 @@ const GeneralSettings = () => {
         })
 
         try {
-            await axios.patch(`${SERVER_URL}/extra-services/${id}`, { active: updated })
+            await axiosSecure.patch(`/extra-services/${id}`, { active: updated })
             toast.success(`Service status updated`)
         } catch (err) {
             console.error("Failed to update status on server:", err)
@@ -166,7 +168,7 @@ const GeneralSettings = () => {
         })
 
         try {
-            await axios.delete(`${SERVER_URL}/extra-services/${id}`)
+            await axiosSecure.delete(`/extra-services/${id}`)
             toast.success("Extra service deleted")
         } catch (err) {
             console.error("Failed to delete service on server:", err)
@@ -191,7 +193,7 @@ const GeneralSettings = () => {
 
         const toastId = toast.loading("Adding extra service...")
         try {
-            const { data } = await axios.post(`${SERVER_URL}/extra-services`, payload)
+            const { data } = await axiosSecure.post('/extra-services', payload)
             const createdItem = {
                 ...payload,
                 _id: data.insertedId || data._id || `srv-${Date.now()}`
@@ -248,7 +250,7 @@ const GeneralSettings = () => {
 
         const toastId = toast.loading("Updating extra service...")
         try {
-            await axios.patch(`${SERVER_URL}/extra-services/${serviceId}`, payload)
+            await axiosSecure.patch(`/extra-services/${serviceId}`, payload)
             setExtraServices(prev => {
                 const next = prev.map(item => {
                     if (item._id === serviceId || item.id === serviceId) {
