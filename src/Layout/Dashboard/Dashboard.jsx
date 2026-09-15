@@ -293,7 +293,7 @@ const Dashboard = () => {
 
             {/* Main Content */}
             <div className={`flex-1 min-w-0 flex flex-col min-h-screen ${isCalendarRoute ? "" : "lg:pl-64"}`}>
-                <header className={`${isCalendarRoute ? "flex" : "lg:hidden flex"} glass-header border-b border-slate-200 px-4 py-3 items-center justify-between sticky top-0 z-20`}>
+                <header className={`${isCalendarRoute ? "flex" : "lg:hidden flex"} glass-header bg-white/85 backdrop-blur-md shadow-xs border-b border-slate-200/80 px-4 py-3 items-center justify-between sticky top-0 z-20`}>
                     <button
                         onClick={() => setSidebarOpen(true)}
                         className="btn btn-ghost btn-sm btn-square text-slate-700"

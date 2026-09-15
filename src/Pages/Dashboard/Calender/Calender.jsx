@@ -118,17 +118,27 @@ const Calender = () => {
         }
     });
 
-    // 3. Fetch all active bookings from database
+    // Date Range State: Always starts on current date to 1 month forward on load (no localStorage persistence)
+    const [startDate, setStartDate] = useState(() => new Date());
+    const [endDate, setEndDate] = useState(() => addMonths(new Date(), 1));
+
+    const startIso = useMemo(() => (startDate && !isNaN(startDate.getTime()) ? format(startDate, "yyyy-MM-dd") : ""), [startDate]);
+    const endIso = useMemo(() => (endDate && !isNaN(endDate.getTime()) ? format(endDate, "yyyy-MM-dd") : ""), [endDate]);
+
+    // 3. Fetch active bookings within visible date range from database
     const {
         data: allBookings = EMPTY_ARRAY,
         isLoading: isBookingsLoading,
         refetch: refetchBookings
     } = useQuery({
-        queryKey: ["all-bookings-for-calendar"],
+        queryKey: ["all-bookings-for-calendar", startIso, endIso],
         queryFn: async () => {
-            const res = await axiosSecure.get("/bookings");
+            if (!startIso || !endIso) return EMPTY_ARRAY;
+            const res = await axiosSecure.get(`/bookings?startDate=${startIso}&endDate=${endIso}`);
             return res.data;
-        }
+        },
+        enabled: !!startIso && !!endIso,
+        placeholderData: (previousData) => previousData
     });
 
     // 4. Fetch Out of Order records
@@ -142,10 +152,6 @@ const Calender = () => {
             return res.data;
         }
     });
-
-    // Date Range State: Always starts on current date to 1 month forward on load (no localStorage persistence)
-    const [startDate, setStartDate] = useState(() => new Date());
-    const [endDate, setEndDate] = useState(() => addMonths(new Date(), 1));
 
     // Clean up any old calendar date keys from localStorage
     useEffect(() => {

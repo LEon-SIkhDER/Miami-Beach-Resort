@@ -1,0 +1,26 @@
+{
+  "name": "Miami Beach Resort",
+  "short_name": "Miami Resort",
+  "description": "Miami Beach Resort Cox's Bazar - Luxury Hotel & Resort Management System",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#03221b",
+  "theme_color": "#01966e",
+  "categories": ["travel", "business"],
+  "icons": [
+    {
+      "src": "/logo.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

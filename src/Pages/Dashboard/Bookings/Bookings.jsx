@@ -162,7 +162,8 @@ const Bookings = () => {
             const res = await axiosSecure.get(`/bookings?${params.toString()}`)
             return res.data
         },
-        placeholderData: (previousData) => previousData
+        placeholderData: (previousData) => previousData,
+        refetchOnWindowFocus: false
     })
 
     const { data: outOfOrderList = [] } = useQuery({
@@ -393,8 +394,9 @@ const Bookings = () => {
                         {isStaff ? "Manage, confirm, edit, and track workflow references for customer reservations." : "View stay history and booking confirmations."}
                     </p>
                     <div className="flex items-center gap-2 mt-2">
-                        <span className="badge badge-sm bg-slate-100 text-slate-700 font-semibold">
-                            {totalDataCount} Entries
+                        <span className="badge badge-sm bg-slate-100 text-slate-700 font-semibold flex items-center gap-1.5">
+                            <span>{totalDataCount} Entries</span>
+                            {isFiltering && <span className="loading loading-spinner loading-xs text-teal-600" />}
                         </span>
                         {totalPages > 1 && (
                             <span className="badge badge-sm bg-teal-100 text-teal-800 font-semibold">
@@ -460,7 +462,7 @@ const Bookings = () => {
                             <th className="text-center whitespace-nowrap min-w-[140px]">Actions</th>
                         </tr>
                     </thead>
-                    <tbody className={`divide-y divide-slate-100 text-sm transition-opacity duration-200 ${isFiltering ? 'opacity-60' : 'opacity-100'}`}>
+                    <tbody className="divide-y divide-slate-100 text-sm">
                         {isLoading ? (
                             [1, 2, 3, 4].map(n => (
                                 <tr key={n} className="animate-pulse">
@@ -638,7 +640,7 @@ const Bookings = () => {
             </div>
 
             {/* Mobile Card View */}
-            <div className={`lg:hidden space-y-4 transition-opacity duration-200 ${isFiltering ? 'opacity-60' : 'opacity-100'}`}>
+            <div className="lg:hidden space-y-4">
                 {isLoading ? (
                     [1, 2, 3].map(n => (
                         <div key={n} className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs animate-pulse space-y-3">

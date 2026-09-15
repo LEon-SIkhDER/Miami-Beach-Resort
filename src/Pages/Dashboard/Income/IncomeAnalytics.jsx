@@ -135,6 +135,7 @@ const IncomeAnalytics = () => {
             return res.data
         },
         placeholderData: (previousData) => previousData,
+        refetchOnWindowFocus: false,
     })
 
 
@@ -996,7 +997,7 @@ const IncomeAnalytics = () => {
                                 <th className="text-center whitespace-nowrap">Action</th>
                             </tr>
                         </thead>
-                        <tbody className={`divide-y divide-slate-100 text-sm transition-opacity duration-200 ${isFiltering ? 'opacity-60' : 'opacity-100'}`}>
+                        <tbody className="divide-y divide-slate-100 text-sm">
                             {isLoading ? (
                                 [1, 2, 3, 4].map(n => (
                                     <tr key={n} className="animate-pulse">
