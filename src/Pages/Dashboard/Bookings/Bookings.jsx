@@ -1,4 +1,4 @@
-import React, { useContext, useState } from 'react'
+import React, { useContext, useState, useMemo, useEffect, useRef } from 'react'
 import { Link } from 'react-router'
 import { AuthContext } from '../../../Context/AuthContext'
 import useRole from '../../../hooks/useRole'
@@ -30,7 +30,9 @@ import {
     Globe,
     User,
     Filter,
-    Printer
+    Printer,
+    ChevronLeft,
+    ChevronRight
 } from 'lucide-react'
 import { formatDate, getBookingDateSummary, getBookingGuestTotals, getBookingRooms, getBookingTotal, getRoomName } from '../../../utils/bookingUtils'
 import ConfirmBookingModal from './ConfirmBookingModal'
@@ -81,6 +83,35 @@ const Bookings = () => {
     const [statusFilter, setStatusFilter] = useState("")
     const [refFilter, setRefFilter] = useState("")
     const [search, setSearch] = useState("")
+    const [debouncedSearch, setDebouncedSearch] = useState("")
+
+    // Debounce search input by 200ms
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            setDebouncedSearch(search)
+        }, 200)
+        return () => clearTimeout(timer)
+    }, [search])
+
+    // Pagination state (limit = 25 as in Sales Report)
+    const limit = 25
+    const [pageState, setPageState] = useState(1)
+    const tableRef = useRef(null)
+
+    const handlePageState = (num) => {
+        setPageState(num)
+        if (tableRef.current) {
+            tableRef.current.scrollIntoView({
+                behavior: "smooth",
+                block: "start"
+            })
+        }
+    }
+
+    // Reset pagination to page 1 whenever any filter or search changes
+    useEffect(() => {
+        setPageState(1)
+    }, [debouncedSearch, statusFilter, refFilter])
 
     // Modals state
     const [confirmModalData, setConfirmModalData] = useState(null) // { booking, targetStatus }
@@ -92,16 +123,46 @@ const Bookings = () => {
     const canEdit = ["admin", "manager", "agent"].includes(role)
     const canDelete = ["admin", "manager"].includes(role)
 
-    const { data: bookings = [], isLoading } = useQuery({
-        queryKey: ["bookings", currentUser?.email, role, statusFilter],
+    // Fetch distinct references for filter dropdown
+    const { data: serverReferences = [] } = useQuery({
+        queryKey: ["booking-references"],
+        enabled: isStaff,
+        queryFn: async () => {
+            try {
+                const res = await axiosSecure.get("/bookings/references")
+                return Array.isArray(res.data) ? res.data : []
+            } catch (e) {
+                console.error("Failed to load booking references:", e)
+                return []
+            }
+        }
+    })
+
+    // Main Bookings Query with Server-Side Pagination & Filtering
+    const { data: bookingsData = {}, isLoading, isFetching } = useQuery({
+        queryKey: [
+            "bookings",
+            currentUser?.email,
+            role,
+            statusFilter,
+            refFilter,
+            debouncedSearch,
+            pageState,
+            limit
+        ],
         enabled: !!currentUser && role !== undefined,
         queryFn: async () => {
             const params = new URLSearchParams()
-            if (!isStaff) params.set("email", currentUser.email)
+            if (!isStaff && currentUser?.email) params.set("email", currentUser.email)
             if (statusFilter) params.set("status", statusFilter)
+            if (refFilter) params.set("reference", refFilter)
+            if (debouncedSearch && debouncedSearch.trim()) params.set("search", debouncedSearch.trim())
+            params.set("limit", limit)
+            params.set("skip", (pageState - 1) * limit)
             const res = await axiosSecure.get(`/bookings?${params.toString()}`)
             return res.data
-        }
+        },
+        placeholderData: (previousData) => previousData
     })
 
     const { data: outOfOrderList = [] } = useQuery({
@@ -299,27 +360,27 @@ const Bookings = () => {
         )
     }
 
-    const uniqueReferences = Array.from(new Set(bookings.map(b => b.reference || b.bookedBy?.name || "Website Direct").filter(Boolean))).sort()
+    const paginatedBookings = useMemo(() => {
+        if (Array.isArray(bookingsData)) return bookingsData
+        if (Array.isArray(bookingsData?.result)) return bookingsData.result
+        return []
+    }, [bookingsData])
 
-    const filteredBookings = bookings.filter(b => {
-        const refName = b.reference || b.bookedBy?.name || "Website Direct"
-        if (refFilter && refName !== refFilter) return false
+    const totalDataCount = Number(bookingsData?.totalDataCount ?? paginatedBookings.length)
+    const totalPages = Math.max(1, Math.ceil(totalDataCount / limit))
 
-        if (!search) return true
-        const s = search.toLowerCase()
-        const roomText = getBookingRooms(b).map(room => getRoomName(room)).join(" ").toLowerCase()
-        return b.name?.toLowerCase().includes(s) ||
-            b.mobile?.toLowerCase().includes(s) ||
-            b.address?.toLowerCase().includes(s) ||
-            b.bookingId?.toLowerCase().includes(s) ||
-            b.reference?.toLowerCase().includes(s) ||
-            b.bookedBy?.name?.toLowerCase().includes(s) ||
-            b.bookedBy?.email?.toLowerCase().includes(s) ||
-            b.userEmail?.toLowerCase().includes(s) ||
-            b.roomName?.toLowerCase().includes(s) ||
-            b.roomCategory?.toLowerCase().includes(s) ||
-            roomText.includes(s)
-    })
+    useEffect(() => {
+        if (pageState > totalPages) {
+            setPageState(Math.max(1, totalPages))
+        }
+    }, [totalPages, pageState])
+
+    const uniqueReferences = useMemo(() => {
+        if (serverReferences.length > 0) return serverReferences
+        return Array.from(new Set(paginatedBookings.map(b => b.reference || b.bookedBy?.name || "Website Direct").filter(Boolean))).sort()
+    }, [serverReferences, paginatedBookings])
+
+    const isFiltering = isFetching || (search !== debouncedSearch)
 
     return (
         <div className="space-y-6">
@@ -331,6 +392,19 @@ const Bookings = () => {
                     <p className="text-xs sm:text-sm text-slate-500 mt-1">
                         {isStaff ? "Manage, confirm, edit, and track workflow references for customer reservations." : "View stay history and booking confirmations."}
                     </p>
+                    <div className="flex items-center gap-2 mt-2">
+                        <span className="badge badge-sm bg-slate-100 text-slate-700 font-semibold">
+                            {totalDataCount} Entries
+                        </span>
+                        {totalPages > 1 && (
+                            <span className="badge badge-sm bg-teal-100 text-teal-800 font-semibold">
+                                Page {pageState} of {totalPages}
+                            </span>
+                        )}
+                        <span className="text-xs text-slate-500">
+                            Showing {totalDataCount === 0 ? 0 : `${(pageState - 1) * limit + 1}–${Math.min(pageState * limit, totalDataCount)} of ${totalDataCount}`} reservation(s)
+                        </span>
+                    </div>
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2.5">
@@ -372,10 +446,11 @@ const Bookings = () => {
             </div>
 
             {/* Desktop Table View */}
-            <div className="hidden lg:block bg-white border border-slate-200 shadow-xs">
+            <div ref={tableRef} className="hidden lg:block bg-white border border-slate-200 shadow-xs">
                 <table className="table table-zebra w-full whitespace-nowrap">
                     <thead>
                         <tr className="bg-slate-50 text-slate-600 font-bold text-xs uppercase tracking-wider whitespace-nowrap">
+                            <th className="whitespace-nowrap w-12 text-center">No.</th>
                             <th className="whitespace-nowrap min-w-[150px]">Reservation & Room</th>
                             <th className="whitespace-nowrap">Guest Details</th>
                             <th className="whitespace-nowrap">Booked By / Ref</th>
@@ -385,10 +460,11 @@ const Bookings = () => {
                             <th className="text-center whitespace-nowrap min-w-[140px]">Actions</th>
                         </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-100 text-sm">
+                    <tbody className={`divide-y divide-slate-100 text-sm transition-opacity duration-200 ${isFiltering ? 'opacity-60' : 'opacity-100'}`}>
                         {isLoading ? (
                             [1, 2, 3, 4].map(n => (
                                 <tr key={n} className="animate-pulse">
+                                    <td><div className="h-4 bg-slate-200 w-6 mx-auto rounded"></div></td>
                                     <td><div className="h-8 bg-slate-200 w-36 rounded"></div></td>
                                     <td><div className="h-4 bg-slate-200 w-28"></div></td>
                                     <td><div className="h-4 bg-slate-200 w-28"></div></td>
@@ -398,21 +474,26 @@ const Bookings = () => {
                                     <td><div className="h-8 bg-slate-200 w-8 mx-auto"></div></td>
                                 </tr>
                             ))
-                        ) : filteredBookings.length === 0 ? (
+                        ) : paginatedBookings.length === 0 ? (
                             <tr>
-                                <td colSpan={7} className="text-center py-12 text-slate-400">
+                                <td colSpan={8} className="text-center py-12 text-slate-400">
                                     <CalendarCheck size={36} className="mx-auto mb-2 opacity-50" />
                                     No bookings found.
                                 </td>
                             </tr>
                         ) : (
-                            filteredBookings.map(b => {
+                            paginatedBookings.map((b, idx) => {
                                 const bookingRooms = getBookingRooms(b)
                                 const totalAmount = getBookingTotal(b)
                                 const roomSummary = bookingRooms.map(room => getRoomName(room)).join(", ") || b.roomName || b.roomCategory
 
                                 return (
                                 <tr key={b._id} className="hover:bg-slate-50/80 transition-colors">
+                                    {/* No. Column */}
+                                    <td className="text-center font-mono text-xs font-semibold text-slate-500 whitespace-nowrap">
+                                        {(pageState - 1) * limit + idx + 1}
+                                    </td>
+
                                     {/* Reservation & Room Suite */}
                                     <td className="whitespace-nowrap">
                                         <div className="space-y-1">
@@ -557,7 +638,7 @@ const Bookings = () => {
             </div>
 
             {/* Mobile Card View */}
-            <div className="lg:hidden space-y-4">
+            <div className={`lg:hidden space-y-4 transition-opacity duration-200 ${isFiltering ? 'opacity-60' : 'opacity-100'}`}>
                 {isLoading ? (
                     [1, 2, 3].map(n => (
                         <div key={n} className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs animate-pulse space-y-3">
@@ -565,12 +646,12 @@ const Bookings = () => {
                             <div className="h-20 bg-slate-100 rounded-xl"></div>
                         </div>
                     ))
-                ) : filteredBookings.length === 0 ? (
+                ) : paginatedBookings.length === 0 ? (
                     <div className="bg-white p-8 rounded-2xl text-center text-slate-400 border border-slate-200">
                         No bookings found.
                     </div>
                 ) : (
-                    filteredBookings.map(b => {
+                    paginatedBookings.map((b, idx) => {
                         const bookingRooms = getBookingRooms(b)
                         const guestTotals = getBookingGuestTotals(b)
                         const roomTitle = bookingRooms.map(room => {
@@ -584,12 +665,17 @@ const Bookings = () => {
                         <div key={b._id} className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-xs space-y-3">
                             <div className="flex items-start justify-between gap-2">
                                 <div className="min-w-0">
-                                    <Link
-                                        to={`/dashboard/bookings/${b._id}`}
-                                        className="font-mono text-xs font-bold text-teal-700 bg-teal-50 hover:bg-teal-100 px-2 py-0.5 rounded-md border border-teal-200/50 inline-block"
-                                    >
-                                        {b.bookingId}
-                                    </Link>
+                                    <div className="flex items-center gap-1.5">
+                                        <span className="font-mono text-xs font-bold text-slate-400">
+                                            #{(pageState - 1) * limit + idx + 1}
+                                        </span>
+                                        <Link
+                                            to={`/dashboard/bookings/${b._id}`}
+                                            className="font-mono text-xs font-bold text-teal-700 bg-teal-50 hover:bg-teal-100 px-2 py-0.5 rounded-md border border-teal-200/50 inline-block"
+                                        >
+                                            {b.bookingId}
+                                        </Link>
+                                    </div>
                                     <h3 className="font-bold text-slate-900 text-sm sm:text-base mt-1.5 truncate">{b.name}</h3>
                                 </div>
                                 <div className="shrink-0">
@@ -677,6 +763,67 @@ const Bookings = () => {
                     )})
                 )}
             </div>
+
+            {/* Pagination Controls */}
+            {totalDataCount > limit && (
+                <div className="my-6 flex flex-wrap items-center justify-center gap-2">
+                    <button
+                        type="button"
+                        onClick={() => handlePageState(pageState - 1)}
+                        className="btn btn-sm sm:btn-md min-h-10 rounded-full border border-slate-200 bg-white px-3 text-slate-700 shadow-xs transition-all hover:border-teal-500 hover:bg-teal-50 disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400 cursor-pointer disabled:cursor-not-allowed"
+                        disabled={pageState === 1}
+                        title="Previous Page"
+                    >
+                        <ChevronLeft size={16} />
+                    </button>
+                    {Array.from({ length: totalPages }, (_, index) => {
+                        const pageNumber = index + 1
+                        if (totalPages > 7) {
+                            if (
+                                pageNumber !== 1 &&
+                                pageNumber !== totalPages &&
+                                Math.abs(pageNumber - pageState) > 1
+                            ) {
+                                if (
+                                    pageNumber === pageState - 2 ||
+                                    pageNumber === pageState + 2
+                                ) {
+                                    return (
+                                        <span key={index} className="px-1 text-slate-400 font-bold select-none">
+                                            ...
+                                        </span>
+                                    )
+                                }
+                                return null
+                            }
+                        }
+
+                        return (
+                            <button
+                                key={index}
+                                type="button"
+                                onClick={() => handlePageState(pageNumber)}
+                                className={`btn btn-sm sm:btn-md h-10 min-h-10 w-10 rounded-full border text-sm font-bold shadow-none transition-all cursor-pointer ${
+                                    pageState === pageNumber
+                                        ? 'bg-teal-700 text-white border-teal-700 hover:bg-teal-800 hover:border-teal-800'
+                                        : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
+                                } items-center justify-center`}
+                            >
+                                {pageNumber}
+                            </button>
+                        )
+                    })}
+                    <button
+                        type="button"
+                        onClick={() => handlePageState(pageState + 1)}
+                        className="btn btn-sm sm:btn-md min-h-10 rounded-full border border-slate-200 bg-white px-3 text-slate-700 shadow-xs transition-all hover:border-teal-500 hover:bg-teal-50 disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400 cursor-pointer disabled:cursor-not-allowed"
+                        disabled={pageState === totalPages}
+                        title="Next Page"
+                    >
+                        <ChevronRight size={16} />
+                    </button>
+                </div>
+            )}
 
             {/* Confirm Booking Modal (createPortal) */}
             {confirmModalData && (

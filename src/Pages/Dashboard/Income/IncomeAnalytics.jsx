@@ -1,8 +1,9 @@
-import React, { useState, useMemo, useEffect, useTransition, useContext } from 'react'
+import React, { useState, useMemo, useEffect, useTransition, useContext, useRef } from 'react'
 import { Link } from 'react-router'
 import DatePicker from 'react-datepicker'
 import 'react-datepicker/dist/react-datepicker.css'
 import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, subDays } from 'date-fns'
+import toast from 'react-hot-toast'
 import useAxiosSecure from '../../../hooks/useAxiosSecure'
 import { useQuery } from '@tanstack/react-query'
 import { AuthContext } from '../../../Context/AuthContext'
@@ -56,6 +57,7 @@ const IncomeAnalytics = () => {
     const [startDate, setStartDate] = useState(() => startOfMonth(new Date()))
     const [endDate, setEndDate] = useState(() => endOfMonth(new Date()))
     const [activePreset, setActivePreset] = useState("month")
+    const [isRoomBreakdownOpen, setIsRoomBreakdownOpen] = useState(false)
 
     // Debounce search input by 200ms
     useEffect(() => {
@@ -65,15 +67,69 @@ const IncomeAnalytics = () => {
         return () => clearTimeout(timer)
     }, [search])
 
+    // Pagination state (limit = 25 as requested)
+    const limit = 25
+    const [pageState, setPageState] = useState(1)
+    const tableRef = useRef(null)
+
+    const handlePageState = (num) => {
+        setPageState(num)
+        if (tableRef.current) {
+            tableRef.current.scrollIntoView({
+                behavior: "smooth",
+                block: "start"
+            })
+        }
+    }
+
     const formattedStart = startDate ? format(startDate, "yyyy-MM-dd") : ""
     const formattedEnd = endDate ? format(endDate, "yyyy-MM-dd") : ""
 
+    // Reset pagination to page 1 whenever any filter criteria changes
+    useEffect(() => {
+        setPageState(1)
+    }, [
+        debouncedSearch,
+        selectedCategory,
+        selectedRole,
+        selectedWorker,
+        selectedGuestType,
+        selectedRoom,
+        selectedBookingStatus,
+        startDate,
+        endDate
+    ])
+
+    // Main Sales Query with Server-Side Pagination & Filtering
     const { data: incomeData = {}, isLoading: isIncomeLoading, isFetching: isIncomeFetching } = useQuery({
-        queryKey: ["admin-income-breakdown", formattedStart, formattedEnd],
+        queryKey: [
+            "admin-income-breakdown",
+            formattedStart,
+            formattedEnd,
+            debouncedSearch,
+            selectedCategory,
+            selectedRole,
+            selectedWorker,
+            selectedGuestType,
+            selectedRoom,
+            selectedBookingStatus,
+            pageState,
+            limit
+        ],
         queryFn: async () => {
             const params = new URLSearchParams()
             if (formattedStart) params.append("startDate", formattedStart)
             if (formattedEnd) params.append("endDate", formattedEnd)
+            if (debouncedSearch && debouncedSearch.trim()) params.append("search", debouncedSearch.trim())
+            if (selectedCategory !== "all") params.append("category", selectedCategory)
+            if (selectedRole !== "all") params.append("role", selectedRole)
+            if (selectedWorker !== "all") params.append("worker", selectedWorker)
+            if (selectedGuestType !== "all") params.append("guestType", selectedGuestType)
+            if (selectedRoom !== "all") params.append("room", selectedRoom)
+            if (selectedBookingStatus !== "all") params.append("bookingStatus", selectedBookingStatus)
+            params.append("limit", limit)
+            params.append("skip", (pageState - 1) * limit)
+
             const queryStr = params.toString() ? `?${params.toString()}` : ""
             const res = await axiosSecure.get(`/admin/income-breakdown${queryStr}`)
             return res.data
@@ -81,13 +137,6 @@ const IncomeAnalytics = () => {
         placeholderData: (previousData) => previousData,
     })
 
-    const { data: overview = {}, isLoading: isOverviewLoading } = useQuery({
-        queryKey: ["admin-overview"],
-        queryFn: async () => {
-            const res = await axiosSecure.get("/admin/overview")
-            return res.data
-        }
-    })
 
     const isFiltering = isIncomeFetching || isPending || (search !== debouncedSearch)
 
@@ -163,22 +212,8 @@ const IncomeAnalytics = () => {
         })
     }
 
-    const isLoading = isIncomeLoading || isOverviewLoading
-    const roomBreakdown = Array.isArray(incomeData?.roomBreakdown) ? incomeData.roomBreakdown : []
+    const isLoading = isIncomeLoading
     const isDateFiltered = !!startDate || !!endDate
-
-    // Flatten all room-level booking items for the details table
-    const allBookingItems = useMemo(() => {
-        if (!Array.isArray(roomBreakdown)) return []
-        return roomBreakdown.flatMap(cat => 
-            (Array.isArray(cat?.bookings) ? cat.bookings : []).map(b => ({
-                ...b,
-                categoryName: cat?.roomName || "Standard",
-                adults: Number(b?.adults !== undefined ? b.adults : 1),
-                children: Number(b?.children !== undefined ? b.children : 0)
-            }))
-        )
-    }, [roomBreakdown])
 
     // Helper to check worker / staff roles (excluding general guests 'user')
     const isWorkerRole = (role) => {
@@ -195,11 +230,9 @@ const IncomeAnalytics = () => {
         return r === targetRole.toLowerCase()
     }
 
-    // Distinct worker accounts and references from data + users list matching selectedRole
+    // Distinct worker accounts and references from allUsers matching selectedRole
     const workerOptions = useMemo(() => {
         const set = new Map()
-
-        // Normalize users list whether allUsers is Array, Object with .users/.data, or key-value map
         const userList = Array.isArray(allUsers)
             ? allUsers
             : (allUsers && typeof allUsers === 'object' && Array.isArray(allUsers.users))
@@ -210,7 +243,6 @@ const IncomeAnalytics = () => {
                         ? Object.values(allUsers)
                         : []
 
-        // 1. Add matching users from database (allUsers)
         if (Array.isArray(userList)) {
             for (let i = 0; i < userList.length; i++) {
                 const u = userList[i]
@@ -224,125 +256,16 @@ const IncomeAnalytics = () => {
             }
         }
 
-        // 2. Add matching bookedBy and references from booking items
-        const bookingItems = Array.isArray(allBookingItems) ? allBookingItems : []
-        for (let i = 0; i < bookingItems.length; i++) {
-            const item = bookingItems[i]
-            if (!item) continue
-            const bookedRole = item.bookedBy?.role || item.requestedByRole
-            if (item.bookedBy?.name && matchesRole(bookedRole, selectedRole) && !set.has(item.bookedBy.name)) {
-                set.set(item.bookedBy.name, { name: item.bookedBy.name, role: bookedRole || "worker" })
-            }
-            if (item.reference && matchesRole(item.requestedByRole || bookedRole, selectedRole) && !set.has(item.reference)) {
-                set.set(item.reference, { name: item.reference, role: item.requestedByRole || bookedRole || "reference" })
-            }
-        }
-
         return Array.from(set.values()).sort((a, b) => (a?.name || "").localeCompare(b?.name || ""))
-    }, [allUsers, allBookingItems, selectedRole])
+    }, [allUsers, selectedRole])
 
-    const filteredItems = useMemo(() => {
-        if (!Array.isArray(allBookingItems)) return []
-        return allBookingItems.filter(item => {
-            if (!item) return false
+    // Current page results (25 records)
+    const paginatedItems = useMemo(() => {
+        return Array.isArray(incomeData?.result) ? incomeData.result : []
+    }, [incomeData?.result])
 
-            // Category filter
-            if (selectedCategory !== "all" && item.categoryName !== selectedCategory) {
-                return false
-            }
-
-            // Role filter
-            if (selectedRole !== "all") {
-                const itemRole = (item.requestedByRole || item.bookedBy?.role || "").toLowerCase()
-                if (itemRole !== selectedRole.toLowerCase()) {
-                    return false
-                }
-            }
-
-            // Worker / Reference filter
-            if (selectedWorker !== "all") {
-                const ref = (item.reference || "").toLowerCase()
-                const bookedName = (item.bookedBy?.name || "").toLowerCase()
-                const bookedEmail = (item.bookedBy?.email || "").toLowerCase()
-                const target = selectedWorker.toLowerCase()
-
-                if (ref !== target && bookedName !== target && bookedEmail !== target) {
-                    return false
-                }
-            }
-
-            // Guest-Type filter (WEB vs Walk-In)
-            if (selectedGuestType !== "all") {
-                const itemGuestType = item.guestType || (
-                    (item.requestedByRole === "user" || !item.requestedByRole || String(item.reference || "").toLowerCase().includes("website"))
-                        ? "WEB"
-                        : "Walk-In"
-                )
-                if (itemGuestType !== selectedGuestType) {
-                    return false
-                }
-            }
-
-            // Room No filter
-            if (selectedRoom !== "all") {
-                if (String(item.roomNo || "").trim() !== String(selectedRoom).trim()) {
-                    return false
-                }
-            }
-
-            // Booking Status filter
-            if (selectedBookingStatus !== "all") {
-                const itemStatus = String(item.status || "").toLowerCase().trim()
-                if (selectedBookingStatus === "confirmed") {
-                    if (!["booking_confirmed", "confirmed"].includes(itemStatus)) return false
-                } else if (selectedBookingStatus === "checked_in") {
-                    if (!["checked_in", "checked_id"].includes(itemStatus)) return false
-                } else if (selectedBookingStatus === "checked_out") {
-                    if (itemStatus !== "checked_out") return false
-                } else if (selectedBookingStatus === "cancelled") {
-                    if (!["cancel", "cancelled"].includes(itemStatus)) return false
-                } else if (selectedBookingStatus === "request_booking") {
-                    if (itemStatus !== "request_booking") return false
-                }
-            }
-
-            // Search query
-            if (debouncedSearch && debouncedSearch.trim()) {
-                const s = debouncedSearch.toLowerCase().trim()
-                const match = (
-                    item.guestName?.toLowerCase().includes(s) ||
-                    item.guestPhone?.toLowerCase().includes(s) ||
-                    item.bookingId?.toLowerCase().includes(s) ||
-                    item.categoryName?.toLowerCase().includes(s) ||
-                    item.roomNo?.toLowerCase().includes(s) ||
-                    item.transactionId?.toLowerCase().includes(s) ||
-                    item.reference?.toLowerCase().includes(s) ||
-                    item.paymentMethod?.toLowerCase().includes(s)
-                )
-                if (!match) return false
-            }
-
-            return true
-        })
-    }, [allBookingItems, selectedCategory, selectedRole, selectedWorker, selectedGuestType, selectedRoom, selectedBookingStatus, debouncedSearch])
-
-    // Pagination configuration & calculations
-    const limit = 25
-    const [pageState, setPageState] = useState(1)
-    const handlePageState = (num) => {
-        window.scrollTo({
-            top: 0,
-            behavior: "smooth"
-        })
-        setPageState(num)
-    }
-
-    // Reset pagination to page 1 whenever filter criteria changes
-    useEffect(() => {
-        setPageState(1)
-    }, [debouncedSearch, selectedCategory, selectedRole, selectedWorker, selectedGuestType, selectedRoom, selectedBookingStatus, startDate, endDate])
-
-    const totalPages = Math.max(1, Math.ceil((filteredItems?.length || 0) / limit))
+    const totalDataCount = Number(incomeData?.totalDataCount || 0)
+    const totalPages = Math.max(1, Math.ceil(totalDataCount / limit))
 
     useEffect(() => {
         if (pageState > totalPages) {
@@ -350,77 +273,30 @@ const IncomeAnalytics = () => {
         }
     }, [totalPages, pageState])
 
-    const paginatedItems = useMemo(() => {
-        const safeItems = Array.isArray(filteredItems) ? filteredItems : []
-        const startIndex = (pageState - 1) * limit
-        return safeItems.slice(startIndex, startIndex + limit)
-    }, [filteredItems, pageState, limit])
-
     const isAnyFilterActive = isDateFiltered || selectedRole !== "all" || selectedWorker !== "all" || selectedCategory !== "all" || selectedGuestType !== "all" || selectedRoom !== "all" || selectedBookingStatus !== "all" || !!search.trim()
 
-    // Dynamic totals calculation across all active filters
-    const totalFilteredSales = useMemo(() => {
-        const safeItems = Array.isArray(filteredItems) ? filteredItems : []
-        return safeItems.reduce((sum, item) => sum + Number(item?.amount || 0), 0)
-    }, [filteredItems])
-
-    const totalFilteredNights = useMemo(() => {
-        const safeItems = Array.isArray(filteredItems) ? filteredItems : []
-        return safeItems.reduce((sum, item) => sum + Number(item?.nights || 0), 0)
-    }, [filteredItems])
-
-    const totalFilteredPaid = useMemo(() => {
-        const safeItems = Array.isArray(filteredItems) ? filteredItems : []
-        const seen = new Set()
-        let sum = 0
-        for (let i = 0; i < safeItems.length; i++) {
-            const item = safeItems[i]
-            const bId = String(item?.bookingId || item?._id || '')
-            if (bId && !seen.has(bId)) {
-                seen.add(bId)
-                sum += Number(item?.paidAmount || 0)
-            }
-        }
-        return sum
-    }, [filteredItems])
-
-    const totalFilteredDue = useMemo(() => {
-        const safeItems = Array.isArray(filteredItems) ? filteredItems : []
-        const seen = new Set()
-        let sum = 0
-        for (let i = 0; i < safeItems.length; i++) {
-            const item = safeItems[i]
-            const bId = String(item?.bookingId || item?._id || '')
-            if (bId && !seen.has(bId)) {
-                seen.add(bId)
-                sum += Number(item?.dueAmount || 0)
-            }
-        }
-        return sum
-    }, [filteredItems])
-
-    // Distinct bookings count matching active filters
-    const filteredBookingsCount = useMemo(() => {
-        const safeItems = Array.isArray(filteredItems) ? filteredItems : []
-        const idSet = new Set(safeItems.map(item => String(item?.bookingId || item?._id || '')).filter(Boolean))
-        return idSet.size
-    }, [filteredItems])
+    // Dynamic totals calculation across all active filters from backend summary
+    const totalFilteredSales = Number(incomeData?.summary?.totalRevenue ?? incomeData?.totalRevenue ?? 0)
+    const totalFilteredPaid = Number(incomeData?.summary?.totalPaid ?? 0)
+    const totalFilteredDue = Number(incomeData?.summary?.totalDue ?? 0)
+    const totalFilteredNights = Number(incomeData?.summary?.totalNights ?? 0)
+    const filteredBookingsCount = Number(incomeData?.summary?.distinctBookingsCount ?? incomeData?.totalConfirmedBookings ?? 0)
 
     // All available suite categories for the selector
     const allAvailableCategories = useMemo(() => {
         const set = new Set()
-        const rbList = Array.isArray(roomBreakdown) ? roomBreakdown : []
-        for (let i = 0; i < rbList.length; i++) {
-            const cat = rbList[i]
-            if (cat?.roomName) set.add(cat.roomName)
-        }
-        const biList = Array.isArray(allBookingItems) ? allBookingItems : []
-        for (let i = 0; i < biList.length; i++) {
-            const item = biList[i]
-            if (item?.categoryName) set.add(item.categoryName)
+        const catList = Array.isArray(dbCategories) 
+            ? dbCategories 
+            : (dbCategories && typeof dbCategories === 'object' && Array.isArray(dbCategories.categories))
+                ? dbCategories.categories
+                : (dbCategories && typeof dbCategories === 'object' && Array.isArray(dbCategories.data))
+                    ? dbCategories.data
+                    : []
+        for (let i = 0; i < catList.length; i++) {
+            if (catList[i]?.name) set.add(catList[i].name)
         }
         return Array.from(set).sort()
-    }, [roomBreakdown, allBookingItems])
+    }, [dbCategories])
 
     // All available room numbers for the selector (respects selectedCategory if chosen)
     const allAvailableRooms = useMemo(() => {
@@ -444,95 +320,106 @@ const IncomeAnalytics = () => {
                 }
             }
         }
-        const biList = Array.isArray(allBookingItems) ? allBookingItems : []
-        for (let i = 0; i < biList.length; i++) {
-            const item = biList[i]
-            if (!item) continue
-            if (selectedCategory !== "all" && item.categoryName !== selectedCategory) continue
-            const clean = String(item.roomNo || "").trim()
-            if (clean) set.add(clean)
-        }
         return Array.from(set).sort((a, b) => {
             const numA = parseInt(a, 10)
             const numB = parseInt(b, 10)
             if (!isNaN(numA) && !isNaN(numB)) return numA - numB
             return a.localeCompare(b, undefined, { numeric: true })
         })
-    }, [dbCategories, allBookingItems, selectedCategory])
+    }, [dbCategories, selectedCategory])
 
-    // Dynamic suite category performance derived from filteredItems
-    const filteredRoomBreakdown = useMemo(() => {
-        const catMap = new Map()
-        const safeItems = Array.isArray(filteredItems) ? filteredItems : []
-        for (let i = 0; i < safeItems.length; i++) {
-            const item = safeItems[i]
-            if (!item) continue
-            const catName = item.categoryName || "Uncategorized"
-            if (!catMap.has(catName)) {
-                catMap.set(catName, {
-                    roomName: catName,
-                    totalRevenue: 0,
-                    bookingCount: 0,
-                    totalNights: 0,
-                    bookings: []
-                })
-            }
-            const entry = catMap.get(catName)
-            entry.totalRevenue += Number(item.amount || 0)
-            entry.bookingCount += 1
-            entry.totalNights += Number(item.nights || 0)
-            entry.bookings.push(item)
+    // Dynamic suite category performance from backend
+    const filteredRoomBreakdown = Array.isArray(incomeData?.roomBreakdown) ? incomeData.roomBreakdown : []
+
+    // On-demand export data fetcher (fetches complete filtered dataset with export=true)
+    const fetchAllExportData = async () => {
+        const params = new URLSearchParams()
+        if (formattedStart) params.append("startDate", formattedStart)
+        if (formattedEnd) params.append("endDate", formattedEnd)
+        if (debouncedSearch && debouncedSearch.trim()) params.append("search", debouncedSearch.trim())
+        if (selectedCategory !== "all") params.append("category", selectedCategory)
+        if (selectedRole !== "all") params.append("role", selectedRole)
+        if (selectedWorker !== "all") params.append("worker", selectedWorker)
+        if (selectedGuestType !== "all") params.append("guestType", selectedGuestType)
+        if (selectedRoom !== "all") params.append("room", selectedRoom)
+        if (selectedBookingStatus !== "all") params.append("bookingStatus", selectedBookingStatus)
+        params.append("export", "true")
+
+        const res = await axiosSecure.get(`/admin/income-breakdown?${params.toString()}`)
+        return Array.isArray(res.data?.result) ? res.data.result : []
+    }
+
+    const handleExportExcel = async () => {
+        const toastId = toast.loading("Preparing Excel export...")
+        try {
+            const allItems = await fetchAllExportData()
+            toast.dismiss(toastId)
+            exportSalesToExcel({
+                items: allItems,
+                dateRange: { startDate, endDate, activePreset },
+                categoryBreakdown: filteredRoomBreakdown,
+                totalSales: totalFilteredSales
+            })
+        } catch (e) {
+            toast.dismiss(toastId)
+            toast.error("Failed to export Excel data")
         }
-        return Array.from(catMap.values())
-    }, [filteredItems])
-
-    const handleExportExcel = () => {
-        exportSalesToExcel({
-            items: filteredItems,
-            dateRange: { startDate, endDate, activePreset },
-            categoryBreakdown: filteredRoomBreakdown,
-            totalSales: totalFilteredSales
-        })
     }
 
-    const handleExportPdf = () => {
-        exportSalesToPdf({
-            items: filteredItems,
-            dateRange: { startDate, endDate, activePreset },
-            filters: {
-                role: selectedRole,
-                worker: selectedWorker,
-                category: selectedCategory,
-                room: selectedRoom,
-                guestType: selectedGuestType,
-                bookingStatus: selectedBookingStatus,
-                search: search.trim()
-            },
-            categoryBreakdown: filteredRoomBreakdown,
-            totalSales: totalFilteredSales,
-            currentUser: user,
-            printDirect: false
-        })
+    const handleExportPdf = async () => {
+        const toastId = toast.loading("Preparing PDF report...")
+        try {
+            const allItems = await fetchAllExportData()
+            toast.dismiss(toastId)
+            exportSalesToPdf({
+                items: allItems,
+                dateRange: { startDate, endDate, activePreset },
+                filters: {
+                    role: selectedRole,
+                    worker: selectedWorker,
+                    category: selectedCategory,
+                    room: selectedRoom,
+                    guestType: selectedGuestType,
+                    bookingStatus: selectedBookingStatus,
+                    search: search.trim()
+                },
+                categoryBreakdown: filteredRoomBreakdown,
+                totalSales: totalFilteredSales,
+                currentUser: user,
+                printDirect: false
+            })
+        } catch (e) {
+            toast.dismiss(toastId)
+            toast.error("Failed to generate PDF report")
+        }
     }
 
-    const handlePrintPdf = () => {
-        exportSalesToPdf({
-            items: filteredItems,
-            dateRange: { startDate, endDate, activePreset },
-            filters: {
-                role: selectedRole,
-                worker: selectedWorker,
-                category: selectedCategory,
-                room: selectedRoom,
-                guestType: selectedGuestType,
-                bookingStatus: selectedBookingStatus,
-                search: search.trim()
-            },
-            categoryBreakdown: filteredRoomBreakdown,
-            totalSales: totalFilteredSales,
-            currentUser: user,
-            printDirect: true
-        })
+    const handlePrintPdf = async () => {
+        const toastId = toast.loading("Preparing report for printing...")
+        try {
+            const allItems = await fetchAllExportData()
+            toast.dismiss(toastId)
+            exportSalesToPdf({
+                items: allItems,
+                dateRange: { startDate, endDate, activePreset },
+                filters: {
+                    role: selectedRole,
+                    worker: selectedWorker,
+                    category: selectedCategory,
+                    room: selectedRoom,
+                    guestType: selectedGuestType,
+                    bookingStatus: selectedBookingStatus,
+                    search: search.trim()
+                },
+                categoryBreakdown: filteredRoomBreakdown,
+                totalSales: totalFilteredSales,
+                currentUser: user,
+                printDirect: true
+            })
+        } catch (e) {
+            toast.dismiss(toastId)
+            toast.error("Failed to prepare report for printing")
+        }
     }
 
     return (
@@ -937,75 +824,105 @@ const IncomeAnalytics = () => {
                 </div>
             </div>
 
-            {/* Room Revenue Performance Grid */}
-            <div className="space-y-4">
-                <h3 className="text-lg font-bold text-slate-900 font-serif flex items-center gap-2">
-                    <BarChart3 size={18} className="text-teal-600" /> Revenue by Room Suite {isAnyFilterActive ? "(Filtered)" : ""}
-                </h3>
-
-                {(filteredRoomBreakdown?.length || 0) === 0 ? (
-                    <div className="bg-white border border-slate-200 rounded-2xl p-8 text-center text-slate-400">
-                        <BedDouble size={36} className="mx-auto mb-2 opacity-50 text-slate-300" />
-                        <p className="font-semibold text-slate-600 text-sm">No room sales recorded matching your selected filters.</p>
-                        <p className="text-xs text-slate-400 mt-1">Try selecting a different date range, worker, role, or clearing filters.</p>
+            {/* Room Revenue Performance Accordion */}
+            <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-xs transition-all">
+                <button
+                    type="button"
+                    onClick={() => setIsRoomBreakdownOpen(prev => !prev)}
+                    className="w-full px-5 py-4 flex items-center justify-between gap-3 text-left hover:bg-slate-50 transition-colors focus:outline-none cursor-pointer"
+                    aria-expanded={isRoomBreakdownOpen}
+                >
+                    <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-lg bg-teal-50 text-teal-600 flex items-center justify-center shrink-0">
+                            <BarChart3 size={18} />
+                        </div>
+                        <div>
+                            <h3 className="text-base sm:text-lg font-bold text-slate-900 font-serif flex items-center gap-2">
+                                Revenue by Room Suite {isAnyFilterActive ? "(Filtered)" : ""}
+                            </h3>
+                            <p className="text-xs text-slate-500">
+                                {filteredRoomBreakdown.length} suite category performance breakdown
+                            </p>
+                        </div>
                     </div>
-                ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                        {(filteredRoomBreakdown || []).map((cat, idx) => {
-                            const share = totalFilteredSales > 0 ? Math.round((cat.totalRevenue / totalFilteredSales) * 100) : 0
-                            return (
-                                <div key={idx} className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs space-y-3 flex flex-col justify-between">
-                                    <div>
-                                        <div className="flex items-start justify-between gap-2">
-                                            <h4 className="font-bold text-slate-900 text-sm sm:text-base leading-snug">{cat.roomName}</h4>
-                                            <span className="badge badge-sm bg-teal-50 text-teal-800 border-teal-200 font-bold shrink-0">
-                                                {share}% Share
-                                            </span>
-                                        </div>
-                                        <p className="text-2xl font-extrabold text-teal-800 mt-2">
-                                            ৳{Number(cat.totalRevenue || 0).toLocaleString()}
-                                        </p>
-                                    </div>
 
-                                    <div className="space-y-2 pt-2 border-t border-slate-100 text-xs text-slate-500">
-                                        <div className="flex justify-between">
-                                            <span>Total Reservations:</span>
-                                            <span className="font-semibold text-slate-800">{cat.bookingCount} Bookings</span>
+                    <div className="flex items-center gap-2">
+                        <span className="badge badge-sm bg-teal-50 text-teal-700 font-bold border-teal-200 hidden sm:inline-flex">
+                            {isRoomBreakdownOpen ? "Hide Breakdown" : "View Breakdown"}
+                        </span>
+                        <div className={`w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center text-slate-500 transition-transform duration-200 ${isRoomBreakdownOpen ? "rotate-180" : ""}`}>
+                            <ChevronDown size={18} />
+                        </div>
+                    </div>
+                </button>
+
+                {isRoomBreakdownOpen && (
+                    <div className="p-5 pt-1 border-t border-slate-100">
+                        {(filteredRoomBreakdown?.length || 0) === 0 ? (
+                            <div className="bg-slate-50 border border-slate-200 rounded-xl p-8 text-center text-slate-400 my-2">
+                                <BedDouble size={36} className="mx-auto mb-2 opacity-50 text-slate-300" />
+                                <p className="font-semibold text-slate-600 text-sm">No room sales recorded matching your selected filters.</p>
+                                <p className="text-xs text-slate-400 mt-1">Try selecting a different date range, worker, role, or clearing filters.</p>
+                            </div>
+                        ) : (
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pt-3">
+                                {(filteredRoomBreakdown || []).map((cat, idx) => {
+                                    const share = totalFilteredSales > 0 ? Math.round((cat.totalRevenue / totalFilteredSales) * 100) : 0
+                                    return (
+                                        <div key={idx} className="bg-slate-50/70 p-5 rounded-xl border border-slate-200/80 shadow-2xs space-y-3 flex flex-col justify-between hover:bg-white hover:shadow-xs transition-all">
+                                            <div>
+                                                <div className="flex items-start justify-between gap-2">
+                                                    <h4 className="font-bold text-slate-900 text-sm sm:text-base leading-snug">{cat.roomName}</h4>
+                                                    <span className="badge badge-sm bg-teal-50 text-teal-800 border-teal-200 font-bold shrink-0">
+                                                        {share}% Share
+                                                    </span>
+                                                </div>
+                                                <p className="text-2xl font-extrabold text-teal-800 mt-2">
+                                                    ৳{Number(cat.totalRevenue || 0).toLocaleString()}
+                                                </p>
+                                            </div>
+
+                                            <div className="space-y-2 pt-2 border-t border-slate-200/60 text-xs text-slate-500">
+                                                <div className="flex justify-between">
+                                                    <span>Total Reservations:</span>
+                                                    <span className="font-semibold text-slate-800">{cat.bookingCount} Bookings</span>
+                                                </div>
+                                                <div className="flex justify-between">
+                                                    <span>Nights Sold:</span>
+                                                    <span className="font-semibold text-slate-800">{cat.totalNights} Nights</span>
+                                                </div>
+                                                {/* Progress bar */}
+                                                <div className="w-full bg-slate-200/70 h-2 rounded-full overflow-hidden mt-1">
+                                                    <div 
+                                                        className="bg-teal-600 h-full rounded-full transition-all" 
+                                                        style={{ width: `${Math.min(100, Math.max(5, share))}%` }}
+                                                    />
+                                                </div>
+                                            </div>
                                         </div>
-                                        <div className="flex justify-between">
-                                            <span>Nights Sold:</span>
-                                            <span className="font-semibold text-slate-800">{cat.totalNights} Nights</span>
-                                        </div>
-                                        {/* Progress bar */}
-                                        <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden mt-1">
-                                            <div 
-                                                className="bg-teal-600 h-full rounded-full transition-all" 
-                                                style={{ width: `${Math.min(100, Math.max(5, share))}%` }}
-                                            />
-                                        </div>
-                                    </div>
-                                </div>
-                            )
-                        })}
+                                    )
+                                })}
+                            </div>
+                        )}
                     </div>
                 )}
             </div>
 
             {/* Sales Report Transactions Table with Footer Totals (Requirement 7) */}
-            <div className="space-y-4">
+            <div ref={tableRef} id="sales-transactions-table" className="space-y-4 scroll-mt-20">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div>
                         <h3 className="text-lg font-bold text-slate-900 font-serif flex items-center gap-2">
                             <Receipt size={18} className="text-teal-600" /> Sales Transactions & Workflow Breakdown
                         </h3>
                         <p className="text-xs text-slate-500 mt-0.5">
-                            Showing {(filteredItems?.length || 0) === 0 ? 0 : `${(pageState - 1) * limit + 1}–${Math.min(pageState * limit, (filteredItems?.length || 0))} of ${(filteredItems?.length || 0)}`} filtered transaction item(s) · Total Sells: <strong>৳{totalFilteredSales.toLocaleString()}</strong>
+                            Showing {totalDataCount === 0 ? 0 : `${(pageState - 1) * limit + 1}–${Math.min(pageState * limit, totalDataCount)} of ${totalDataCount}`} filtered transaction item(s) · Total Sells: <strong>৳{totalFilteredSales.toLocaleString()}</strong>
                         </p>
                     </div>
 
                     <div className="flex items-center gap-2">
                         <span className="badge badge-sm bg-slate-100 text-slate-700 font-semibold">
-                            {(filteredItems?.length || 0)} Entries
+                            {totalDataCount} Entries
                         </span>
                         {totalPages > 1 && (
                             <span className="badge badge-sm bg-teal-100 text-teal-800 font-semibold">
@@ -1067,6 +984,7 @@ const IncomeAnalytics = () => {
                     <table className="table table-zebra w-full whitespace-nowrap">
                         <thead>
                             <tr className="bg-slate-50 text-slate-600 font-bold text-xs uppercase tracking-wider whitespace-nowrap">
+                                <th className="whitespace-nowrap w-12 text-center">No.</th>
                                 <th className="whitespace-nowrap min-w-[130px]">Booking ID</th>
                                 <th className="whitespace-nowrap">Guest</th>
                                 <th className="whitespace-nowrap">Suite Category</th>
@@ -1082,6 +1000,7 @@ const IncomeAnalytics = () => {
                             {isLoading ? (
                                 [1, 2, 3, 4].map(n => (
                                     <tr key={n} className="animate-pulse">
+                                        <td><div className="h-4 bg-slate-200 w-6 mx-auto rounded"></div></td>
                                         <td><div className="h-5 bg-slate-200 w-24"></div></td>
                                         <td><div className="h-4 bg-slate-200 w-28"></div></td>
                                         <td><div className="h-4 bg-slate-200 w-36"></div></td>
@@ -1093,9 +1012,9 @@ const IncomeAnalytics = () => {
                                         <td><div className="h-7 bg-slate-200 w-14 mx-auto"></div></td>
                                     </tr>
                                 ))
-                            ) : (filteredItems?.length || 0) === 0 ? (
+                            ) : paginatedItems.length === 0 ? (
                                 <tr>
-                                    <td colSpan={9} className="text-center py-12 text-slate-400">
+                                    <td colSpan={10} className="text-center py-12 text-slate-400">
                                         <Receipt size={36} className="mx-auto mb-2 opacity-50" />
                                         No sales records matching your selected filter criteria.
                                     </td>
@@ -1103,6 +1022,9 @@ const IncomeAnalytics = () => {
                             ) : (
                                 paginatedItems.map((item, idx) => (
                                     <tr key={`${item.bookingId}-${idx}`} className="hover:bg-slate-50/80 transition-colors">
+                                        <td className="text-center font-mono text-xs font-semibold text-slate-500 whitespace-nowrap">
+                                            {(pageState - 1) * limit + idx + 1}
+                                        </td>
                                         <td className="whitespace-nowrap">
                                             <Link
                                                 to={`/dashboard/bookings/${item._id}`}
@@ -1159,8 +1081,17 @@ const IncomeAnalytics = () => {
                                                 </span>
                                             )}
                                         </td>
-                                        <td className="text-xs text-slate-700 whitespace-nowrap">
-                                            {formatDate(item.checkIn)} → {formatDate(item.checkOut)}
+                                        <td className="text-xs whitespace-nowrap">
+                                            <div className="space-y-0.5">
+                                                <p className="font-semibold text-slate-800 flex items-center gap-1.5">
+                                                    <span className="text-[9px] font-bold text-teal-800 bg-teal-50 border border-teal-200 px-1 py-0.2 rounded">In</span>
+                                                    <span>{formatDate(item.checkIn)}</span>
+                                                </p>
+                                                <p className="text-slate-500 text-[11px] flex items-center gap-1.5">
+                                                    <span className="text-[9px] font-bold text-slate-600 bg-slate-100 border border-slate-200 px-1 py-0.2 rounded">Out</span>
+                                                    <span>{formatDate(item.checkOut)}</span>
+                                                </p>
+                                            </div>
                                         </td>
                                         <td className="text-xs text-slate-600 whitespace-nowrap font-semibold text-center">
                                             {item.nights}
@@ -1225,11 +1156,11 @@ const IncomeAnalytics = () => {
                         </tbody>
 
                         {/* Table Footer with Total Sells and Summary (Requirement 7) */}
-                        {(filteredItems?.length || 0) > 0 && (
+                        {totalDataCount > 0 && (
                             <tfoot className="bg-slate-100/90 border-t-2 border-slate-300 text-slate-900 font-bold text-xs">
                                 <tr>
-                                    <td colSpan={4} className="py-3 px-4 font-black uppercase tracking-wider text-slate-800">
-                                        Total Sells Summary ({(filteredItems?.length || 0)} Transactions)
+                                    <td colSpan={5} className="py-3 px-4 font-black uppercase tracking-wider text-slate-800">
+                                        Total Sells Summary ({totalDataCount} Transactions)
                                     </td>
                                     <td className="py-3 text-center font-mono font-bold text-slate-800">
                                         {totalFilteredNights} Nights
@@ -1257,7 +1188,7 @@ const IncomeAnalytics = () => {
                 </div>
 
                 {/* Pagination Controls */}
-                {(filteredItems?.length || 0) > limit && (
+                {totalDataCount > limit && (
                     <div className="my-6 flex flex-wrap items-center justify-center gap-2">
                         <button
                             type="button"
@@ -1325,7 +1256,7 @@ const IncomeAnalytics = () => {
                     setIsPdfModalOpen(false)
                     setIsDirectPrint(false)
                 }}
-                items={filteredItems}
+                items={paginatedItems}
                 dateRange={{ startDate, endDate, activePreset }}
                 filters={{
                     role: selectedRole,

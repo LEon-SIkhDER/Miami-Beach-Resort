@@ -28,7 +28,7 @@ const SmoothScroll = ({ children }) => {
         gestureOrientation: 'vertical',
         smoothWheel: true,
         smoothTouch: false, // Keep native touch scrolling on smartphones and tablets
-        wheelMultiplier: 1,
+        wheelMultiplier: 0.7,
         touchMultiplier: 1.5,
         prevent: (node) => {
             if (!node) return false
