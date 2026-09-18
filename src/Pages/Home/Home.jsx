@@ -129,7 +129,6 @@ const Home = () => {
     const {
         data: rawFilteredCategories = [],
         isLoading: filteredCategoriesLoading,
-        isFetching: filteredCategoriesFetching
     } = useQuery({
         queryKey: ["home-categories-filtered", debouncedSearch, categoryFilter],
         queryFn: async () => {
@@ -145,11 +144,11 @@ const Home = () => {
                 return []
             }
         },
+        staleTime: 5 * 60 * 1000,
         placeholderData: (previousData) => previousData,
     })
 
     const filteredCategories = Array.isArray(rawFilteredCategories) ? rawFilteredCategories : []
-    const isFilteringHome = filteredCategoriesFetching || (searchQuery !== debouncedSearch)
 
     const getRoomNights = (item) => {
         if (!item.checkInDate || !item.checkOutDate) return 0
@@ -581,9 +580,6 @@ const Home = () => {
                         </div>
                         <h2 className="text-2xl sm:text-4xl font-serif font-bold text-[#03221b] tracking-tight flex items-center gap-2.5">
                             <span>Choose and Book Your Suite</span>
-                            {isFilteringHome && (
-                                <span className="loading loading-spinner loading-xs text-[#04261f]" title="Fetching categories..." />
-                            )}
                         </h2>
                     </div>
 
@@ -598,9 +594,6 @@ const Home = () => {
                                 onChange={e => setSearchQuery(e.target.value)}
                                 className="pl-9 pr-8 py-2 bg-white rounded-xl border border-slate-300 text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-[#04261f] w-full sm:w-60 shadow-xs"
                             />
-                            {isFilteringHome && (
-                                <span className="loading loading-spinner loading-xs text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-                            )}
                         </div>
                         <select
                             className="select select-sm select-bordered rounded-xl bg-white border-slate-300 text-xs font-semibold text-slate-800 focus:outline-none focus:border-[#04261f] shadow-xs cursor-pointer"
@@ -616,7 +609,7 @@ const Home = () => {
                 </div>
 
                 {/* Category Grid */}
-                {filteredCategoriesLoading && filteredCategories.length === 0 ? (
+                {filteredCategoriesLoading ? (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
                         {[1, 2, 3].map(n => (
                             <div key={n} className="bg-white rounded-3xl overflow-hidden border border-slate-200 shadow-sm animate-pulse flex flex-col">
@@ -629,7 +622,7 @@ const Home = () => {
                             </div>
                         ))}
                     </div>
-                ) : filteredCategories.length === 0 && !isFilteringHome ? (
+                ) : filteredCategories.length === 0 ? (
                     <div className="text-center py-16 bg-white rounded-3xl border border-slate-200 shadow-xs space-y-2">
                         <BedDouble size={48} className="mx-auto text-slate-300 mb-2" />
                         <h3 className="text-lg font-bold text-slate-700">No categories match your search</h3>
@@ -644,7 +637,7 @@ const Home = () => {
                         )}
                     </div>
                 ) : (
-                    <div className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8 transition-opacity duration-200 ${isFilteringHome ? 'opacity-60' : 'opacity-100'}`}>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
                         {filteredCategories.slice(0, 6).map(cat => {
                             const photos = cat.images?.length
                                 ? cat.images.map(img => typeof img === 'string' ? img : img.url)

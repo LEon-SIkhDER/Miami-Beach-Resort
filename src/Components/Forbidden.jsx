@@ -1,9 +1,14 @@
-import React from 'react'
+import React, { useEffect } from 'react'
 import { Link } from 'react-router'
 import logo from '../assets/logo.png'
 import { ShieldAlert, ArrowLeft } from 'lucide-react'
+import { setStatusBarThemeColor } from '../utils/themeColor'
 
 const Forbidden = () => {
+    useEffect(() => {
+        setStatusBarThemeColor('#031d17', 'black-translucent')
+    }, [])
+
     return (
         <div className="min-h-screen flex flex-col items-center justify-center gap-5 p-4 text-center bg-slate-50">
             <img src={logo} alt="Miami Beach Resort" className="h-14 w-auto object-contain mb-2" />

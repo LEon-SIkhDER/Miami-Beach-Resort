@@ -10,7 +10,8 @@ import RequestBookingsModal from "./RequestBookingsModal";
 import CalendarBookingModal from "./CalendarBookingModal";
 import CalendarBookingDetailsModal from "./CalendarBookingDetailsModal";
 import OutOfOrderModal from "./OutOfOrderModal";
-import { Clock, RefreshCw, BedDouble, Wrench, AlertTriangle, Wallet, Filter, ChevronLeft, ChevronRight, ChevronDown, Calendar as CalendarIcon } from "lucide-react";
+import CalendarFilterSettingsModal from "./CalendarFilterSettingsModal";
+import { Clock, RefreshCw, BedDouble, Wrench, AlertTriangle, Wallet, Filter, ChevronLeft, ChevronRight, ChevronDown, Calendar as CalendarIcon, SlidersHorizontal } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getBookingRooms, getBookingTotal, getBookingPaidAmount, getBookingDueAmount } from "../../../utils/bookingUtils";
 import toast from "react-hot-toast";
@@ -30,6 +31,7 @@ const Calender = () => {
     const [selectedBookingId, setSelectedBookingId] = useState(null);
     const [isOutOfOrderOpen, setIsOutOfOrderOpen] = useState(false);
     const [selectedOOORoom, setSelectedOOORoom] = useState(null);
+    const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
 
     // Category Filter State (ALL or specific category _id / name)
     const [selectedCategoryFilter, setSelectedCategoryFilter] = useState(() => {
@@ -175,6 +177,12 @@ const Calender = () => {
     const handleEndDate = (date) => {
         if (!date || isNaN(date.getTime())) return;
         setEndDate(date);
+    };
+
+    const handleResetDateRange = () => {
+        const today = new Date();
+        setStartDate(today);
+        setEndDate(addMonths(today, 1));
     };
 
     // Quick Date Navigation Helpers
@@ -444,14 +452,24 @@ const Calender = () => {
         ) : (
             text
         );
+    };
 
-    }
+    const activeFilterCount =
+        (selectedCategoryFilter !== "ALL" ? 1 : 0) +
+        (showPricingRow ? 1 : 0) +
+        (showOccupancyRow ? 1 : 0);
+
     return (
         <div className="flex h-[calc(100dvh-65px)] w-full min-w-0 flex-col overflow-hidden bg-slate-50">
             {/* Top Workflow Ribbon with Specified Colors */}
-            <div className="bg-white border-b border-slate-200 px-3 sm:px-5 py-2 shrink-0 flex flex-wrap items-center justify-center gap-2 text-xs">
+            <div className="bg-white border-b border-slate-200 px-3 sm:px-5 py-2 shrink-0 flex flex-col sm:flex-row sm:flex-wrap sm:items-center sm:justify-center gap-1.5 sm:gap-2 text-xs">
+                {/* Mobile: label row */}
+                <div className="flex items-center gap-1.5 font-bold text-slate-500 uppercase tracking-wider text-[10px] sm:hidden">
+                    <span>Workflow:</span>
+                </div>
                 <div className="flex flex-wrap items-center gap-1 sm:gap-2">
-                    <div className="flex items-center gap-1.5 font-bold text-slate-500 uppercase tracking-wider text-[10px]">
+                    {/* Desktop only: Workflow label inline */}
+                    <div className="hidden sm:flex items-center gap-1.5 font-bold text-slate-500 uppercase tracking-wider text-[10px]">
                         <span>Workflow:</span>
                     </div>
                     {/* 1. Request Booking */}
@@ -476,7 +494,7 @@ const Calender = () => {
 
                     <div className="h-4 w-px bg-slate-200 mx-1 hidden sm:block" />
 
-                    {/* 5. Out of Order */}
+                    {/* Out of Order */}
                     <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-neutral-900 text-amber-300 font-bold text-[11px] shadow-xs">
                         <Wrench size={11} className="text-amber-400" />
                         <span>Out of Order ({statistics.statusCounts.out_of_order})</span>
@@ -485,14 +503,14 @@ const Calender = () => {
             </div>
 
             {/* Controls Header — Single flex justify-between toolbar with all category tools on left and OOO/dates/refresh on right */}
-            <div className="flex flex-wrap items-center justify-between p-3 sm:p-4 gap-3 shrink-0 bg-white border-b border-slate-200">
+            <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center sm:justify-between p-3 sm:p-4 gap-2 sm:gap-3 shrink-0 bg-white border-b border-slate-200">
                 {/* Left Controls: Filter, Pricing Toggle, Occupancy Toggle, Request Bookings */}
                 <div className="flex flex-wrap items-center gap-2">
-                    {/* DaisyUI Category Filter Select */}
+                    {/* DaisyUI Category Filter Select (hidden on mobile < sm) */}
                     <select
                         value={selectedCategoryFilter}
                         onChange={(e) => handleCategoryFilterChange(e.target.value)}
-                        className="select w-56 sm:w-64 h-8 select-ghost select-sm font-bold text-slate-800 text-xs focus:outline-none cursor-pointer min-h-0 truncate bg-slate-50 border border-slate-300 rounded-xl px-2.5 py-0.5 shadow-2xs"
+                        className="hidden sm:inline-flex select w-56 sm:w-64 h-8 select-ghost select-sm font-bold text-slate-800 text-xs focus:outline-none cursor-pointer min-h-0 truncate bg-slate-50 border border-slate-300 rounded-xl px-2.5 py-0.5 shadow-2xs"
                     >
                         <option value="ALL">All Categories ({dbCategories.length})</option>
                         {dbCategories.map((c) => (
@@ -502,8 +520,8 @@ const Calender = () => {
                         ))}
                     </select>
 
-                    {/* Date-wise Pricing Checkbox Toggle */}
-                    <label className="flex items-center gap-2 bg-slate-50 hover:bg-teal-50/70 border border-slate-300 hover:border-teal-400 rounded-xl px-3 py-1 h-8 cursor-pointer transition select-none">
+                    {/* Date-wise Pricing Checkbox Toggle (hidden on mobile < sm) */}
+                    <label className="hidden sm:flex items-center gap-2 bg-slate-50 hover:bg-teal-50/70 border border-slate-300 hover:border-teal-400 rounded-xl px-3 py-1 h-8 cursor-pointer transition select-none">
                         <input
                             type="checkbox"
                             checked={showPricingRow}
@@ -513,8 +531,8 @@ const Calender = () => {
                         <span className="text-xs font-bold text-slate-700">Show Date-wise Pricing Row</span>
                     </label>
 
-                    {/* Occupancy Checkbox Toggle */}
-                    <label className="flex items-center gap-2 bg-slate-50 hover:bg-teal-50/70 border border-slate-300 hover:border-teal-400 rounded-xl px-3 py-1 h-8 cursor-pointer transition select-none">
+                    {/* Occupancy Checkbox Toggle (hidden on mobile < sm) */}
+                    <label className="hidden sm:flex items-center gap-2 bg-slate-50 hover:bg-teal-50/70 border border-slate-300 hover:border-teal-400 rounded-xl px-3 py-1 h-8 cursor-pointer transition select-none">
                         <input
                             type="checkbox"
                             checked={showOccupancyRow}
@@ -528,7 +546,7 @@ const Calender = () => {
                     <button
                         type="button"
                         onClick={() => setIsRequestModalOpen(true)}
-                        className={`btn btn-sm rounded-xl transition-all duration-200 gap-1.5 font-bold h-8 ${requestBookings.length > 0
+                        className={`btn btn-sm rounded-xl transition-all duration-200 gap-1.5 font-bold h-8 w-full sm:w-auto justify-center ${requestBookings.length > 0
                             ? "bg-[#f59e0b] hover:bg-amber-600 text-white border-none shadow-md shadow-amber-500/25 ring-2 ring-amber-400/40"
                             : "btn-outline border-slate-300 text-slate-700 hover:bg-slate-100"
                             }`}
@@ -538,8 +556,24 @@ const Calender = () => {
                     </button>
                 </div>
 
-                {/* Right Controls: Out of Order Rooms, Date Pickers, Refresh */}
-                <div className="flex flex-wrap items-center justify-end gap-2.5">
+                {/* Right Controls: Filters & Display (mobile), Out of Order Rooms, Date Pickers, Refresh */}
+                <div className="flex items-center gap-2 sm:gap-2.5 sm:justify-end">
+                    {/* Mobile Only: Filters & Display Button (Positioned on right side for mobile < sm) */}
+                    <button
+                        type="button"
+                        onClick={() => setIsFilterModalOpen(true)}
+                        className="sm:hidden flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-teal-300 bg-teal-50 hover:bg-teal-100/80 text-teal-800 px-3 py-1 text-xs font-bold shadow-2xs transition-all active:scale-95 h-8"
+                        title="Open calendar filters & display settings"
+                    >
+                        <SlidersHorizontal size={13} className="text-teal-600 shrink-0" />
+                        <span>Filters & Display</span>
+                        {activeFilterCount > 0 && (
+                            <span className="w-4 h-4 rounded-full bg-teal-600 text-white text-[10px] font-bold flex items-center justify-center shrink-0">
+                                {activeFilterCount}
+                            </span>
+                        )}
+                    </button>
+
                     {/* Out of Order Rooms Button */}
                     <button
                         type="button"
@@ -547,7 +581,7 @@ const Calender = () => {
                             setSelectedOOORoom(null);
                             setIsOutOfOrderOpen(true);
                         }}
-                        className={`btn btn-sm rounded-xl transition-all duration-200 gap-1.5 font-bold h-8 ${outOfOrderList.length > 0
+                        className={`btn btn-sm rounded-xl transition-all duration-200 gap-1.5 font-bold h-8 flex-1 sm:flex-none justify-center ${outOfOrderList.length > 0
                             ? "bg-neutral-900 hover:bg-neutral-800 text-amber-300 border-none shadow-md ring-2 ring-amber-400/30"
                             : "btn-outline border-slate-300 text-slate-700 hover:bg-slate-100"
                             }`}
@@ -556,8 +590,8 @@ const Calender = () => {
                         <span>Out of Order ({outOfOrderList.length})</span>
                     </button>
 
-                    {/* Date Pickers with High z-index Poppers */}
-                    <div className="flex items-center gap-1.5">
+                    {/* Date Pickers with High z-index Poppers (hidden on mobile < sm, accessible in Filters & Display modal) */}
+                    <div className="hidden sm:flex items-center gap-1.5">
                         <div className="relative">
                             <DatePicker
                                 selected={startDate}
@@ -922,6 +956,24 @@ const Calender = () => {
                         refetchOOO()
                     ]);
                 }}
+            />
+
+            {/* Mobile Filters & Display Modal (createPortal) */}
+            <CalendarFilterSettingsModal
+                isOpen={isFilterModalOpen}
+                onClose={() => setIsFilterModalOpen(false)}
+                categories={dbCategories}
+                selectedCategory={selectedCategoryFilter}
+                onCategoryChange={handleCategoryFilterChange}
+                showPricingRow={showPricingRow}
+                onTogglePricingRow={handleTogglePricingRow}
+                showOccupancyRow={showOccupancyRow}
+                onToggleOccupancyRow={handleToggleOccupancyRow}
+                startDate={startDate}
+                endDate={endDate}
+                onStartDateChange={handleStartDate}
+                onEndDateChange={handleEndDate}
+                onResetDateRange={handleResetDateRange}
             />
         </div>
     );

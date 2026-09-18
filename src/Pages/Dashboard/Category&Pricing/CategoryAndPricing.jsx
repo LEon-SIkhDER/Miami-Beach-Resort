@@ -90,7 +90,7 @@ const CategoryAndPricing = () => {
                                 className="flex flex-col bg-white border border-gray-200 rounded-2xl overflow-hidden hover:shadow-md transition-shadow"
                             >
                                 {/* Cover Photo */}
-                                <div className="relative h-44 bg-slate-100">
+                                <div className="relative h-52 bg-slate-100">
                                     {photos.length > 0 ? (
                                         <img
                                             src={photos[0].url}

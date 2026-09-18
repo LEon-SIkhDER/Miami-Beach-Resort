@@ -1,11 +1,16 @@
-import React from 'react'
+import React, { useEffect } from 'react'
 import { Link, useRouteError, isRouteErrorResponse } from 'react-router'
 import logo from '../../assets/logo.png'
 import { Home as HomeIcon, RefreshCw, AlertTriangle } from 'lucide-react'
+import { setStatusBarThemeColor } from '../../utils/themeColor'
 
 const ErrorElement = () => {
     const error = useRouteError()
     console.error("Router Error caught by ErrorElement:", error)
+
+    useEffect(() => {
+        setStatusBarThemeColor('#031d17', 'black-translucent')
+    }, [])
 
     const is404 = isRouteErrorResponse(error) && error.status === 404
 

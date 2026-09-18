@@ -21,6 +21,7 @@ import {
 } from 'lucide-react'
 import { showConfirmAlert } from '../utils/customSwal'
 import Logo from './Logo'
+import { setStatusBarThemeColor } from '../utils/themeColor'
 
 const Header = () => {
     const { user, logOut } = useContext(AuthContext)
@@ -47,6 +48,12 @@ const Header = () => {
         window.addEventListener('scroll', handleScroll)
         return () => window.removeEventListener('scroll', handleScroll)
     }, [])
+
+    // Dynamically sync mobile top bar theme color with header color
+    useEffect(() => {
+        const headerColor = mobileNavOpen ? "#031d17" : (scrolled ? "#04261f" : "#031d17")
+        setStatusBarThemeColor(headerColor, 'black-translucent')
+    }, [scrolled, mobileNavOpen, location.pathname])
 
     // Close dropdown when clicking outside
     useEffect(() => {

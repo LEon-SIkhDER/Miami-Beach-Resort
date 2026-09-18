@@ -26,6 +26,7 @@ import {
 } from 'lucide-react'
 import { showConfirmAlert } from '../../utils/customSwal'
 import logo from '../../assets/logo.png'
+import { setStatusBarThemeColor } from '../../utils/themeColor'
 
 const Dashboard = () => {
     const { user, logOut } = useContext(AuthContext)
@@ -37,6 +38,11 @@ const Dashboard = () => {
     const [sidebarOpen, setSidebarOpen] = useState(false)
     const [settingsExpanded, setSettingsExpanded] = useState(isSettingsRoute)
     const navigate = useNavigate()
+
+    // Keep mobile top bar consistent with luxury dark brand theme so icons stay white and readable
+    useEffect(() => {
+        setStatusBarThemeColor('#031d17', 'black-translucent')
+    }, [pathname])
 
     useEffect(() => {
         if (isSettingsRoute) {
