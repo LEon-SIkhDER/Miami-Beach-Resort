@@ -182,3 +182,155 @@ html {
   border-radius: 0.5rem;
   font-weight: 600;
 }
+
+/* =========================================================
+   Miami Beach Resort - Custom Luxury SweetAlert2 Theme
+   ========================================================= */
+@keyframes miami-pulse-ring {
+  0% {
+    transform: scale(0.96);
+    opacity: 0.85;
+  }
+  50% {
+    transform: scale(1.04);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(0.96);
+    opacity: 0.85;
+  }
+}
+
+.swal2-container.miami-swal-container {
+  backdrop-filter: blur(6px) saturate(130%);
+  -webkit-backdrop-filter: blur(6px) saturate(130%);
+  background: rgba(4, 38, 31, 0.45) !important;
+  padding: 1rem;
+  z-index: 99999 !important;
+}
+
+.swal2-popup.miami-swal-popup {
+  position: relative !important;
+  background: #ffffff !important;
+  border: 1px solid rgba(13, 148, 136, 0.2) !important;
+  border-radius: 24px !important;
+  padding: 2rem 1.75rem 1.75rem !important;
+  box-shadow:
+    0 25px 50px -12px rgba(4, 38, 31, 0.25),
+    0 0 35px -5px rgba(13, 148, 136, 0.15) !important;
+  max-width: 440px !important;
+  width: 92% !important;
+  overflow: hidden !important;
+  color: #0f172a !important;
+}
+
+.miami-swal-icon-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0.25rem auto 1.25rem auto;
+}
+
+.miami-swal-icon-inner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 18px;
+  background: rgba(13, 148, 136, 0.1);
+  border: 1px solid rgba(13, 148, 136, 0.25);
+  box-shadow: 0 0 20px -3px rgba(13, 148, 136, 0.3);
+  animation: miami-pulse-ring 3s ease-in-out infinite;
+}
+
+.swal2-title.miami-swal-title {
+  font-family: 'Playfair Display', Georgia, serif !important;
+  font-size: 1.35rem !important;
+  font-weight: 800 !important;
+  color: #0f172a !important;
+  padding: 0 !important;
+  margin-bottom: 0.65rem !important;
+  letter-spacing: -0.01em !important;
+}
+
+.swal2-html-container.miami-swal-html {
+  margin: 0 !important;
+  padding: 0 !important;
+  color: #475569 !important;
+  font-size: 0.885rem !important;
+  line-height: 1.6 !important;
+}
+
+.swal-custom-desc {
+  margin: 0 0 0.5rem 0;
+  color: #475569;
+}
+
+.swal2-actions.miami-swal-actions {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 0.75rem !important;
+  margin-top: 1.75rem !important;
+  width: 100% !important;
+}
+
+.miami-swal-btn-confirm {
+  flex: 1 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 0.75rem 1.25rem !important;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif !important;
+  font-size: 0.875rem !important;
+  font-weight: 700 !important;
+  color: #ffffff !important;
+  background: #0d9488 !important;
+  border-radius: 14px !important;
+  border: 1px solid rgba(13, 148, 136, 0.4) !important;
+  box-shadow: 0 4px 14px -2px rgba(13, 148, 136, 0.35) !important;
+  cursor: pointer !important;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  text-decoration: none !important;
+}
+
+.miami-swal-btn-confirm:hover {
+  background: #0f766e !important;
+  transform: translateY(-1.5px) !important;
+  box-shadow: 0 8px 20px -2px rgba(13, 148, 136, 0.45) !important;
+}
+
+.miami-swal-btn-confirm:active {
+  transform: translateY(0) !important;
+}
+
+.miami-swal-btn-cancel {
+  flex: 1 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 0.75rem 1.25rem !important;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif !important;
+  font-size: 0.875rem !important;
+  font-weight: 600 !important;
+  color: #475569 !important;
+  background: #f8fafc !important;
+  border: 1px solid #cbd5e1 !important;
+  border-radius: 14px !important;
+  cursor: pointer !important;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  text-decoration: none !important;
+}
+
+.miami-swal-btn-cancel:hover {
+  background: #f1f5f9 !important;
+  border-color: #94a3b8 !important;
+  color: #1e293b !important;
+  transform: translateY(-1.5px) !important;
+}
+
+.miami-swal-btn-cancel:active {
+  transform: translateY(0) !important;
+}
+

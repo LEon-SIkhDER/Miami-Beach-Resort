@@ -4,7 +4,7 @@ import React from 'react';
 import toast from 'react-hot-toast';
 import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router'
-import Swal from 'sweetalert2'
+import { showCustomSwal } from '../../../utils/customSwal'
 import AddCategory from './AddCategory';
 import EditCategory from './EditCategory';
 import { parseFacilityList, parseRoomNumbers } from './categoryRoomUtils';
@@ -25,28 +25,27 @@ const CategoryAndPricing = () => {
         }
     })
 
-    const handleDelete = (category) => {
-        Swal.fire({
+    const handleDelete = async (category) => {
+        const confirmed = await showCustomSwal({
             title: "Delete Category?",
-            text: `This will permanently remove "${category.name}" and all its photos.`,
-            icon: "warning",
-            showCancelButton: true,
-            confirmButtonColor: "#e11d48",
-            cancelButtonColor: "#64748b",
-            confirmButtonText: "Yes, delete it!"
-        }).then(async (result) => {
-            if (result.isConfirmed) {
-                const toastId = toast.loading("Deleting category...")
-                try {
-                    const { data } = await axiosSecure.delete(`/categoryandroom/${category._id}`)
-                    if (data.deletedCount !== 1) throw new Error("Delete failed")
-                    await refetch()
-                    toast.success("Category deleted", { id: toastId })
-                } catch (error) {
-                    toast.error(error.message || "Something went wrong", { id: toastId })
-                }
-            }
+            des: `This will permanently remove "${category.name}" and all its photos.`,
+            icon: Trash2,
+            confirmButtonText: "Yes, Delete",
+            cancelButtonText: "Cancel",
+            isDanger: true
         })
+
+        if (confirmed) {
+            const toastId = toast.loading("Deleting category...")
+            try {
+                const { data } = await axiosSecure.delete(`/categoryandroom/${category._id}`)
+                if (data.deletedCount !== 1) throw new Error("Delete failed")
+                await refetch()
+                toast.success("Category deleted", { id: toastId })
+            } catch (error) {
+                toast.error(error.message || "Something went wrong", { id: toastId })
+            }
+        }
     }
 
     return (

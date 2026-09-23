@@ -22,7 +22,8 @@ import {
     DollarSign,
     Tag,
     History,
-    Lock
+    Lock,
+    AlertTriangle
 } from 'lucide-react'
 import { parseFacilityList, parseRoomNumbers } from './categoryRoomUtils'
 import EditCategory from './EditCategory'
@@ -30,7 +31,7 @@ import OutOfOrderModal from '../Calender/OutOfOrderModal'
 import { AuthContext } from '../../../Context/AuthContext'
 import useRole from '../../../hooks/useRole'
 import useAxiosSecure from '../../../hooks/useAxiosSecure'
-import Swal from 'sweetalert2'
+import Swal, { showCustomSwal } from '../../../utils/customSwal'
 import toast from 'react-hot-toast'
 
 const SERVER_URL = import.meta.env.VITE_SERVER_URL || "https://miami-beach-resort.vercel.app"
@@ -147,28 +148,27 @@ const CategoryRoomDetails = () => {
         setActiveImageIndex(p => (p + 1) % photos.length)
     }
 
-    const handleDelete = () => {
-        Swal.fire({
+    const handleDelete = async () => {
+        const confirmed = await showCustomSwal({
             title: "Delete Category?",
-            text: `This will permanently remove "${category.name}" and all its photos.`,
-            icon: "warning",
-            showCancelButton: true,
-            confirmButtonColor: "#e11d48",
-            cancelButtonColor: "#64748b",
-            confirmButtonText: "Yes, delete it!"
-        }).then(async (result) => {
-            if (result.isConfirmed) {
-                const toastId = toast.loading("Deleting category...")
-                try {
-                    const { data } = await axiosSecure.delete(`/categoryandroom/${category._id}`)
-                    if (data.deletedCount !== 1) throw new Error("Delete failed")
-                    toast.success("Category deleted", { id: toastId })
-                    navigate("/dashboard/category&room")
-                } catch (error) {
-                    toast.error(error.message || "Something went wrong", { id: toastId })
-                }
-            }
+            des: `This will permanently remove "${category.name}" and all its photos.`,
+            icon: Trash2,
+            confirmButtonText: "Yes, Delete",
+            cancelButtonText: "Cancel",
+            isDanger: true
         })
+
+        if (confirmed) {
+            const toastId = toast.loading("Deleting category...")
+            try {
+                const { data } = await axiosSecure.delete(`/categoryandroom/${category._id}`)
+                if (data.deletedCount !== 1) throw new Error("Delete failed")
+                toast.success("Category deleted", { id: toastId })
+                navigate("/dashboard/category&room")
+            } catch (error) {
+                toast.error(error.message || "Something went wrong", { id: toastId })
+            }
+        }
     }
 
     const handleOpenOOOForRoom = (num) => {
@@ -181,15 +181,14 @@ const CategoryRoomDetails = () => {
     }
 
     const handleResolveOOO = async (oooRecord) => {
-        const confirmed = await Swal.fire({
+        const confirmed = await showCustomSwal({
             title: `Resolve Out of Order for Room ${oooRecord.roomNo}?`,
-            text: `This will mark Room ${oooRecord.roomNo} as active and available for guest reservations.`,
-            icon: "question",
-            showCancelButton: true,
+            des: `This will mark Room ${oooRecord.roomNo} as active and available for guest reservations.`,
+            icon: CheckCircle2,
             confirmButtonText: "Yes, Mark Active",
-            confirmButtonColor: "#01966e"
+            cancelButtonText: "Cancel"
         })
-        if (!confirmed.isConfirmed) return
+        if (!confirmed) return
 
         const toastId = toast.loading("Resolving room maintenance...")
         try {
@@ -244,16 +243,15 @@ const CategoryRoomDetails = () => {
     }
 
     const handleCancelSchedulePrice = async (effectiveDate) => {
-        const result = await Swal.fire({
+        const confirmed = await showCustomSwal({
             title: "Cancel Price Schedule?",
-            text: `Are you sure you want to cancel the scheduled price change for ${effectiveDate}?`,
-            icon: "warning",
-            showCancelButton: true,
-            confirmButtonColor: "#e11d48",
-            cancelButtonColor: "#64748b",
-            confirmButtonText: "Yes, Cancel Schedule"
+            des: `Are you sure you want to cancel the scheduled price change for ${effectiveDate}?`,
+            icon: AlertTriangle,
+            confirmButtonText: "Yes, Cancel Schedule",
+            cancelButtonText: "Keep Schedule",
+            isDanger: true
         })
-        if (!result.isConfirmed) return
+        if (!confirmed) return
 
         const toastId = toast.loading("Canceling scheduled price...")
         try {
