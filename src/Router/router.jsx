@@ -1,4 +1,4 @@
-import { createBrowserRouter } from "react-router"
+import { createBrowserRouter, Navigate } from "react-router"
 import Root from "../Layout/Root"
 import Home from "../Pages/Home/Home"
 import About from "../Pages/About/About"
@@ -69,6 +69,7 @@ export const router = createBrowserRouter([
             { path: "bookings/:id", Component: BookingDetails },
             { path: "cancellations", element: <RoleRoute allowedRoles={["admin", "manager", "agent"]}><CancelledBookings /></RoleRoute> },
             { path: "income", element: <RoleRoute allowedRoles={["admin", "manager"]}><IncomeAnalytics /></RoleRoute> },
+            { path: "workflow", element: <Navigate to="/dashboard/income" replace /> },
             { path: "category&room", element: <RoleRoute allowedRoles={["admin", "manager"]}><CategoryAndPricing /></RoleRoute> },
             { path: "category&room/:id", element: <RoleRoute allowedRoles={["admin", "manager"]}><CategoryRoomDetails /></RoleRoute> },
             { path: "users", element: <RoleRoute allowedRoles={["admin", "manager"]}><Users /></RoleRoute> },

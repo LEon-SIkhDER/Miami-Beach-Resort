@@ -176,8 +176,8 @@ const Bookings = () => {
 
     const statusMutation = useMutation({
         mutationFn: async ({ id, status }) => {
-            const res = await axiosSecure.patch(`/booking/${id}`, { 
-                status, 
+            const res = await axiosSecure.patch(`/booking/${id}`, {
+                status,
                 requestedByRole: role || "user",
                 changedBy: {
                     name: currentUser?.displayName || "Admin / Staff",
@@ -249,9 +249,9 @@ const Bookings = () => {
                 if (!r.roomNo) return false
                 const checkIn = r.checkIn
                 const checkOut = r.checkOut
-                return outOfOrderList.some(ooo => 
-                    ooo && ooo.status === "active" && 
-                    String(ooo.roomNo).trim() === String(r.roomNo).trim() && 
+                return outOfOrderList.some(ooo =>
+                    ooo && ooo.status === "active" &&
+                    String(ooo.roomNo).trim() === String(r.roomNo).trim() &&
                     ooo.startDate < checkOut && ooo.endDate > checkIn
                 )
             })
@@ -321,11 +321,11 @@ const Bookings = () => {
     const renderReferenceBadge = (booking) => {
         const ref = booking.reference || booking.bookedBy?.name || "Website Direct"
         const actorRole = booking.bookedBy?.role || booking.requestedByRole || (ref === "Website Direct" ? "user" : "agent")
-        
+
         let rolePillClass = "bg-slate-100 text-slate-700 border-slate-200"
         let IconComponent = UserCheck
         let displayRole = "Direct Guest"
-        
+
         if (actorRole === "admin") {
             rolePillClass = "bg-amber-50 text-amber-800 border-amber-200"
             IconComponent = Shield
@@ -409,7 +409,7 @@ const Bookings = () => {
                     </div>
                 </div>
 
-                <div className="flex flex-wrap items-center gap-2.5">
+                <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-2">
                     <div className="relative">
                         <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                         <input
@@ -417,33 +417,36 @@ const Bookings = () => {
                             placeholder="Search by name, ID, ref..."
                             value={search}
                             onChange={e => setSearch(e.target.value)}
-                            className="input input-sm input-bordered pl-9 rounded-xl w-44 sm:w-52 bg-white"
+                            className="input input-sm input-bordered pl-9 rounded-xl w-full sm:w-52 bg-white"
                         />
                     </div>
+                    <div className='flex flex-row gap-2 '>
 
-                    {isStaff && uniqueReferences.length > 0 && (
+                        {isStaff && uniqueReferences.length > 0 && (
+                            <select
+                                className="select select-sm select-bordered rounded-xl bg-white text-xs font-semibold w-full sm:w-auto "
+                                value={refFilter}
+                                onChange={e => setRefFilter(e.target.value)}
+                            >
+                                <option value="">All References / Agents</option>
+                                {uniqueReferences.map(r => (
+                                    <option key={r} value={r}>Ref: {r}</option>
+                                ))}
+                            </select>
+                        )}
+
                         <select
-                            className="select select-sm select-bordered rounded-xl bg-white text-xs font-semibold"
-                            value={refFilter}
-                            onChange={e => setRefFilter(e.target.value)}
+                            className="select select-sm select-bordered rounded-xl bg-white text-xs font-semibold w-full sm:w-auto"
+                            value={statusFilter}
+                            onChange={e => setStatusFilter(e.target.value)}
                         >
-                            <option value="">All References / Agents</option>
-                            {uniqueReferences.map(r => (
-                                <option key={r} value={r}>Ref: {r}</option>
+                            <option value="">All Statuses</option>
+                            {STATUS_OPTIONS.map(option => (
+                                <option key={option.value} value={option.value}>{option.label}</option>
                             ))}
                         </select>
-                    )}
+                    </div>
 
-                    <select
-                        className="select select-sm select-bordered rounded-xl bg-white text-xs font-semibold"
-                        value={statusFilter}
-                        onChange={e => setStatusFilter(e.target.value)}
-                    >
-                        <option value="">All Statuses</option>
-                        {STATUS_OPTIONS.map(option => (
-                            <option key={option.value} value={option.value}>{option.label}</option>
-                        ))}
-                    </select>
                 </div>
             </div>
 
@@ -490,86 +493,86 @@ const Bookings = () => {
                                 const roomSummary = bookingRooms.map(room => getRoomName(room)).join(", ") || b.roomName || b.roomCategory
 
                                 return (
-                                <tr key={b._id} className="hover:bg-slate-50/80 transition-colors">
-                                    {/* No. Column */}
-                                    <td className="text-center font-mono text-xs font-semibold text-slate-500 whitespace-nowrap">
-                                        {(pageState - 1) * limit + idx + 1}
-                                    </td>
+                                    <tr key={b._id} className="hover:bg-slate-50/80 transition-colors">
+                                        {/* No. Column */}
+                                        <td className="text-center font-mono text-xs font-semibold text-slate-500 whitespace-nowrap">
+                                            {(pageState - 1) * limit + idx + 1}
+                                        </td>
 
-                                    {/* Reservation & Room Suite */}
-                                    <td className="whitespace-nowrap">
-                                        <div className="space-y-1">
-                                            <div className="flex items-center gap-1.5">
-                                                <Link 
-                                                    to={`/dashboard/bookings/${b._id}`}
-                                                    className="font-mono text-xs font-bold text-teal-700 bg-teal-50 hover:bg-teal-100 px-2 py-0.5 rounded-lg border border-teal-200/60 inline-flex items-center gap-1 whitespace-nowrap"
-                                                >
-                                                    <span>{b.bookingId}</span>
-                                                </Link>
-                                                <span className="text-[10px] font-semibold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">
-                                                    {bookingRooms.length} Rm{bookingRooms.length > 1 ? 's' : ''}
-                                                </span>
-                                            </div>
-                                            <p className="font-semibold text-slate-800 text-xs max-w-[200px] truncate" title={roomSummary}>
-                                                {roomSummary}
-                                            </p>
-                                        </div>
-                                    </td>
-
-                                    {/* Guest Info */}
-                                    <td className="whitespace-nowrap">
-                                        <p className="font-bold text-slate-900">{b.name}</p>
-                                        <p className="text-xs text-slate-500 font-medium">{b.mobile}</p>
-                                    </td>
-
-                                    {/* Booked By / Ref Staff Tracking */}
-                                    <td className="whitespace-nowrap">
-                                        <div className="flex flex-col gap-0.5">
-                                            {b.reference ? (
-                                                <span className="font-bold text-teal-900 text-xs flex items-center gap-1">
-                                                    <UserCheck size={13} className="text-teal-600" />
-                                                    {b.reference}
-                                                </span>
-                                            ) : (
-                                                <span className="text-xs text-slate-400 italic">Direct Guest</span>
-                                            )}
-                                            {(b.bookedBy?.name || b.createdBy?.name) && (
-                                                <div className="flex items-center gap-1 text-[11px] text-slate-500">
-                                                    <span>by {b.bookedBy?.name || b.createdBy?.name}</span>
-                                                    {getActorRoleBadge(b.bookedBy?.role || b.createdBy?.role || b.requestedByRole || "user")}
+                                        {/* Reservation & Room Suite */}
+                                        <td className="whitespace-nowrap">
+                                            <div className="space-y-1">
+                                                <div className="flex items-center gap-1.5">
+                                                    <Link
+                                                        to={`/dashboard/bookings/${b._id}`}
+                                                        className="font-mono text-xs font-bold text-teal-700 bg-teal-50 hover:bg-teal-100 px-2 py-0.5 rounded-lg border border-teal-200/60 inline-flex items-center gap-1 whitespace-nowrap"
+                                                    >
+                                                        <span>{b.bookingId}</span>
+                                                    </Link>
+                                                    <span className="text-[10px] font-semibold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">
+                                                        {bookingRooms.length} Rm{bookingRooms.length > 1 ? 's' : ''}
+                                                    </span>
                                                 </div>
-                                            )}
-                                        </div>
-                                    </td>
+                                                <p className="font-semibold text-slate-800 text-xs max-w-[200px] truncate" title={roomSummary}>
+                                                    {roomSummary}
+                                                </p>
+                                            </div>
+                                        </td>
 
-                                    {/* Stay Dates (2 Lines) */}
-                                    <td className="text-xs whitespace-nowrap">
-                                        <div className="space-y-0.5">
-                                            <p className="font-semibold text-slate-800 flex items-center gap-1.5">
-                                                <span className="text-[9px] font-bold text-teal-800 bg-teal-50 border border-teal-200 px-1 py-0.2 rounded">In</span>
-                                                <span>{formatDate(b.checkIn || bookingRooms[0]?.checkIn)}</span>
-                                            </p>
-                                            <p className="text-slate-500 text-[11px] flex items-center gap-1.5">
-                                                <span className="text-[9px] font-bold text-slate-600 bg-slate-100 border border-slate-200 px-1 py-0.2 rounded">Out</span>
-                                                <span>{formatDate(b.checkOut || bookingRooms[0]?.checkOut)}</span>
-                                            </p>
-                                        </div>
-                                    </td>
+                                        {/* Guest Info */}
+                                        <td className="whitespace-nowrap">
+                                            <p className="font-bold text-slate-900">{b.name}</p>
+                                            <p className="text-xs text-slate-500 font-medium">{b.mobile}</p>
+                                        </td>
 
-                                    {/* Total Bill */}
-                                    <td className="font-bold text-slate-900 whitespace-nowrap">
-                                        ৳{Number(totalAmount || 0).toLocaleString()}
-                                    </td>
+                                        {/* Booked By / Ref Staff Tracking */}
+                                        <td className="whitespace-nowrap">
+                                            <div className="flex flex-col gap-0.5">
+                                                {b.reference ? (
+                                                    <span className="font-bold text-teal-900 text-xs flex items-center gap-1">
+                                                        <UserCheck size={13} className="text-teal-600" />
+                                                        {b.reference}
+                                                    </span>
+                                                ) : (
+                                                    <span className="text-xs text-slate-400 italic">Direct Guest</span>
+                                                )}
+                                                {(b.bookedBy?.name || b.createdBy?.name) && (
+                                                    <div className="flex items-center gap-1 text-[11px] text-slate-500">
+                                                        <span>by {b.bookedBy?.name || b.createdBy?.name}</span>
+                                                        {getActorRoleBadge(b.bookedBy?.role || b.createdBy?.role || b.requestedByRole || "user")}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </td>
 
-                                    {/* Status Badge */}
-                                    <td className="whitespace-nowrap">
-                                        {statusBadge(b.status)}
-                                    </td>
+                                        {/* Stay Dates (2 Lines) */}
+                                        <td className="text-xs whitespace-nowrap">
+                                            <div className="space-y-0.5">
+                                                <p className="font-semibold text-slate-800 flex items-center gap-1.5">
+                                                    <span className="text-[9px] font-bold text-teal-800 bg-teal-50 border border-teal-200 px-1 py-0.2 rounded">In</span>
+                                                    <span>{formatDate(b.checkIn || bookingRooms[0]?.checkIn)}</span>
+                                                </p>
+                                                <p className="text-slate-500 text-[11px] flex items-center gap-1.5">
+                                                    <span className="text-[9px] font-bold text-slate-600 bg-slate-100 border border-slate-200 px-1 py-0.2 rounded">Out</span>
+                                                    <span>{formatDate(b.checkOut || bookingRooms[0]?.checkOut)}</span>
+                                                </p>
+                                            </div>
+                                        </td>
 
-                                    {/* Actions */}
-                                    <td className="text-center whitespace-nowrap">
-                                        <div className="flex items-center justify-center gap-1.5">
-                                            {/* <button
+                                        {/* Total Bill */}
+                                        <td className="font-bold text-slate-900 whitespace-nowrap">
+                                            ৳{Number(totalAmount || 0).toLocaleString()}
+                                        </td>
+
+                                        {/* Status Badge */}
+                                        <td className="whitespace-nowrap">
+                                            {statusBadge(b.status)}
+                                        </td>
+
+                                        {/* Actions */}
+                                        <td className="text-center whitespace-nowrap">
+                                            <div className="flex items-center justify-center gap-1.5">
+                                                {/* <button
                                                 type="button"
                                                 onClick={() => setVoucherBooking(b)}
                                                 className="btn btn-xs bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200/60 rounded-lg gap-1 font-bold"
@@ -579,61 +582,62 @@ const Bookings = () => {
                                                 <span>Print Invoice</span>
                                             </button> */}
 
-                                            <div className="dropdown dropdown-end">
-                                                <div tabIndex={-1} role="button" className="btn btn-ghost btn-xs btn-circle text-slate-500 hover:text-slate-900">
-                                                    <EllipsisVertical size={18} />
+                                                <div className="dropdown dropdown-end">
+                                                    <div tabIndex={-1} role="button" className="btn btn-ghost btn-xs btn-circle text-slate-500 hover:text-slate-900">
+                                                        <EllipsisVertical size={18} />
+                                                    </div>
+                                                    <ul tabIndex={-1} className="dropdown-content menu bg-base-100 rounded-box z-10 w-56 p-2 shadow-lg border border-slate-100">
+                                                        <li>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => setVoucherBooking(b)}
+                                                                className="text-slate-600 hover:text-teal-700 hover:bg-teal-50"
+                                                            >
+                                                                <Printer size={15} /> Print Invoice
+                                                            </button>
+                                                        </li>
+                                                        <li>
+                                                            <Link to={`/dashboard/bookings/${b._id}`} className="text-slate-600 hover:text-teal-700 hover:bg-teal-50">
+                                                                <Eye size={15} /> View Details
+                                                            </Link>
+                                                        </li>
+                                                        {canEdit && (
+                                                            <li>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => setEditModalBooking(b)}
+                                                                    className="text-slate-600 hover:text-teal-700 hover:bg-teal-50"
+                                                                >
+                                                                    <Pencil size={15} /> Edit Reservation
+                                                                </button>
+                                                            </li>
+                                                        )}
+                                                        {getStatusActions(b).map(status => (
+                                                            <li key={status}>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => handleStatusChange(b, status)}
+                                                                    className={status === BOOKING_STATUS.CANCEL ? "text-rose-600 hover:bg-rose-50" : status === BOOKING_STATUS.BOOKING_CONFIRMED ? "text-emerald-700 hover:bg-emerald-50 font-semibold" : "text-slate-600 hover:text-teal-700 hover:bg-teal-50"}
+                                                                >
+                                                                    {status === BOOKING_STATUS.CANCEL ? <XCircle size={15} /> : <CheckCircle2 size={15} />}
+                                                                    {statusText(status)}
+                                                                </button>
+                                                            </li>
+                                                        ))}
+                                                        {canDelete && (
+                                                            <li>
+                                                                <button type="button" onClick={() => handleDelete(b)} className="text-rose-600 hover:bg-rose-50">
+                                                                    <Trash2 size={15} /> Delete
+                                                                </button>
+                                                            </li>
+                                                        )}
+                                                    </ul>
                                                 </div>
-                                                <ul tabIndex={-1} className="dropdown-content menu bg-base-100 rounded-box z-10 w-56 p-2 shadow-lg border border-slate-100">
-                                                    <li>
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => setVoucherBooking(b)}
-                                                            className="text-slate-600 hover:text-teal-700 hover:bg-teal-50"
-                                                        >
-                                                            <Printer size={15} /> Print Invoice
-                                                        </button>
-                                                    </li>
-                                                    <li>
-                                                        <Link to={`/dashboard/bookings/${b._id}`} className="text-slate-600 hover:text-teal-700 hover:bg-teal-50">
-                                                            <Eye size={15} /> View Details
-                                                        </Link>
-                                                    </li>
-                                                {canEdit && (
-                                                    <li>
-                                                        <button 
-                                                            type="button" 
-                                                            onClick={() => setEditModalBooking(b)} 
-                                                            className="text-slate-600 hover:text-teal-700 hover:bg-teal-50"
-                                                        >
-                                                            <Pencil size={15} /> Edit Reservation
-                                                        </button>
-                                                    </li>
-                                                )}
-                                                {getStatusActions(b).map(status => (
-                                                    <li key={status}>
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => handleStatusChange(b, status)}
-                                                            className={status === BOOKING_STATUS.CANCEL ? "text-rose-600 hover:bg-rose-50" : status === BOOKING_STATUS.BOOKING_CONFIRMED ? "text-emerald-700 hover:bg-emerald-50 font-semibold" : "text-slate-600 hover:text-teal-700 hover:bg-teal-50"}
-                                                        >
-                                                            {status === BOOKING_STATUS.CANCEL ? <XCircle size={15} /> : <CheckCircle2 size={15} />}
-                                                            {statusText(status)}
-                                                        </button>
-                                                    </li>
-                                                ))}
-                                                {canDelete && (
-                                                    <li>
-                                                        <button type="button" onClick={() => handleDelete(b)} className="text-rose-600 hover:bg-rose-50">
-                                                            <Trash2 size={15} /> Delete
-                                                        </button>
-                                                    </li>
-                                                )}
-                                                </ul>
                                             </div>
-                                        </div>
-                                    </td>
-                                </tr>
-                            )})
+                                        </td>
+                                    </tr>
+                                )
+                            })
                         )}
                     </tbody>
                 </table>
@@ -664,105 +668,106 @@ const Bookings = () => {
                         const totalAmount = getBookingTotal(b)
 
                         return (
-                        <div key={b._id} className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-xs space-y-3">
-                            <div className="flex items-start justify-between gap-2">
-                                <div className="min-w-0">
-                                    <div className="flex items-center gap-1.5">
-                                        <span className="font-mono text-xs font-bold text-slate-400">
-                                            #{(pageState - 1) * limit + idx + 1}
-                                        </span>
+                            <div key={b._id} className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-xs space-y-3">
+                                <div className="flex items-start justify-between gap-2">
+                                    <div className="min-w-0">
+                                        <div className="flex items-center gap-1.5">
+                                            <span className="font-mono text-xs font-bold text-slate-400">
+                                                #{(pageState - 1) * limit + idx + 1}
+                                            </span>
+                                            <Link
+                                                to={`/dashboard/bookings/${b._id}`}
+                                                className="font-mono text-xs font-bold text-teal-700 bg-teal-50 hover:bg-teal-100 px-2 py-0.5 rounded-md border border-teal-200/50 inline-block"
+                                            >
+                                                {b.bookingId}
+                                            </Link>
+                                        </div>
+                                        <h3 className="font-bold text-slate-900 text-sm sm:text-base mt-1.5 truncate">{b.name}</h3>
+                                    </div>
+                                    <div className="shrink-0">
+                                        {statusBadge(b.status)}
+                                    </div>
+                                </div>
+
+                                {/* Reference Badge on Mobile */}
+                                <div className="pt-0.5">
+                                    {renderReferenceBadge(b)}
+                                </div>
+
+                                <div className="text-xs text-slate-600 space-y-1.5 bg-slate-50 p-3 sm:p-3.5 rounded-xl">
+                                    <p className="flex items-center gap-2"><Phone size={13} className="text-teal-600 shrink-0" /> {b.mobile}</p>
+                                    {b.address && <p className="flex items-start gap-2"><MapPin size={13} className="text-teal-600 shrink-0 mt-0.5" /> <span>{b.address}</span></p>}
+                                    <p className="flex items-center gap-2"><BedDouble size={13} className="text-teal-600 shrink-0" /> {bookingRooms.length > 1 ? `${bookingRooms.length} Rooms - ${roomTitle}` : roomTitle}</p>
+                                    <p className="flex items-center gap-2"><Calendar size={13} className="text-teal-600 shrink-0" /> {dateSummary}</p>
+                                    <p className="flex items-center gap-2"><UsersIcon size={13} className="text-teal-600 shrink-0" /> {guestTotals.adults} Adults {guestTotals.babies > 0 ? `- ${guestTotals.babies} Baby` : ""}</p>
+                                    <p className="pt-1 font-bold text-teal-900">Total: ৳{Number(totalAmount || 0).toLocaleString()}</p>
+                                </div>
+
+                                <div className="flex items-center justify-between pt-1 flex-wrap gap-y-2">
+                                    <div className="flex items-center gap-1.5 flex-wrap">
                                         <Link
                                             to={`/dashboard/bookings/${b._id}`}
-                                            className="font-mono text-xs font-bold text-teal-700 bg-teal-50 hover:bg-teal-100 px-2 py-0.5 rounded-md border border-teal-200/50 inline-block"
+                                            className="btn btn-sm btn-outline border-slate-300 text-slate-700 hover:bg-slate-50 rounded-xl gap-1"
                                         >
-                                            {b.bookingId}
+                                            <Eye size={15} /> Details
                                         </Link>
-                                    </div>
-                                    <h3 className="font-bold text-slate-900 text-sm sm:text-base mt-1.5 truncate">{b.name}</h3>
-                                </div>
-                                <div className="shrink-0">
-                                    {statusBadge(b.status)}
-                                </div>
-                            </div>
-
-                            {/* Reference Badge on Mobile */}
-                            <div className="pt-0.5">
-                                {renderReferenceBadge(b)}
-                            </div>
-
-                            <div className="text-xs text-slate-600 space-y-1.5 bg-slate-50 p-3 sm:p-3.5 rounded-xl">
-                                <p className="flex items-center gap-2"><Phone size={13} className="text-teal-600 shrink-0" /> {b.mobile}</p>
-                                {b.address && <p className="flex items-start gap-2"><MapPin size={13} className="text-teal-600 shrink-0 mt-0.5" /> <span>{b.address}</span></p>}
-                                <p className="flex items-center gap-2"><BedDouble size={13} className="text-teal-600 shrink-0" /> {bookingRooms.length > 1 ? `${bookingRooms.length} Rooms - ${roomTitle}` : roomTitle}</p>
-                                <p className="flex items-center gap-2"><Calendar size={13} className="text-teal-600 shrink-0" /> {dateSummary}</p>
-                                <p className="flex items-center gap-2"><UsersIcon size={13} className="text-teal-600 shrink-0" /> {guestTotals.adults} Adults {guestTotals.babies > 0 ? `- ${guestTotals.babies} Baby` : ""}</p>
-                                <p className="pt-1 font-bold text-teal-900">Total: ৳{Number(totalAmount || 0).toLocaleString()}</p>
-                            </div>
-
-                            <div className="flex items-center justify-between pt-1">
-                                <div className="flex items-center gap-1.5 flex-wrap">
-                                    <Link
-                                        to={`/dashboard/bookings/${b._id}`}
-                                        className="btn btn-sm btn-outline border-slate-300 text-slate-700 hover:bg-slate-50 rounded-xl gap-1"
-                                    >
-                                        <Eye size={15} /> Details
-                                    </Link>
-                                    <button
-                                        type="button"
-                                        onClick={() => setVoucherBooking(b)}
-                                        className="btn btn-sm bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200/60 rounded-xl gap-1 font-semibold"
-                                        title="Print Invoice"
-                                    >
-                                        <Printer size={14} /> Invoice
-                                    </button>
-                                    {canEdit && (
                                         <button
                                             type="button"
-                                            onClick={() => setEditModalBooking(b)}
-                                            className="btn btn-sm btn-ghost text-teal-700 hover:bg-teal-50 rounded-xl gap-1"
+                                            onClick={() => setVoucherBooking(b)}
+                                            className="btn btn-sm bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200/60 rounded-xl gap-1 font-semibold"
+                                            title="Print Invoice"
                                         >
-                                            <Pencil size={14} /> Edit
+                                            <Printer size={14} /> Invoice
                                         </button>
-                                    )}
-                                </div>
-                                <div className="dropdown dropdown-left">
-                                    <div tabIndex={0} role="button" className="cursor-pointer rounded-full hover:bg-gray-100 p-2 border border-transparent hover:border-gray-200">
-                                        <EllipsisVertical size={18} />
-                                    </div>
-                                    <ul tabIndex={-1} className="dropdown-content menu bg-base-100 rounded-box z-10 w-56 p-2 shadow-lg border border-slate-100">
-                                        <li>
+                                        {canEdit && (
                                             <button
                                                 type="button"
-                                                onClick={() => setVoucherBooking(b)}
-                                                className="text-slate-600 hover:text-teal-700 hover:bg-teal-50"
+                                                onClick={() => setEditModalBooking(b)}
+                                                className="btn btn-sm btn-ghost text-teal-700 hover:bg-teal-50 rounded-xl gap-1"
                                             >
-                                                <Printer size={15} /> Print Invoice
+                                                <Pencil size={14} /> Edit
                                             </button>
-                                        </li>
-                                        {getStatusActions(b).map(status => (
-                                            <li key={status}>
+                                        )}
+                                    </div>
+                                    <div className="dropdown dropdown-left">
+                                        <div tabIndex={0} role="button" className="cursor-pointer rounded-full hover:bg-gray-100 p-2 border border-transparent hover:border-gray-200">
+                                            <EllipsisVertical size={18} />
+                                        </div>
+                                        <ul tabIndex={-1} className="dropdown-content menu bg-base-100 rounded-box z-10 w-56 p-2 shadow-lg border border-slate-100">
+                                            <li>
                                                 <button
                                                     type="button"
-                                                    onClick={() => handleStatusChange(b, status)}
-                                                    className={status === BOOKING_STATUS.CANCEL ? "text-rose-600 hover:bg-rose-50" : status === BOOKING_STATUS.BOOKING_CONFIRMED ? "text-emerald-700 hover:bg-emerald-50 font-semibold" : "text-slate-600 hover:text-teal-700 hover:bg-teal-50"}
+                                                    onClick={() => setVoucherBooking(b)}
+                                                    className="text-slate-600 hover:text-teal-700 hover:bg-teal-50"
                                                 >
-                                                    {status === BOOKING_STATUS.CANCEL ? <XCircle size={15} /> : <CheckCircle2 size={15} />}
-                                                    {statusText(status)}
+                                                    <Printer size={15} /> Print Invoice
                                                 </button>
                                             </li>
-                                        ))}
-                                        {canDelete && (
-                                            <li>
-                                                <button type="button" onClick={() => handleDelete(b)} className="text-rose-600 hover:bg-rose-50">
-                                                    <Trash2 size={15} /> Delete
-                                                </button>
-                                            </li>
-                                        )}
-                                    </ul>
+                                            {getStatusActions(b).map(status => (
+                                                <li key={status}>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleStatusChange(b, status)}
+                                                        className={status === BOOKING_STATUS.CANCEL ? "text-rose-600 hover:bg-rose-50" : status === BOOKING_STATUS.BOOKING_CONFIRMED ? "text-emerald-700 hover:bg-emerald-50 font-semibold" : "text-slate-600 hover:text-teal-700 hover:bg-teal-50"}
+                                                    >
+                                                        {status === BOOKING_STATUS.CANCEL ? <XCircle size={15} /> : <CheckCircle2 size={15} />}
+                                                        {statusText(status)}
+                                                    </button>
+                                                </li>
+                                            ))}
+                                            {canDelete && (
+                                                <li>
+                                                    <button type="button" onClick={() => handleDelete(b)} className="text-rose-600 hover:bg-rose-50">
+                                                        <Trash2 size={15} /> Delete
+                                                    </button>
+                                                </li>
+                                            )}
+                                        </ul>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
-                    )})
+                        )
+                    })
                 )}
             </div>
 
@@ -805,11 +810,10 @@ const Bookings = () => {
                                 key={index}
                                 type="button"
                                 onClick={() => handlePageState(pageNumber)}
-                                className={`btn btn-sm sm:btn-md h-10 min-h-10 w-10 rounded-full border text-sm font-bold shadow-none transition-all cursor-pointer ${
-                                    pageState === pageNumber
+                                className={`btn btn-sm sm:btn-md h-10 min-h-10 w-10 rounded-full border text-sm font-bold shadow-none transition-all cursor-pointer ${pageState === pageNumber
                                         ? 'bg-teal-700 text-white border-teal-700 hover:bg-teal-800 hover:border-teal-800'
                                         : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
-                                } items-center justify-center`}
+                                    } items-center justify-center`}
                             >
                                 {pageNumber}
                             </button>

@@ -1,4 +1,4 @@
-import React, { useContext, useState } from 'react'
+import React, { useContext, useState, useRef, useEffect } from 'react'
 import { AuthContext } from '../../../Context/AuthContext'
 import useAxiosSecure from '../../../hooks/useAxiosSecure'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
@@ -46,15 +46,45 @@ const Users = () => {
     const axiosSecure = useAxiosSecure()
     const queryClient = useQueryClient()
     const [search, setSearch] = useState("")
+    const [debouncedSearch, setDebouncedSearch] = useState("")
     const [roleFilter, setRoleFilter] = useState("all")
     const [selectedWorkflowUser, setSelectedWorkflowUser] = useState(null)
+    const searchTimeoutRef = useRef(null)
+
+    // Debounce search input by 500ms using timeout stored in ref
+    const handleSearchChange = (e) => {
+        const value = e.target.value
+        setSearch(value)
+        if (searchTimeoutRef.current) {
+            clearTimeout(searchTimeoutRef.current)
+        }
+        searchTimeoutRef.current = setTimeout(() => {
+            setDebouncedSearch(value)
+        }, 500)
+    }
+
+    const handleClearSearch = () => {
+        if (searchTimeoutRef.current) {
+            clearTimeout(searchTimeoutRef.current)
+        }
+        setSearch("")
+        setDebouncedSearch("")
+    }
+
+    useEffect(() => {
+        return () => {
+            if (searchTimeoutRef.current) {
+                clearTimeout(searchTimeoutRef.current)
+            }
+        }
+    }, [])
 
     // Filtered users query
     const { data: users = [], isLoading } = useQuery({
-        queryKey: ["all-users", search, roleFilter],
+        queryKey: ["all-users", debouncedSearch, roleFilter],
         queryFn: async () => {
             const params = new URLSearchParams()
-            if (search) params.append("search", search)
+            if (debouncedSearch) params.append("search", debouncedSearch)
             if (roleFilter && roleFilter !== "all") params.append("role", roleFilter)
             const res = await axiosSecure.get(`/users?${params.toString()}`)
             return res.data
@@ -225,12 +255,12 @@ const Users = () => {
                                 placeholder="Search by name, email, phone..."
                                 className="input input-sm input-bordered pl-8.5 pr-7 rounded-xl w-full bg-slate-50 focus:bg-white text-xs"
                                 value={search}
-                                onChange={e => setSearch(e.target.value)}
+                                onChange={handleSearchChange}
                             />
                             {search && (
                                 <button
                                     type="button"
-                                    onClick={() => setSearch("")}
+                                    onClick={handleClearSearch}
                                     className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs"
                                     title="Clear search"
                                 >
@@ -242,7 +272,7 @@ const Users = () => {
                 </div>
 
                 {/* Active filter summary tag if filtered */}
-                {(roleFilter !== "all" || search) && (
+                {(roleFilter !== "all" || debouncedSearch || search) && (
                     <div className="flex items-center justify-between text-xs pt-2 border-t border-slate-100 text-slate-500">
                         <div className="flex items-center gap-2">
                             <span>Showing <strong>{users.length}</strong> matching user{users.length !== 1 ? 's' : ''}</span>
@@ -251,9 +281,9 @@ const Users = () => {
                                     Role: {ROLE_LABELS[roleFilter] || roleFilter}
                                 </span>
                             )}
-                            {search && (
+                            {(debouncedSearch || search) && (
                                 <span className="badge badge-xs bg-slate-100 text-slate-700 font-semibold border-none">
-                                    Query: "{search}"
+                                    Query: "{debouncedSearch || search}"
                                 </span>
                             )}
                         </div>
@@ -261,7 +291,7 @@ const Users = () => {
                             type="button"
                             onClick={() => {
                                 setRoleFilter("all")
-                                setSearch("")
+                                handleClearSearch()
                             }}
                             className="text-teal-700 hover:underline font-bold text-xs"
                         >

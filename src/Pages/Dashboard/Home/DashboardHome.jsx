@@ -208,7 +208,7 @@ const DashboardHome = () => {
                         </p>
                     </div>
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                         <Link to="/dashboard/users" className="btn btn-sm btn-outline border-slate-300 text-slate-700 hover:bg-slate-50 rounded-xl font-bold">
                             <Users size={14} /> Users & Roles
                         </Link>
@@ -324,8 +324,8 @@ const DashboardHome = () => {
                         </div>
 
                         <div className="flex items-center gap-2">
-                            <Link to="/dashboard/workflow" className="btn btn-xs bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-xl gap-1 shadow-2xs border-none">
-                                Open Dedicated Workflow Page <ArrowUpRight size={13} />
+                            <Link to="/dashboard/income" className="btn btn-xs bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-xl gap-1 shadow-2xs border-none">
+                                View Sales Report <ArrowUpRight size={13} />
                             </Link>
                             <Link to="/dashboard/users" className="text-xs font-bold text-teal-700 hover:underline flex items-center gap-1">
                                 Manage Roles <ExternalLink size={12} />
@@ -433,7 +433,7 @@ const DashboardHome = () => {
                             </div>
 
                             {/* Search Box */}
-                            <div className="relative shrink-0 sm:w-64">
+                            <div className="relative w-full sm:w-64">
                                 <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                                 <input
                                     type="text"

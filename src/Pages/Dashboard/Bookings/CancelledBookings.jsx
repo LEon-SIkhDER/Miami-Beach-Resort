@@ -92,7 +92,7 @@ const CancelledBookings = () => {
                     </p>
                 </div>
 
-                <div className="relative">
+                <div className="relative w-full sm:w-auto">
                     <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                     <input
                         type="text"

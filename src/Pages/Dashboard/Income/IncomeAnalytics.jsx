@@ -8,6 +8,7 @@ import useAxiosSecure from '../../../hooks/useAxiosSecure'
 import { useQuery } from '@tanstack/react-query'
 import { AuthContext } from '../../../Context/AuthContext'
 import SalesReportPdfModal from './SalesReportPdfModal'
+import SalesReportFilterModal from './SalesReportFilterModal'
 import { exportSalesToExcel } from './exportSalesExcel'
 import { exportSalesToPdf } from './exportSalesPdf'
 import {
@@ -23,6 +24,7 @@ import {
     Sparkles,
     BarChart3,
     Filter,
+    SlidersHorizontal,
     RotateCcw,
     Users,
     Briefcase,
@@ -58,6 +60,7 @@ const IncomeAnalytics = () => {
     const [endDate, setEndDate] = useState(() => endOfMonth(new Date()))
     const [activePreset, setActivePreset] = useState("month")
     const [isRoomBreakdownOpen, setIsRoomBreakdownOpen] = useState(false)
+    const [isFilterModalOpen, setIsFilterModalOpen] = useState(false)
 
     // Debounce search input by 200ms
     useEffect(() => {
@@ -136,10 +139,40 @@ const IncomeAnalytics = () => {
         },
         placeholderData: (previousData) => previousData,
         refetchOnWindowFocus: false,
+        staleTime: 5 * 60 * 1000,
     })
 
+    // Track when user actively triggers filter/search changes (avoids showing spinner on background refetches or initial mount)
+    const isInitialMount = useRef(true)
+    const [userTriggeredFilter, setUserTriggeredFilter] = useState(false)
 
-    const isFiltering = isIncomeFetching || isPending || (search !== debouncedSearch)
+    useEffect(() => {
+        if (isInitialMount.current) {
+            isInitialMount.current = false
+            return
+        }
+        setUserTriggeredFilter(true)
+    }, [
+        debouncedSearch,
+        selectedCategory,
+        selectedRole,
+        selectedWorker,
+        selectedGuestType,
+        selectedRoom,
+        selectedBookingStatus,
+        formattedStart,
+        formattedEnd,
+        pageState
+    ])
+
+    useEffect(() => {
+        if (!isIncomeFetching && search === debouncedSearch && !isPending) {
+            setUserTriggeredFilter(false)
+        }
+    }, [isIncomeFetching, search, debouncedSearch, isPending])
+
+    const showFilterSpinner = (userTriggeredFilter && isIncomeFetching) || (search !== debouncedSearch) || isPending
+    const isFiltering = showFilterSpinner
 
     // Fetch all users for worker / agent / b2b dropdown filters
     const { data: allUsers = [] } = useQuery({
@@ -275,6 +308,30 @@ const IncomeAnalytics = () => {
     }, [totalPages, pageState])
 
     const isAnyFilterActive = isDateFiltered || selectedRole !== "all" || selectedWorker !== "all" || selectedCategory !== "all" || selectedGuestType !== "all" || selectedRoom !== "all" || selectedBookingStatus !== "all" || !!search.trim()
+
+    const activeModalFilterCount = useMemo(() => {
+        let count = 0
+        if (activePreset !== "all" || isDateFiltered) count += 1
+        if (selectedRole !== "all") count += 1
+        if (selectedWorker !== "all") count += 1
+        if (selectedCategory !== "all") count += 1
+        if (selectedRoom !== "all") count += 1
+        if (selectedGuestType !== "all") count += 1
+        if (selectedBookingStatus !== "all") count += 1
+        return count
+    }, [activePreset, isDateFiltered, selectedRole, selectedWorker, selectedCategory, selectedRoom, selectedGuestType, selectedBookingStatus])
+
+    const handleResetNonSearchFilters = () => {
+        handlePresetChange("all")
+        startTransition(() => {
+            setSelectedRole("all")
+            setSelectedWorker("all")
+            setSelectedCategory("all")
+            setSelectedGuestType("all")
+            setSelectedRoom("all")
+            setSelectedBookingStatus("all")
+        })
+    }
 
     // Dynamic totals calculation across all active filters from backend summary
     const totalFilteredSales = Number(incomeData?.summary?.totalRevenue ?? incomeData?.totalRevenue ?? 0)
@@ -428,7 +485,7 @@ const IncomeAnalytics = () => {
             {/* Header */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
-                    <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 font-serif tracking-tight flex items-center gap-2.5">
+                    <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 font-serif tracking-tight flex flex-wrap items-center gap-2.5">
                         <span className="w-9 h-9 rounded-xl bg-indigo-100 text-indigo-700 flex items-center justify-center">
                             <DollarSign size={22} />
                         </span>
@@ -448,19 +505,109 @@ const IncomeAnalytics = () => {
                 </div>
             </div>
 
-            {/* Date Range & Worker Filter Controls Card */}
-            <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-xs space-y-4">
+            {/* Mobile Only: Quick Search & Filter Drawer Button (< 640px) */}
+            <div className="sm:hidden bg-white border border-slate-200 rounded-2xl p-3.5 shadow-xs space-y-2.5">
+                <div className="flex items-center gap-2">
+                    <div className="relative flex-1">
+                        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                        <input
+                            type="text"
+                            placeholder="Search name, phone, ID, TrxID..."
+                            value={search}
+                            onChange={e => setSearch(e.target.value)}
+                            className="input input-sm input-bordered pl-8 rounded-xl w-full bg-slate-50 focus:bg-white text-xs"
+                        />
+                    </div>
+                    <button
+                        type="button"
+                        onClick={() => setIsFilterModalOpen(true)}
+                        className="flex items-center justify-center gap-1.5 rounded-xl border border-teal-300 bg-teal-50 hover:bg-teal-100/80 text-teal-800 px-3 py-1 text-xs font-bold shadow-2xs transition-all active:scale-95 h-8 shrink-0 cursor-pointer"
+                        title="Open sales report filters"
+                    >
+                        {showFilterSpinner ? (
+                            <span className="loading loading-spinner loading-xs text-teal-600 shrink-0" />
+                        ) : (
+                            <SlidersHorizontal size={13} className="text-teal-600 shrink-0" />
+                        )}
+                        <span>Filters</span>
+                        {activeModalFilterCount > 0 && (
+                            <span className="w-4 h-4 rounded-full bg-teal-600 text-white text-[10px] font-bold flex items-center justify-center shrink-0">
+                                {activeModalFilterCount}
+                            </span>
+                        )}
+                    </button>
+                </div>
+
+                {/* Mobile Active Filter Badges */}
+                {isAnyFilterActive && (
+                    <div className="flex flex-wrap items-center gap-1.5 pt-1 text-[11px] text-slate-600">
+                        {isDateFiltered && (
+                            <span className="bg-slate-100 px-2 py-0.5 rounded-lg text-slate-700">
+                                {startDate ? formatDate(startDate) : "Beginning"} – {endDate ? formatDate(endDate) : "Latest"}
+                            </span>
+                        )}
+                        {selectedRole !== "all" && (
+                            <span className="bg-indigo-50 px-2 py-0.5 rounded-lg text-indigo-700 font-semibold">
+                                Role: {selectedRole.toUpperCase()}
+                            </span>
+                        )}
+                        {selectedWorker !== "all" && (
+                            <span className="bg-purple-50 px-2 py-0.5 rounded-lg text-purple-700 font-semibold">
+                                Worker: {selectedWorker}
+                            </span>
+                        )}
+                        {selectedCategory !== "all" && (
+                            <span className="bg-amber-50 px-2 py-0.5 rounded-lg text-amber-800 font-semibold">
+                                Suite: {selectedCategory}
+                            </span>
+                        )}
+                        {selectedRoom !== "all" && (
+                            <span className="bg-amber-50 px-2 py-0.5 rounded-lg text-amber-800 font-semibold">
+                                Room: {selectedRoom}
+                            </span>
+                        )}
+                        {selectedGuestType !== "all" && (
+                            <span className="bg-blue-50 px-2 py-0.5 rounded-lg text-blue-700 font-semibold">
+                                {selectedGuestType}
+                            </span>
+                        )}
+                        {selectedBookingStatus !== "all" && (
+                            <span className="bg-rose-50 px-2 py-0.5 rounded-lg text-rose-700 font-semibold">
+                                {selectedBookingStatus === "confirmed" ? "Confirmed"
+                                    : selectedBookingStatus === "checked_in" ? "Checked In"
+                                    : selectedBookingStatus === "checked_out" ? "Checked Out"
+                                    : selectedBookingStatus === "request_booking" ? "Pending / Request"
+                                    : selectedBookingStatus === "cancelled" ? "Cancelled"
+                                    : selectedBookingStatus}
+                            </span>
+                        )}
+                        <button
+                            type="button"
+                            onClick={() => {
+                                handleResetNonSearchFilters()
+                                setSearch("")
+                            }}
+                            className="text-[11px] font-bold text-rose-600 hover:underline ml-1 cursor-pointer"
+                        >
+                            Reset All
+                        </button>
+                    </div>
+                )}
+            </div>
+
+            {/* Desktop Date Range & Worker Filter Controls Card (≥ 640px) */}
+            <div className="hidden sm:block bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-xs space-y-4">
                 {/* Row 1: Date Filter & Presets */}
                 <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
                     {/* Date Pickers */}
-                    <div className="flex flex-wrap items-center gap-3">
+                    <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-3">
                         <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700">
                             <CalendarIcon size={16} className="text-teal-600" />
                             <span>Sales Date Range:</span>
                         </div>
 
                         {/* From Date */}
-                        <div className="relative">
+                        <div className="relative w-full sm:w-auto">
                             <label className="text-[10px] uppercase font-bold text-slate-400 block mb-0.5">From Date</label>
                             <DatePicker
                                 selected={startDate}
@@ -470,12 +617,12 @@ const IncomeAnalytics = () => {
                                 endDate={endDate}
                                 dateFormat="dd MMM yyyy"
                                 placeholderText="Select From Date"
-                                className="input input-sm input-bordered rounded-xl bg-slate-50 text-xs font-semibold text-slate-800 w-36 sm:w-40 cursor-pointer focus:bg-white"
+                                className="input input-sm input-bordered rounded-xl bg-slate-50 text-xs font-semibold text-slate-800 w-full sm:w-40 cursor-pointer focus:bg-white"
                             />
                         </div>
 
                         {/* To Date */}
-                        <div className="relative">
+                        <div className="relative w-full sm:w-auto">
                             <label className="text-[10px] uppercase font-bold text-slate-400 block mb-0.5">To Date</label>
                             <DatePicker
                                 selected={endDate}
@@ -486,7 +633,7 @@ const IncomeAnalytics = () => {
                                 minDate={startDate}
                                 dateFormat="dd MMM yyyy"
                                 placeholderText="Select To Date"
-                                className="input input-sm input-bordered rounded-xl bg-slate-50 text-xs font-semibold text-slate-800 w-36 sm:w-40 cursor-pointer focus:bg-white"
+                                className="input input-sm input-bordered rounded-xl bg-slate-50 text-xs font-semibold text-slate-800 w-full sm:w-40 cursor-pointer focus:bg-white"
                             />
                         </div>
 
@@ -914,14 +1061,15 @@ const IncomeAnalytics = () => {
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div>
                         <h3 className="text-lg font-bold text-slate-900 font-serif flex items-center gap-2">
-                            <Receipt size={18} className="text-teal-600" /> Sales Transactions & Workflow Breakdown
+                            <Receipt size={18} className="text-teal-600" />
+                            <span>Sales Transactions & Workflow Breakdown</span>
                         </h3>
                         <p className="text-xs text-slate-500 mt-0.5">
                             Showing {totalDataCount === 0 ? 0 : `${(pageState - 1) * limit + 1}–${Math.min(pageState * limit, totalDataCount)} of ${totalDataCount}`} filtered transaction item(s) · Total Sells: <strong>৳{totalFilteredSales.toLocaleString()}</strong>
                         </p>
                     </div>
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                         <span className="badge badge-sm bg-slate-100 text-slate-700 font-semibold">
                             {totalDataCount} Entries
                         </span>
@@ -1271,6 +1419,54 @@ const IncomeAnalytics = () => {
                 currentUser={user}
                 totalSales={totalFilteredSales}
                 directPrint={isDirectPrint}
+            />
+
+            {/* Mobile Sales Report Filter Bottom-Sheet Drawer Modal */}
+            <SalesReportFilterModal
+                isOpen={isFilterModalOpen}
+                onClose={() => setIsFilterModalOpen(false)}
+                startDate={startDate}
+                endDate={endDate}
+                onCustomDateChange={handleCustomDateChange}
+                activePreset={activePreset}
+                onPresetChange={handlePresetChange}
+                selectedRole={selectedRole}
+                onRoleChange={(newRole) => {
+                    startTransition(() => {
+                        setSelectedRole(newRole)
+                        if (selectedWorker !== "all") {
+                            setSelectedWorker("all")
+                        }
+                    })
+                }}
+                selectedWorker={selectedWorker}
+                onWorkerChange={(newWorker) => {
+                    startTransition(() => setSelectedWorker(newWorker))
+                }}
+                workerOptions={workerOptions}
+                selectedCategory={selectedCategory}
+                onCategoryChange={(newCat) => {
+                    startTransition(() => {
+                        setSelectedCategory(newCat)
+                        setSelectedRoom("all")
+                    })
+                }}
+                allAvailableCategories={allAvailableCategories}
+                selectedRoom={selectedRoom}
+                onRoomChange={(newRoom) => {
+                    startTransition(() => setSelectedRoom(newRoom))
+                }}
+                allAvailableRooms={allAvailableRooms}
+                selectedGuestType={selectedGuestType}
+                onGuestTypeChange={(newGuestType) => {
+                    startTransition(() => setSelectedGuestType(newGuestType))
+                }}
+                selectedBookingStatus={selectedBookingStatus}
+                onBookingStatusChange={(newStatus) => {
+                    startTransition(() => setSelectedBookingStatus(newStatus))
+                }}
+                onResetAll={handleResetNonSearchFilters}
+                activeCount={activeModalFilterCount}
             />
         </div>
     )
