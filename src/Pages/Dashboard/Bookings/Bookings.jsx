@@ -119,14 +119,17 @@ const Bookings = () => {
     const [cancelModalBooking, setCancelModalBooking] = useState(null)
     const [voucherBooking, setVoucherBooking] = useState(null)
 
+    const isAdminOrManager = ["admin", "manager"].includes(role)
+    const canFilterByReference = isAdminOrManager
+    const canViewAllBookings = isAdminOrManager
     const isStaff = ["admin", "manager", "agent"].includes(role)
     const canEdit = ["admin", "manager", "agent"].includes(role)
     const canDelete = ["admin", "manager"].includes(role)
 
-    // Fetch distinct references for filter dropdown
+    // Fetch distinct references for filter dropdown (Admin & Manager only)
     const { data: serverReferences = [] } = useQuery({
         queryKey: ["booking-references"],
-        enabled: isStaff,
+        enabled: canFilterByReference,
         queryFn: async () => {
             try {
                 const res = await axiosSecure.get("/bookings/references")
@@ -145,7 +148,7 @@ const Bookings = () => {
             currentUser?.email,
             role,
             statusFilter,
-            refFilter,
+            canFilterByReference ? refFilter : "",
             debouncedSearch,
             pageState,
             limit
@@ -153,9 +156,9 @@ const Bookings = () => {
         enabled: !!currentUser && role !== undefined,
         queryFn: async () => {
             const params = new URLSearchParams()
-            if (!isStaff && currentUser?.email) params.set("email", currentUser.email)
+            if (!canViewAllBookings && currentUser?.email) params.set("email", currentUser.email)
             if (statusFilter) params.set("status", statusFilter)
-            if (refFilter) params.set("reference", refFilter)
+            if (canFilterByReference && refFilter) params.set("reference", refFilter)
             if (debouncedSearch && debouncedSearch.trim()) params.set("search", debouncedSearch.trim())
             params.set("limit", limit)
             params.set("skip", (pageState - 1) * limit)
@@ -377,9 +380,10 @@ const Bookings = () => {
     }, [totalPages, pageState])
 
     const uniqueReferences = useMemo(() => {
+        if (!canFilterByReference) return []
         if (serverReferences.length > 0) return serverReferences
         return Array.from(new Set(paginatedBookings.map(b => b.reference || b.bookedBy?.name || "Website Direct").filter(Boolean))).sort()
-    }, [serverReferences, paginatedBookings])
+    }, [canFilterByReference, serverReferences, paginatedBookings])
 
     const isFiltering = isFetching || (search !== debouncedSearch)
 
@@ -388,10 +392,10 @@ const Bookings = () => {
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
                     <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 font-serif tracking-tight">
-                        {isStaff ? "All Guest Bookings" : role === "b2b" ? "B2B Reservations" : "My Reservations"}
+                        {canViewAllBookings ? "All Guest Bookings" : role === "b2b" ? "B2B Reservations" : "My Bookings"}
                     </h1>
                     <p className="text-xs sm:text-sm text-slate-500 mt-1">
-                        {isStaff ? "Manage, confirm, edit, and track workflow references for customer reservations." : "View stay history and booking confirmations."}
+                        {canViewAllBookings ? "Manage, confirm, edit, and track workflow references for customer reservations." : "View stay history and booking confirmations."}
                     </p>
                     <div className="flex items-center gap-2 mt-2">
                         <span className="badge badge-sm bg-slate-100 text-slate-700 font-semibold flex items-center gap-1.5">
@@ -414,7 +418,7 @@ const Bookings = () => {
                         <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                         <input
                             type="text"
-                            placeholder="Search by name, ID, ref..."
+                            placeholder={canFilterByReference ? "Search by name, ID, ref..." : "Search by name, ID, phone..."}
                             value={search}
                             onChange={e => setSearch(e.target.value)}
                             className="input input-sm input-bordered pl-9 rounded-xl w-full sm:w-52 bg-white"
@@ -422,7 +426,7 @@ const Bookings = () => {
                     </div>
                     <div className='flex flex-row gap-2 '>
 
-                        {isStaff && uniqueReferences.length > 0 && (
+                        {canFilterByReference && uniqueReferences.length > 0 && (
                             <select
                                 className="select select-sm select-bordered rounded-xl bg-white text-xs font-semibold w-full sm:w-auto "
                                 value={refFilter}
@@ -436,13 +440,13 @@ const Bookings = () => {
                         )}
 
                         <select
-                            className="select select-sm select-bordered rounded-xl bg-white text-xs font-semibold w-full sm:w-auto"
+                            className="select select-sm select-bordered rounded-xl bg-white text-xs font-semibold w-full sm:w-auto min-w-40"
                             value={statusFilter}
                             onChange={e => setStatusFilter(e.target.value)}
                         >
                             <option value="">All Statuses</option>
                             {STATUS_OPTIONS.map(option => (
-                                <option key={option.value} value={option.value}>{option.label}</option>
+                                <option key={option.value} value={option.value} className=''>{option.label}</option>
                             ))}
                         </select>
                     </div>

@@ -38,7 +38,9 @@ const CancelledBookings = () => {
         queryKey: ["cancelled-bookings", user?.email, role],
         enabled: !!user && role !== undefined,
         queryFn: async () => {
-            const res = await axiosSecure.get(`/bookings?status=cancel`)
+            const isAdminOrManager = ["admin", "manager"].includes(role)
+            const url = isAdminOrManager ? `/bookings?status=cancel` : `/bookings?status=cancel&email=${encodeURIComponent(user?.email || '')}`
+            const res = await axiosSecure.get(url)
             return res.data
         }
     })

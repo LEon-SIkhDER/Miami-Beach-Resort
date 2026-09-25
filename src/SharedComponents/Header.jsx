@@ -122,7 +122,7 @@ const Header = () => {
 
     const currentPath = location.pathname.replace(/\/+$/, '') || '/'
     const hasHeroBanner = ["/", "/rooms", "/about", "/services"].includes(currentPath)
-
+console.log(user);
     return (
         <header 
             className={`sticky top-0 z-50 transition-all duration-300 ${
@@ -139,8 +139,21 @@ const Header = () => {
         >
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between">
                 
-                {/* Brand Logo & Crest */}
-                <Logo />
+                {/* Left Side: Mobile Menu Button & Brand Logo */}
+                <div className="flex items-center gap-1 sm:gap-2">
+                    {/* Mobile Menu Button */}
+                    <button
+                        type="button"
+                        onClick={() => setMobileNavOpen(prev => !prev)}
+                        className="lg:hidden p-2 rounded-xl text-[#dfc89e] hover:bg-white/10 transition-colors cursor-pointer"
+                        aria-label="Toggle Mobile Navigation"
+                    >
+                        {mobileNavOpen ? <X size={22} /> : <Menu size={22} />}
+                    </button>
+
+                    {/* Brand Logo & Crest */}
+                    <Logo />
+                </div>
 
                 {/* Desktop Center Navigation */}
                 <nav className="hidden lg:flex items-center gap-8 text-xs font-semibold uppercase tracking-[0.18em] text-slate-200">
@@ -390,16 +403,6 @@ const Header = () => {
                             </Link> */}
                         </div>
                     )}
-
-                    {/* Mobile Menu Button */}
-                    <button
-                        type="button"
-                        onClick={() => setMobileNavOpen(prev => !prev)}
-                        className="lg:hidden p-2 rounded-xl text-[#dfc89e] hover:bg-white/10 transition-colors cursor-pointer"
-                        aria-label="Toggle Mobile Navigation"
-                    >
-                        {mobileNavOpen ? <X size={22} /> : <Menu size={22} />}
-                    </button>
                 </div>
             </div>
 
