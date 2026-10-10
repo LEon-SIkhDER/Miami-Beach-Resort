@@ -5,13 +5,13 @@ import useRole from '../../../hooks/useRole'
 import useAxiosSecure from '../../../hooks/useAxiosSecure'
 import { useQuery } from '@tanstack/react-query'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
-import { 
-    CalendarCheck, 
-    CheckCircle2, 
-    Clock, 
-    XCircle, 
-    DollarSign, 
-    TrendingUp, 
+import {
+    CalendarCheck,
+    CheckCircle2,
+    Clock,
+    XCircle,
+    DollarSign,
+    TrendingUp,
     BedDouble,
     ArrowUpRight,
     Calendar,
@@ -95,7 +95,7 @@ const DashboardHome = () => {
             {
                 title: "Total Bookings",
                 value: overview.totalBookings || 0,
-                icon: <CalendarCheck size={22} className="text-teal-600" />,
+                icon: <CalendarCheck size={15} className="text-teal-600" />,
                 bg: "bg-teal-50",
                 border: "border-teal-100",
                 badge: "All Time",
@@ -104,7 +104,7 @@ const DashboardHome = () => {
             {
                 title: "Confirmed",
                 value: overview.confirmedCount || 0,
-                icon: <CheckCircle2 size={22} className="text-emerald-600" />,
+                icon: <CheckCircle2 size={15} className="text-emerald-600" />,
                 bg: "bg-emerald-50",
                 border: "border-emerald-100",
                 badge: "Active",
@@ -113,7 +113,7 @@ const DashboardHome = () => {
             {
                 title: "Pending Action",
                 value: overview.pendingCount || 0,
-                icon: <Clock size={22} className="text-amber-600" />,
+                icon: <Clock size={15} className="text-amber-600" />,
                 bg: "bg-amber-50",
                 border: "border-amber-100",
                 badge: "Review",
@@ -122,7 +122,7 @@ const DashboardHome = () => {
             {
                 title: "Cancelled",
                 value: overview.cancelledCount || 0,
-                icon: <XCircle size={22} className="text-rose-600" />,
+                icon: <XCircle size={15} className="text-rose-600" />,
                 bg: "bg-rose-50",
                 border: "border-rose-100",
                 badge: "Void",
@@ -131,7 +131,7 @@ const DashboardHome = () => {
             {
                 title: "Monthly Income",
                 value: `৳${(overview.monthlyRevenue || 0).toLocaleString()}`,
-                icon: <Calendar size={22} className="text-emerald-600" />,
+                icon: <Calendar size={15} className="text-emerald-600" />,
                 bg: "bg-emerald-50",
                 border: "border-emerald-200/70",
                 badge: overview.currentMonthName || "This Month",
@@ -141,7 +141,7 @@ const DashboardHome = () => {
             {
                 title: "Total Income",
                 value: `৳${(overview.totalRevenue || 0).toLocaleString()}`,
-                icon: <DollarSign size={22} className="text-indigo-600" />,
+                icon: <DollarSign size={15} className="text-indigo-600" />,
                 bg: "bg-indigo-50",
                 border: "border-indigo-200/70",
                 badge: "All Rooms",
@@ -197,9 +197,8 @@ const DashboardHome = () => {
                             <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 font-serif tracking-tight">
                                 {role === "admin" ? "Resort Admin Overview" : "Management Dashboard"}
                             </h1>
-                            <span className={`badge badge-sm font-bold uppercase text-[10px] border-none ${
-                                role === "admin" ? "bg-amber-400 text-slate-900" : "bg-purple-600 text-white"
-                            }`}>
+                            <span className={`badge badge-sm font-bold uppercase text-[10px] border-none ${role === "admin" ? "bg-amber-400 text-slate-900" : "bg-purple-600 text-white"
+                                }`}>
                                 {role}
                             </span>
                         </div>
@@ -224,30 +223,29 @@ const DashboardHome = () => {
                         <Link
                             key={idx}
                             to={s.link}
-                            className={`group relative p-4 sm:p-5 rounded-2xl bg-white border ${s.border} shadow-xs hover:shadow-md transition-all duration-200 hover:-translate-y-0.5 flex flex-col justify-between`}
+                            className={`group relative p-3 sm:p-4 rounded-2xl bg-white border ${s.border} shadow-xs hover:shadow-md transition-all duration-200 hover:-translate-y-0.5 flex flex-col justify-between`}
                         >
-                            <div className="flex items-center justify-between mb-3">
-                                <div className={`w-10 h-10 rounded-xl ${s.bg} flex items-center justify-center`}>
+                            <div className="flex items-center justify-between mb-2">
+                                <p className="text-xs font-semibold text-slate-500">{s.title}</p>
+                                <div className={`w-7 h-7 rounded-lg ${s.bg} flex items-center justify-center`}>
                                     {s.icon}
                                 </div>
-                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                                {/* <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
                                     s.highlight ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'
                                 }`}>
                                     {s.badge}
-                                </span>
+                                </span> */}
                             </div>
                             <div>
-                                <p className="text-xs font-semibold text-slate-500">{s.title}</p>
-                                <h3 className={`text-xl sm:text-2xl font-black mt-0.5 tracking-tight ${
-                                    s.highlight ? 'text-teal-900' : 'text-slate-900'
-                                }`}>
+                                <h3 className={`text-lg sm:text-xl font-black mt-0.5 tracking-tight ${s.highlight ? 'text-teal-900' : 'text-slate-900'
+                                    }`}>
                                     {s.value}
                                 </h3>
                             </div>
-                            <div className="mt-3 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] font-semibold text-teal-700 opacity-0 group-hover:opacity-100 transition-opacity">
+                            {/* <div className="mt-3 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] font-semibold text-teal-700 opacity-0 group-hover:opacity-100 transition-opacity">
                                 <span>Details</span>
                                 <ArrowUpRight size={13} />
-                            </div>
+                            </div> */}
                         </Link>
                     ))}
                 </div>
@@ -268,7 +266,7 @@ const DashboardHome = () => {
                                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                                     <XAxis dataKey="_id" tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} />
                                     <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} />
-                                    <Tooltip 
+                                    <Tooltip
                                         contentStyle={{ backgroundColor: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
                                         labelStyle={{ fontWeight: 'bold', color: '#0f172a' }}
                                     />
@@ -295,7 +293,7 @@ const DashboardHome = () => {
                                     <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
                                     <XAxis type="number" allowDecimals={false} tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} />
                                     <YAxis type="category" dataKey="_id" tick={{ fontSize: 11, fill: '#64748b' }} width={120} axisLine={false} tickLine={false} />
-                                    <Tooltip 
+                                    <Tooltip
                                         contentStyle={{ backgroundColor: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
                                         labelStyle={{ fontWeight: 'bold', color: '#0f172a' }}
                                     />
@@ -388,11 +386,10 @@ const DashboardHome = () => {
                                 <button
                                     type="button"
                                     onClick={() => setPartnerTab("all")}
-                                    className={`btn btn-xs rounded-xl font-bold gap-1.5 ${
-                                        partnerTab === "all"
+                                    className={`btn btn-xs rounded-xl font-bold gap-1.5 ${partnerTab === "all"
                                             ? "bg-teal-600 text-white shadow-xs border-teal-600"
                                             : "btn-ghost bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200/60"
-                                    }`}
+                                        }`}
                                 >
                                     <Users size={12} />
                                     <span>All Partners</span>
@@ -403,11 +400,10 @@ const DashboardHome = () => {
                                 <button
                                     type="button"
                                     onClick={() => setPartnerTab("agent")}
-                                    className={`btn btn-xs rounded-xl font-bold gap-1.5 ${
-                                        partnerTab === "agent"
+                                    className={`btn btn-xs rounded-xl font-bold gap-1.5 ${partnerTab === "agent"
                                             ? "bg-teal-700 text-white shadow-xs border-teal-700"
                                             : "btn-ghost bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200/60"
-                                    }`}
+                                        }`}
                                 >
                                     <UserCheck size={12} />
                                     <span>Agents</span>
@@ -418,11 +414,10 @@ const DashboardHome = () => {
                                 <button
                                     type="button"
                                     onClick={() => setPartnerTab("b2b")}
-                                    className={`btn btn-xs rounded-xl font-bold gap-1.5 ${
-                                        partnerTab === "b2b"
+                                    className={`btn btn-xs rounded-xl font-bold gap-1.5 ${partnerTab === "b2b"
                                             ? "bg-blue-600 text-white shadow-xs border-blue-600"
                                             : "btn-ghost bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200/60"
-                                    }`}
+                                        }`}
                                 >
                                     <Building2 size={12} />
                                     <span>B2B Partners</span>
@@ -457,109 +452,109 @@ const DashboardHome = () => {
                         {/* Partner Table View */}
                         <div className="overflow-x-auto rounded-xl border border-slate-200">
                             <table className="table table-zebra w-full whitespace-nowrap text-xs">
-                            <thead className="bg-slate-50 text-slate-600 uppercase font-bold border-b border-slate-200">
-                                <tr>
-                                    <th>#</th>
-                                    <th>Partner Name & Contact</th>
-                                    <th>Role</th>
-                                    <th>Total Bookings</th>
-                                    <th>Sales Volume</th>
-                                    <th>Paid / Due</th>
-                                    <th>Joined Date</th>
-                                    <th className="text-center">Workflow & Activity</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-100">
-                                {usersLoading ? (
-                                    [1, 2, 3].map(n => (
-                                        <tr key={n} className="animate-pulse">
-                                            <td><div className="h-4 bg-slate-200 rounded w-4"></div></td>
-                                            <td><div className="h-4 bg-slate-200 rounded w-36"></div></td>
-                                            <td><div className="h-5 bg-slate-200 rounded-full w-16"></div></td>
-                                            <td><div className="h-4 bg-slate-200 rounded w-16"></div></td>
-                                            <td><div className="h-4 bg-slate-200 rounded w-20"></div></td>
-                                            <td><div className="h-4 bg-slate-200 rounded w-24"></div></td>
-                                            <td><div className="h-4 bg-slate-200 rounded w-20"></div></td>
-                                            <td className="text-center"><div className="h-6 bg-slate-200 rounded w-24 mx-auto"></div></td>
-                                        </tr>
-                                    ))
-                                ) : filteredPartners.length === 0 ? (
+                                <thead className="bg-slate-50 text-slate-600 uppercase font-bold border-b border-slate-200">
                                     <tr>
-                                        <td colSpan={8} className="text-center py-10 text-slate-400">
-                                            <Users size={32} className="mx-auto mb-2 opacity-50" />
-                                            {partnerUsers.length === 0
-                                                ? "No Agents or B2B Partners registered yet. Change user roles in the Users & Roles tab."
-                                                : "No partners found matching your search filter."}
-                                        </td>
+                                        <th>#</th>
+                                        <th>Partner Name & Contact</th>
+                                        <th>Role</th>
+                                        <th>Total Bookings</th>
+                                        <th>Sales Volume</th>
+                                        <th>Paid / Due</th>
+                                        <th>Joined Date</th>
+                                        <th className="text-center">Workflow & Activity</th>
                                     </tr>
-                                ) : (
-                                    filteredPartners.map((p, idx) => {
-                                        const bookingsCount = p.stats?.totalBookings || 0
-                                        const salesAmount = p.stats?.totalSales || 0
-                                        const paidAmount = p.stats?.totalPaid || 0
-                                        const dueAmount = p.stats?.totalDue || 0
-
-                                        return (
-                                            <tr key={p._id} className="hover:bg-slate-50/80 transition-colors">
-                                                <td className="font-mono text-slate-400">{idx + 1}</td>
-                                                <td>
-                                                    <div className="flex items-center gap-2.5">
-                                                        <div className="w-8 h-8 rounded-full bg-teal-100 text-teal-800 font-bold text-xs flex items-center justify-center shrink-0">
-                                                            {p.name ? p.name.charAt(0).toUpperCase() : p.email?.charAt(0).toUpperCase() || 'P'}
-                                                        </div>
-                                                        <div>
-                                                            <div className="font-bold text-slate-900 text-sm">{p.name || "Unnamed Partner"}</div>
-                                                            <div className="text-[11px] text-slate-400">{p.email}</div>
-                                                            {p.phone && <div className="text-[10px] text-teal-700 font-semibold">{p.phone}</div>}
-                                                        </div>
-                                                    </div>
-                                                </td>
-                                                <td>
-                                                    {p.role === "agent" ? (
-                                                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-teal-50 text-teal-800 border border-teal-200">
-                                                            <UserCheck size={12} className="text-teal-600" /> Agent
-                                                        </span>
-                                                    ) : (
-                                                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-50 text-blue-800 border border-blue-200">
-                                                            <Building2 size={12} className="text-blue-600" /> B2B Partner
-                                                        </span>
-                                                    )}
-                                                </td>
-                                                <td>
-                                                    <span className="font-bold text-teal-900">
-                                                        {bookingsCount} Booking{bookingsCount !== 1 ? 's' : ''}
-                                                    </span>
-                                                </td>
-                                                <td className="font-bold text-emerald-800 text-sm">
-                                                    ৳{salesAmount.toLocaleString()}
-                                                </td>
-                                                <td>
-                                                    <div className="text-slate-700 font-semibold">
-                                                        <span className="text-emerald-700">৳{paidAmount.toLocaleString()}</span>
-                                                        {dueAmount > 0 && (
-                                                            <span className="text-orange-600 block text-[10px] font-bold">Due: ৳{dueAmount.toLocaleString()}</span>
-                                                        )}
-                                                    </div>
-                                                </td>
-                                                <td className="text-slate-500 text-[11px]">
-                                                    {p.created_At ? formatDate(p.created_At) : "N/A"}
-                                                </td>
-                                                <td className="text-center">
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => setSelectedWorkflowUser(p)}
-                                                        className="btn btn-xs btn-primary text-white gap-1 rounded-lg shadow-2xs font-bold"
-                                                        title="Inspect full workflow, reservation history, and timeline activities"
-                                                    >
-                                                        <Activity size={12} /> View Workflow
-                                                    </button>
-                                                </td>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100">
+                                    {usersLoading ? (
+                                        [1, 2, 3].map(n => (
+                                            <tr key={n} className="animate-pulse">
+                                                <td><div className="h-4 bg-slate-200 rounded w-4"></div></td>
+                                                <td><div className="h-4 bg-slate-200 rounded w-36"></div></td>
+                                                <td><div className="h-5 bg-slate-200 rounded-full w-16"></div></td>
+                                                <td><div className="h-4 bg-slate-200 rounded w-16"></div></td>
+                                                <td><div className="h-4 bg-slate-200 rounded w-20"></div></td>
+                                                <td><div className="h-4 bg-slate-200 rounded w-24"></div></td>
+                                                <td><div className="h-4 bg-slate-200 rounded w-20"></div></td>
+                                                <td className="text-center"><div className="h-6 bg-slate-200 rounded w-24 mx-auto"></div></td>
                                             </tr>
-                                        )
-                                    })
-                                )}
-                            </tbody>
-                        </table>
+                                        ))
+                                    ) : filteredPartners.length === 0 ? (
+                                        <tr>
+                                            <td colSpan={8} className="text-center py-10 text-slate-400">
+                                                <Users size={32} className="mx-auto mb-2 opacity-50" />
+                                                {partnerUsers.length === 0
+                                                    ? "No Agents or B2B Partners registered yet. Change user roles in the Users & Roles tab."
+                                                    : "No partners found matching your search filter."}
+                                            </td>
+                                        </tr>
+                                    ) : (
+                                        filteredPartners.map((p, idx) => {
+                                            const bookingsCount = p.stats?.totalBookings || 0
+                                            const salesAmount = p.stats?.totalSales || 0
+                                            const paidAmount = p.stats?.totalPaid || 0
+                                            const dueAmount = p.stats?.totalDue || 0
+
+                                            return (
+                                                <tr key={p._id} className="hover:bg-slate-50/80 transition-colors">
+                                                    <td className="font-mono text-slate-400">{idx + 1}</td>
+                                                    <td>
+                                                        <div className="flex items-center gap-2.5">
+                                                            <div className="w-8 h-8 rounded-full bg-teal-100 text-teal-800 font-bold text-xs flex items-center justify-center shrink-0">
+                                                                {p.name ? p.name.charAt(0).toUpperCase() : p.email?.charAt(0).toUpperCase() || 'P'}
+                                                            </div>
+                                                            <div>
+                                                                <div className="font-bold text-slate-900 text-sm">{p.name || "Unnamed Partner"}</div>
+                                                                <div className="text-[11px] text-slate-400">{p.email}</div>
+                                                                {p.phone && <div className="text-[10px] text-teal-700 font-semibold">{p.phone}</div>}
+                                                            </div>
+                                                        </div>
+                                                    </td>
+                                                    <td>
+                                                        {p.role === "agent" ? (
+                                                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-teal-50 text-teal-800 border border-teal-200">
+                                                                <UserCheck size={12} className="text-teal-600" /> Agent
+                                                            </span>
+                                                        ) : (
+                                                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-50 text-blue-800 border border-blue-200">
+                                                                <Building2 size={12} className="text-blue-600" /> B2B Partner
+                                                            </span>
+                                                        )}
+                                                    </td>
+                                                    <td>
+                                                        <span className="font-bold text-teal-900">
+                                                            {bookingsCount} Booking{bookingsCount !== 1 ? 's' : ''}
+                                                        </span>
+                                                    </td>
+                                                    <td className="font-bold text-emerald-800 text-sm">
+                                                        ৳{salesAmount.toLocaleString()}
+                                                    </td>
+                                                    <td>
+                                                        <div className="text-slate-700 font-semibold">
+                                                            <span className="text-emerald-700">৳{paidAmount.toLocaleString()}</span>
+                                                            {dueAmount > 0 && (
+                                                                <span className="text-orange-600 block text-[10px] font-bold">Due: ৳{dueAmount.toLocaleString()}</span>
+                                                            )}
+                                                        </div>
+                                                    </td>
+                                                    <td className="text-slate-500 text-[11px]">
+                                                        {p.created_At ? formatDate(p.created_At) : "N/A"}
+                                                    </td>
+                                                    <td className="text-center">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setSelectedWorkflowUser(p)}
+                                                            className="btn btn-xs btn-primary text-white gap-1 rounded-lg shadow-2xs font-bold"
+                                                            title="Inspect full workflow, reservation history, and timeline activities"
+                                                        >
+                                                            <Activity size={12} /> View Workflow
+                                                        </button>
+                                                    </td>
+                                                </tr>
+                                            )
+                                        })
+                                    )}
+                                </tbody>
+                            </table>
                         </div>
                     </div>
                 </div>
@@ -720,7 +715,7 @@ const DashboardHome = () => {
                                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                                         <XAxis dataKey="category" tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} />
                                         <YAxis tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} />
-                                        <Tooltip 
+                                        <Tooltip
                                             formatter={(value, name) => [name === "revenue" ? `৳${Number(value).toLocaleString()}` : value, name === "revenue" ? "Revenue" : "Bookings"]}
                                             contentStyle={{ backgroundColor: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
                                             labelStyle={{ fontWeight: 'bold', color: '#0f172a' }}
@@ -823,12 +818,11 @@ const DashboardHome = () => {
                                         )}
                                     </td>
                                     <td>
-                                        <span className={`badge badge-xs font-bold border-none ${
-                                            sell.status === "booking_confirmed" || sell.status === "confirmed" ? "bg-[#5261d6] text-white" :
-                                            sell.status === "checked_id" || sell.status === "checked_in" ? "bg-[#01966e] text-white" :
-                                            sell.status === "request_booking" ? "bg-[#f59e0b] text-white" :
-                                            "bg-slate-200 text-slate-700"
-                                        }`}>
+                                        <span className={`badge badge-xs font-bold border-none ${sell.status === "booking_confirmed" || sell.status === "confirmed" ? "bg-[#5261d6] text-white" :
+                                                sell.status === "checked_id" || sell.status === "checked_in" ? "bg-[#01966e] text-white" :
+                                                    sell.status === "request_booking" ? "bg-[#f59e0b] text-white" :
+                                                        "bg-slate-200 text-slate-700"
+                                            }`}>
                                             {sell.status}
                                         </span>
                                     </td>

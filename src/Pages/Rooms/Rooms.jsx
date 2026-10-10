@@ -16,8 +16,6 @@ import {
 } from 'lucide-react'
 import { parseFacilityList, parseRoomNumbers } from '../Dashboard/Category&Pricing/categoryRoomUtils'
 
-const HERO_BANNER_IMG = "https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?q=80&w=2000&auto=format&fit=crop"
-
 const Rooms = () => {
     const SERVER_URL = import.meta.env.VITE_SERVER_URL || ""
 
@@ -55,7 +53,8 @@ const Rooms = () => {
     const {
         data: rawCategories = [],
         isLoading: categoriesLoading,
-        isFetching: categoriesFetching
+        isFetching: categoriesFetching,
+        isPlaceholderData
     } = useQuery({
         queryKey: ["public-categories-filtered", debouncedSearch, categoryFilter, sortBy],
         queryFn: async () => {
@@ -72,11 +71,13 @@ const Rooms = () => {
                 return []
             }
         },
+        staleTime: 5 * 60 * 1000,
         placeholderData: (previousData) => previousData,
     })
 
     const categories = Array.isArray(rawCategories) ? rawCategories : []
-    const isFiltering = categoriesFetching || (searchQuery !== debouncedSearch)
+    const isFiltering = Boolean(isPlaceholderData || (searchQuery !== debouncedSearch))
+    const isSearching = (searchQuery !== debouncedSearch) || (Boolean(isPlaceholderData) && Boolean(debouncedSearch.trim()))
 
     // Image navigation handlers
     const handlePrevImage = (e, catId, total) => {
@@ -98,72 +99,64 @@ const Rooms = () => {
     }
 
     return (
-        <div className="min-h-screen bg-slate-50">
-            {/* ══════════════════════════════════════════════════════
-                HERO BANNER
-            ══════════════════════════════════════════════════════ */}
-            <section className="relative min-h-[380px] sm:min-h-[450px] flex items-center justify-center overflow-hidden">
-                <div
-                    className="absolute inset-0 bg-cover bg-center bg-no-repeat scale-105 transition-transform duration-1000"
-                    style={{ backgroundImage: `url(${HERO_BANNER_IMG})` }}
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-[#021813] via-[#03221b]/80 to-[#021813]/60" />
-                <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_0%,rgba(0,0,0,0.6)_100%)]" />
-
-                <div className="relative z-10 max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 text-center text-white pt-28 pb-16 sm:pt-36 sm:pb-20 space-y-4">
-                    {/* Breadcrumb */}
-                    <div className="inline-flex items-center gap-2 text-xs font-semibold text-[#dfc89e] uppercase tracking-[0.2em] bg-white/10 px-4 py-1.5 rounded-full backdrop-blur-md border border-[#c5a880]/30">
-                        <Link to="/" className="hover:underline">Home</Link>
-                        <span>/</span>
-                        <span>Suites & Rooms</span>
-                    </div>
-
-                    <h1 className="text-3xl sm:text-5xl lg:text-6xl font-serif font-bold text-[#f5ebd7] tracking-tight drop-shadow-md">
-                        Royal Accommodations & Suites
-                    </h1>
-                    <p className="text-xs sm:text-base text-slate-300 max-w-2xl mx-auto leading-relaxed font-light">
-                        Discover luxury oceanfront sanctuaries crafted for serenity, elegance, and supreme beach relaxation in Cox's Bazar.
-                    </p>
-                </div>
-            </section>
+        <div className="min-h-screen relative bg-[#f7f4ed] text-slate-800 overflow-hidden">
+            {/* Subtle radial luxury pattern backdrop matching Concierge / Contact section */}
+            <div className="absolute inset-0 opacity-40 bg-[radial-gradient(#c5a880_1px,transparent_1px)] [background-size:24px_24px] pointer-events-none" />
 
             {/* ══════════════════════════════════════════════════════
                 ROOMS LISTING & FILTER SECTION
             ══════════════════════════════════════════════════════ */}
-            <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16 space-y-10">
-                {/* Search & Filter Bar */}
-                <div className="bg-white p-4 sm:p-6 rounded-3xl border border-slate-200 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
-                    <div>
-                        <span className="text-xs font-bold text-slate-500 uppercase tracking-wider block">
-                            Available Accommodations
-                        </span>
-                        <h2 className="text-xl sm:text-2xl font-serif font-bold text-slate-900 flex items-center gap-2.5">
-                            <span>Explore All Rooms ({categories.length})</span>
-                            {isFiltering && (
-                                <span className="loading loading-spinner loading-xs text-[#04261f]" title="Fetching rooms..." />
-                            )}
-                        </h2>
+            <main className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 space-y-8">
+                {/* Section Heading & Breadcrumb */}
+                <div className="space-y-2">
+                    <div className="inline-flex items-center gap-2 text-xs font-semibold text-slate-500">
+                        <Link to="/" className="hover:text-[#04261f] transition-colors">Home</Link>
+                        <span>/</span>
+                        <span className="text-slate-800">Suites & Rooms</span>
                     </div>
 
-                    <div className="flex flex-wrap items-center gap-3">
-                        {/* Search Input */}
-                        <div className="relative flex-1 sm:flex-initial">
-                            <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
-                            <input
-                                type="text"
-                                placeholder="Search rooms or amenities..."
-                                value={searchQuery}
-                                onChange={e => setSearchQuery(e.target.value)}
-                                className="pl-9 pr-8 py-2 bg-slate-50 hover:bg-white focus:bg-white rounded-xl border border-slate-200 text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-[#04261f] w-full sm:w-64 transition-colors"
-                            />
-                            {isFiltering && (
-                                <span className="loading loading-spinner loading-xs text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-                            )}
+                    <div className="flex items-end justify-between gap-3">
+                        <div>
+                            <span className="text-xs font-bold text-[#04261f] uppercase tracking-widest block mb-1">
+                                Available Accommodations
+                            </span>
+                            <h1 className="text-2xl sm:text-3xl font-serif font-bold text-slate-900 flex items-center gap-3">
+                                Explore All Rooms
+                                <span className="text-sm font-bold bg-[#04261f]/8 text-[#04261f] px-3 py-0.5 rounded-full border border-[#04261f]/15 font-sans flex items-center gap-1">
+                                    {(isFiltering || (categoriesLoading && categories.length === 0))
+                                        ? <span className="loading loading-spinner loading-xs" />
+                                        : categories.length
+                                    }
+                                </span>
+                            </h1>
                         </div>
+                    </div>
+                </div>
 
-                        {/* Category Dropdown */}
+                {/* Search & Filter Bar */}
+                <div className="bg-white p-3 sm:p-4 rounded-2xl border border-slate-200 shadow-xs flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                    {/* Search Input */}
+                    <div className="relative flex-1">
+                        <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                        <input
+                            type="text"
+                            placeholder="Search rooms or amenities..."
+                            value={searchQuery}
+                            onChange={e => setSearchQuery(e.target.value)}
+                            className="w-full pl-9 pr-8 py-2.5 bg-slate-50 hover:bg-white focus:bg-white rounded-xl border border-slate-200 text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-[#04261f] transition-colors"
+                        />
+                        {isSearching && (
+                            <span className="loading loading-spinner loading-xs text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                        )}
+                    </div>
+
+                    <div className="h-px sm:h-8 w-full sm:w-px bg-slate-200 shrink-0" />
+
+                    {/* Category Dropdown */}
+                    <div className="relative flex items-center gap-2 shrink-0">
+                        <SlidersHorizontal size={13} className="text-slate-400 shrink-0" />
                         <select
-                            className="select select-sm select-bordered rounded-xl bg-slate-50 hover:bg-white focus:bg-white border-slate-200 text-xs font-semibold text-slate-800 focus:outline-none focus:border-[#04261f] transition-colors cursor-pointer"
+                            className="select select-sm rounded-xl bg-slate-50 hover:bg-white focus:bg-white border border-slate-200 text-xs font-semibold text-slate-800 focus:outline-none focus:border-[#04261f] transition-colors cursor-pointer pr-8"
                             value={categoryFilter}
                             onChange={e => setCategoryFilter(e.target.value)}
                         >
@@ -172,10 +165,13 @@ const Rooms = () => {
                                 <option key={cat._id} value={cat.name}>{cat.name}</option>
                             ))}
                         </select>
+                    </div>
 
-                        {/* Sort Dropdown */}
+                    {/* Sort Dropdown */}
+                    <div className="relative flex items-center gap-2 shrink-0">
+                        <ArrowUpDown size={13} className="text-slate-400 shrink-0" />
                         <select
-                            className="select select-sm select-bordered rounded-xl bg-slate-50 hover:bg-white focus:bg-white border-slate-200 text-xs font-semibold text-slate-800 focus:outline-none focus:border-[#04261f] transition-colors cursor-pointer"
+                            className="select select-sm rounded-xl bg-slate-50 hover:bg-white focus:bg-white border border-slate-200 text-xs font-semibold text-slate-800 focus:outline-none focus:border-[#04261f] transition-colors cursor-pointer pr-8"
                             value={sortBy}
                             onChange={e => setSortBy(e.target.value)}
                         >
@@ -201,7 +197,7 @@ const Rooms = () => {
                             </div>
                         ))}
                     </div>
-                ) : categories.length === 0 && !isFiltering ? (
+                ) : categories.length === 0 && !isFiltering && !categoriesLoading ? (
                     <div className="text-center py-20 bg-white rounded-3xl border border-slate-200 shadow-xs space-y-3">
                         <BedDouble size={48} className="mx-auto text-slate-300 mb-2" />
                         <h3 className="text-xl font-bold text-slate-700 font-serif">No accommodations found</h3>

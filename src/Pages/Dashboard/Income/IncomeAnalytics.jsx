@@ -485,7 +485,7 @@ const IncomeAnalytics = () => {
             {/* Header */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
-                    <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 font-serif tracking-tight flex flex-wrap items-center gap-2.5">
+                    <h1 className="text-xl sm:text-3xl font-extrabold text-slate-900 font-serif tracking-tight flex flex-wrap items-center gap-2.5">
                         <span className="w-9 h-9 rounded-xl bg-indigo-100 text-indigo-700 flex items-center justify-center">
                             <DollarSign size={22} />
                         </span>
@@ -496,7 +496,7 @@ const IncomeAnalytics = () => {
                     </p>
                 </div>
 
-                <div className="flex flex-wrap items-center gap-2.5">
+                <div className="hidden sm:flex flex-wrap items-center gap-2.5 ">
                    
 
                     <div className="inline-flex items-center gap-1.5 bg-white px-3.5 py-1.5 rounded-xl border border-slate-200 text-xs font-semibold text-slate-600 shadow-xs">
@@ -592,6 +592,7 @@ const IncomeAnalytics = () => {
                             Reset All
                         </button>
                     </div>
+                    
                 )}
             </div>
 
@@ -896,76 +897,76 @@ const IncomeAnalytics = () => {
             </div>
 
             {/* Income Highlights Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                <div className="p-5 rounded-2xl bg-gradient-to-br from-indigo-900 to-slate-900 text-white shadow-md flex flex-col justify-between space-y-3">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="p-3 sm:p-5 rounded-2xl bg-gradient-to-br from-indigo-900 to-slate-900 text-white shadow-md flex flex-col justify-between space-y-3">
                     <div className="flex items-center justify-between">
-                        <span className="text-xs uppercase font-bold tracking-wider text-indigo-200">
+                        <span className="text-[10px] sm:text-xs uppercase font-bold tracking-wider text-indigo-200">
                             {isAnyFilterActive ? "Filtered Revenue" : "Total Revenue"}
                         </span>
-                        <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center">
-                            <DollarSign size={18} className="text-indigo-200" />
+                        <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-white/10 flex items-center justify-center">
+                            <DollarSign size={15} className="text-indigo-200" />
                         </div>
                     </div>
                     <div>
-                        <p className="text-2xl sm:text-3xl font-extrabold tracking-tight">৳{Number(totalFilteredSales || 0).toLocaleString()}</p>
-                        <p className="text-[11px] text-indigo-200 mt-0.5">
+                        <p className="text-lg sm:text-2xl lg:text-3xl font-extrabold tracking-tight">৳{Number(totalFilteredSales || 0).toLocaleString()}</p>
+                        <p className="text-[11px] text-indigo-200 mt-0.5 hidden sm:block">
                             {isAnyFilterActive ? "Income matching active filters" : "All-time confirmed earnings"}
                         </p>
                     </div>
                 </div>
 
-                <div className="p-5 rounded-2xl bg-white border border-emerald-100 shadow-xs flex flex-col justify-between space-y-3">
+                <div className="p-3 sm:p-5 rounded-2xl bg-white border border-emerald-100 shadow-xs flex flex-col justify-between space-y-3">
                     <div className="flex items-center justify-between">
-                        <span className="text-xs uppercase font-bold tracking-wider text-emerald-700">
+                        <span className="text-[10px] sm:text-xs uppercase font-bold tracking-wider text-emerald-700">
                             Collected (Paid)
                         </span>
-                        <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
-                            <Wallet size={18} />
+                        <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
+                            <Wallet size={15} />
                         </div>
                     </div>
                     <div>
-                        <p className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
+                        <p className="text-lg sm:text-2xl lg:text-3xl font-extrabold text-slate-900 tracking-tight">
                             ৳{Number(totalFilteredPaid || 0).toLocaleString()}
                         </p>
-                        <p className="text-[11px] text-slate-500 mt-0.5">
+                        <p className="text-[11px] text-slate-500 mt-0.5 hidden sm:block">
                             {isAnyFilterActive ? "Total payment collected in filter" : "Total received payment"}
                         </p>
                     </div>
                 </div>
 
-                <div className="p-5 rounded-2xl bg-white border border-orange-100 shadow-xs flex flex-col justify-between space-y-3">
+                <div className="p-3 sm:p-5 rounded-2xl bg-white border border-orange-100 shadow-xs flex flex-col justify-between space-y-3">
                     <div className="flex items-center justify-between">
-                        <span className="text-xs uppercase font-bold tracking-wider text-orange-700">
+                        <span className="text-[10px] sm:text-xs uppercase font-bold tracking-wider text-orange-700">
                             Due Revenue
                         </span>
-                        <div className="w-8 h-8 rounded-lg bg-orange-50 text-orange-600 flex items-center justify-center">
-                            <Clock size={18} />
+                        <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-orange-50 text-orange-600 flex items-center justify-center">
+                            <Clock size={15} />
                         </div>
                     </div>
                     <div>
-                        <p className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
+                        <p className="text-lg sm:text-2xl lg:text-3xl font-extrabold text-slate-900 tracking-tight">
                             ৳{Number(totalFilteredDue || 0).toLocaleString()}
                         </p>
-                        <p className="text-[11px] text-slate-500 mt-0.5">
+                        <p className="text-[11px] text-slate-500 mt-0.5 hidden sm:block">
                             {isAnyFilterActive ? "Outstanding balance in filter" : "Total pending due balance"}
                         </p>
                     </div>
                 </div>
 
-                <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-xs flex flex-col justify-between space-y-3">
+                <div className="p-3 sm:p-5 rounded-2xl bg-white border border-slate-200 shadow-xs flex flex-col justify-between space-y-3">
                     <div className="flex items-center justify-between">
-                        <span className="text-xs uppercase font-bold tracking-wider text-slate-500">
+                        <span className="text-[10px] sm:text-xs uppercase font-bold tracking-wider text-slate-500">
                             {isAnyFilterActive ? "Filtered Bookings" : "Confirmed Bookings"}
                         </span>
-                        <div className="w-8 h-8 rounded-lg bg-teal-50 text-teal-600 flex items-center justify-center">
-                            <Receipt size={18} />
+                        <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-teal-50 text-teal-600 flex items-center justify-center">
+                            <Receipt size={15} />
                         </div>
                     </div>
                     <div>
-                        <p className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
+                        <p className="text-lg sm:text-2xl lg:text-3xl font-extrabold text-slate-900 tracking-tight">
                             {filteredBookingsCount}
                         </p>
-                        <p className="text-[11px] text-slate-500 mt-0.5">
+                        <p className="text-[11px] text-slate-500 mt-0.5 hidden sm:block">
                             {isAnyFilterActive ? "Reservations in active filter" : "Active & Completed Stays"}
                         </p>
                     </div>

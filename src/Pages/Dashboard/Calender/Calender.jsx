@@ -648,7 +648,7 @@ const Calender = () => {
                 {isCategoriesLoading || isBookingsLoading ? (
                     <div className="flex-1 flex flex-col items-center justify-center p-16 text-slate-400 min-h-[350px]">
                         <RefreshCw size={32} className="mx-auto mb-2.5 animate-spin text-teal-600" />
-                        <span className="text-sm font-semibold text-slate-600">Loading room schedule...</span>
+                        <span className="text-sm font-semibold text-slate-600">Loading room calender...</span>
                     </div>
                 ) : (
                     <table className="min-w-max border-separate border-spacing-0 text-xs">

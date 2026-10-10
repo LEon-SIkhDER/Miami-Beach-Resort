@@ -17,7 +17,7 @@ const CategoryAndPricing = () => {
     const { role } = useRole()
     const isAdmin = role === "admin"
     const axiosSecure = useAxiosSecure()
-    const { data: categories = [], refetch } = useQuery({
+    const { data: categories = [], isLoading, refetch } = useQuery({
         queryKey: ["categories"],
         queryFn: async () => {
             const { data } = await axiosSecure.get('/categoryandroom')
@@ -66,7 +66,62 @@ const CategoryAndPricing = () => {
             </div>
 
             {/* Category Grid */}
-            {categories.length === 0 ? (
+            {isLoading ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5" aria-label="Loading room categories">
+                    {[1, 2, 3, 4, 5, 6].map((n) => (
+                        <div
+                            key={n}
+                            className="flex flex-col bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-xs animate-pulse"
+                        >
+                            {/* Cover Photo Skeleton */}
+                            <div className="h-52 bg-slate-200" />
+
+                            {/* Content Skeleton */}
+                            <div className="flex-1 p-5 space-y-3">
+                                {/* Name + Price Skeleton */}
+                                <div className="flex items-start justify-between gap-2">
+                                    <div className="h-6 bg-slate-200 rounded-md w-36 sm:w-44" />
+                                    <div className="h-6 bg-slate-200 rounded-md w-20" />
+                                </div>
+
+                                {/* Room Numbers Skeleton */}
+                                <div className="space-y-1.5">
+                                    <div className="h-3 bg-slate-200 rounded w-16" />
+                                    <div className="flex flex-wrap gap-1.5">
+                                        <div className="h-5 bg-slate-200 rounded-md w-10" />
+                                        <div className="h-5 bg-slate-200 rounded-md w-10" />
+                                        <div className="h-5 bg-slate-200 rounded-md w-10" />
+                                        <div className="h-5 bg-slate-200 rounded-md w-12" />
+                                    </div>
+                                </div>
+
+                                {/* Amenities Skeleton */}
+                                <div className="flex flex-wrap gap-1 pt-1">
+                                    <div className="h-4 bg-slate-200 rounded-md w-14" />
+                                    <div className="h-4 bg-slate-200 rounded-md w-16" />
+                                    <div className="h-4 bg-slate-200 rounded-md w-12" />
+                                </div>
+
+                                {/* Description Skeleton */}
+                                <div className="space-y-1.5 pt-1">
+                                    <div className="h-3.5 bg-slate-200 rounded w-full" />
+                                    <div className="h-3.5 bg-slate-200 rounded w-4/5" />
+                                </div>
+                            </div>
+
+                            {/* Actions Footer Skeleton */}
+                            <div className="flex items-center justify-between px-5 py-3 border-t border-gray-100 bg-slate-50/50">
+                                <div className="h-3.5 bg-slate-200 rounded w-28" />
+                                <div className="flex items-center gap-1.5">
+                                    <div className="w-9 h-9 rounded-lg bg-slate-200" />
+                                    <div className="w-9 h-9 rounded-lg bg-slate-200" />
+                                    {isAdmin && <div className="w-9 h-9 rounded-lg bg-slate-200" />}
+                                </div>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            ) : categories.length === 0 ? (
                 <div className="bg-white border border-slate-200 rounded-2xl p-16 text-center text-slate-400">
                     <ImageIcon size={40} className="mx-auto mb-3 opacity-30" />
                     <p className="font-semibold">No categories yet</p>
@@ -82,14 +137,13 @@ const CategoryAndPricing = () => {
                             : category.imageUrl
                                 ? [{ url: category.imageUrl }]
                                 : []
-
                         return (
                             <div
                                 key={category._id}
                                 className="flex flex-col bg-white border border-gray-200 rounded-2xl overflow-hidden hover:shadow-md transition-shadow"
                             >
                                 {/* Cover Photo */}
-                                <div className="relative h-52 bg-slate-100">
+                                <div className="relative h-64 bg-slate-100">
                                     {photos.length > 0 ? (
                                         <img
                                             src={photos[0].url}
@@ -118,7 +172,7 @@ const CategoryAndPricing = () => {
                                 </div>
 
                                 {/* Content */}
-                                <div className="flex-1 p-5 space-y-3">
+                                <div className="flex-1 p-5 ">
                                     {/* Name + Price */}
                                     <div className="flex items-start justify-between gap-2">
                                         <h3 className="text-lg font-bold text-gray-900 leading-tight">
@@ -131,50 +185,52 @@ const CategoryAndPricing = () => {
                                             <span className="text-xs text-gray-400 block">/ night</span>
                                         </div>
                                     </div>
+                                    <div className='space-y-3'>
 
-                                    {/* Room Numbers */}
-                                    {roomNumbers.length > 0 && (
-                                        <div>
-                                            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">
-                                                Rooms ({roomNumbers.length})
-                                            </p>
-                                            <div className="flex flex-wrap gap-1.5">
-                                                {roomNumbers.slice(0, 6).map(num => (
-                                                    <span key={num} className="badge badge-sm bg-teal-50 text-teal-700 border border-teal-200 font-bold">
-                                                        {num}
+                                        {/* Room Numbers */}
+                                        {roomNumbers.length > 0 && (
+                                            <div>
+                                                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">
+                                                    Rooms ({roomNumbers.length})
+                                                </p>
+                                                <div className="flex flex-wrap gap-1.5">
+                                                    {roomNumbers.slice(0, 6).map(num => (
+                                                        <span key={num} className="badge badge-sm bg-teal-50 text-teal-700 border border-teal-200 font-bold">
+                                                            {num}
+                                                        </span>
+                                                    ))}
+                                                    {roomNumbers.length > 6 && (
+                                                        <span className="badge badge-sm bg-slate-100 text-slate-500 border-none font-medium">
+                                                            +{roomNumbers.length - 6} more
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* Amenities */}
+                                        {amenities.length > 0 && (
+                                            <div className="flex flex-wrap gap-1">
+                                                {amenities.slice(0, 4).map(a => (
+                                                    <span key={a} className="badge badge-xs bg-amber-50 text-amber-700 border border-amber-200 font-medium uppercase">
+                                                        {a}
                                                     </span>
                                                 ))}
-                                                {roomNumbers.length > 6 && (
-                                                    <span className="badge badge-sm bg-slate-100 text-slate-500 border-none font-medium">
-                                                        +{roomNumbers.length - 6} more
+                                                {amenities.length > 4 && (
+                                                    <span className="badge badge-xs bg-slate-100 text-slate-500 border-none">
+                                                        +{amenities.length - 4}
                                                     </span>
                                                 )}
                                             </div>
-                                        </div>
-                                    )}
+                                        )}
 
-                                    {/* Amenities */}
-                                    {amenities.length > 0 && (
-                                        <div className="flex flex-wrap gap-1">
-                                            {amenities.slice(0, 4).map(a => (
-                                                <span key={a} className="badge badge-xs bg-amber-50 text-amber-700 border border-amber-200 font-medium">
-                                                    {a}
-                                                </span>
-                                            ))}
-                                            {amenities.length > 4 && (
-                                                <span className="badge badge-xs bg-slate-100 text-slate-500 border-none">
-                                                    +{amenities.length - 4}
-                                                </span>
-                                            )}
-                                        </div>
-                                    )}
-
-                                    {/* Description */}
-                                    {category.description && (
-                                        <p className="text-sm text-gray-500 leading-relaxed line-clamp-2">
-                                            {category.description}
-                                        </p>
-                                    )}
+                                        {/* Description */}
+                                        {category.description && (
+                                            <p className="text-sm text-gray-500 leading-relaxed line-clamp-2">
+                                                {category.description}
+                                            </p>
+                                        )}
+                                    </div>
                                 </div>
 
                                 {/* Actions Footer */}

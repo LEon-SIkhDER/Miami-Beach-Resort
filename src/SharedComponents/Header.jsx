@@ -121,7 +121,7 @@ const Header = () => {
     }
 
     const currentPath = location.pathname.replace(/\/+$/, '') || '/'
-    const hasHeroBanner = ["/", "/rooms", "/about", "/services"].includes(currentPath)
+    const hasHeroBanner = ["/", "/about", "/services"].includes(currentPath)
 console.log(user);
     return (
         <header 

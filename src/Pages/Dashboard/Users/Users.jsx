@@ -203,7 +203,7 @@ const Users = () => {
             <div className="bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200 shadow-xs space-y-3">
                 <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
                     {/* Role Filter Tabs (Desktop/Tablet) */}
-                    <div className="flex flex-wrap items-center gap-1.5 overflow-x-auto pb-1 lg:pb-0">
+                    <div className="hidden lg:flex flex-wrap items-center gap-1.5 overflow-x-auto pb-1 lg:pb-0">
                         {ROLE_FILTER_OPTIONS.map(opt => {
                             const isActive = roleFilter === opt.value
                             const count = counts[opt.value] || 0
