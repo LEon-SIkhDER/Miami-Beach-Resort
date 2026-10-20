@@ -99,21 +99,6 @@ const ReservationVoucherModal = ({
 
     const checkInDate = booking.details?.arrivalDate || initialBooking?.checkIn || booking.checkIn
     const checkOutDate = booking.details?.departureDate || initialBooking?.checkOut || booking.checkOut
-    const totalNights = booking.details?.totalNights || 
-        (checkInDate && checkOutDate ? Math.max(1, Math.ceil((new Date(checkOutDate) - new Date(checkInDate)) / (1000 * 60 * 60 * 24))) : 1)
-
-    const rawExtraServices = Array.isArray(booking.extraServices) && booking.extraServices.length > 0 
-        ? booking.extraServices 
-        : Array.isArray(initialBooking?.extraServices) && initialBooking.extraServices.length > 0
-        ? initialBooking.extraServices
-        : booking.extraServices && typeof booking.extraServices === 'object' && booking.extraServices.name
-        ? [booking.extraServices]
-        : null
-
-    const extraService = booking.extraService || booking.financials?.extraService || initialBooking?.extraService || ""
-    const extraServiceCost = rawExtraServices && rawExtraServices.length > 0
-        ? rawExtraServices.reduce((sum, s) => sum + Number(s.totalCost || (Number(s.unitPrice || 0) * Number(s.quantity || 1)) || 0), 0)
-        : Number(booking.extraServiceCost || booking.financials?.extraServiceCost || initialBooking?.extraServiceCost || 0)
 
     const rawRooms = Array.isArray(booking.rooms) && booking.rooms.length > 0 
         ? booking.rooms 
@@ -121,7 +106,7 @@ const ReservationVoucherModal = ({
         ? initialBooking.rooms.map(r => {
             const checkIn = r.checkIn || initialBooking?.checkIn
             const checkOut = r.checkOut || initialBooking?.checkOut
-            const nights = Math.max(1, checkIn && checkOut ? Math.ceil((new Date(checkOut) - new Date(checkIn)) / (1000 * 60 * 60 * 24)) : 1)
+            const nights = Number(r.nights) || Math.max(1, checkIn && checkOut ? Math.ceil((new Date(checkOut) - new Date(checkIn)) / (1000 * 60 * 60 * 24)) : 1)
             const tariff = Number(r.pricePerNight || r.price || 0)
             return {
                 roomType: r.categoryName || r.category || "Room",
@@ -144,6 +129,22 @@ const ReservationVoucherModal = ({
             roomNights: 1,
             total: Number(initialBooking?.totalAmount || 0)
         }]
+
+    const totalNights = rawRooms.reduce((sum, r) => sum + (Number(r.roomQty || 1) * Number(r.roomNights || 1)), 0) || booking.details?.totalNights || 
+        (checkInDate && checkOutDate ? Math.max(1, Math.ceil((new Date(checkOutDate) - new Date(checkInDate)) / (1000 * 60 * 60 * 24))) : 1)
+
+    const rawExtraServices = Array.isArray(booking.extraServices) && booking.extraServices.length > 0 
+        ? booking.extraServices 
+        : Array.isArray(initialBooking?.extraServices) && initialBooking.extraServices.length > 0
+        ? initialBooking.extraServices
+        : booking.extraServices && typeof booking.extraServices === 'object' && booking.extraServices.name
+        ? [booking.extraServices]
+        : null
+
+    const extraService = booking.extraService || booking.financials?.extraService || initialBooking?.extraService || ""
+    const extraServiceCost = rawExtraServices && rawExtraServices.length > 0
+        ? rawExtraServices.reduce((sum, s) => sum + Number(s.totalCost || (Number(s.unitPrice || 0) * Number(s.quantity || 1)) || 0), 0)
+        : Number(booking.extraServiceCost || booking.financials?.extraServiceCost || initialBooking?.extraServiceCost || 0)
 
     const discountAmount = Number(booking.financials?.discountAmount || initialBooking?.discountAmount || initialBooking?.discount || initialBooking?.specialDiscount || 0)
     const roomSubtotalAmount = rawRooms.reduce((sum, r) => sum + Number(r.total || 0), 0)
