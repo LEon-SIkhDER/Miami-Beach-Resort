@@ -241,9 +241,9 @@ const MyBookings = () => {
                             </h1>
                             <p className="text-xs sm:text-sm text-slate-300 max-w-xl">
                                 {isLoggedIn ? (
-                                    <>Welcome back, <strong className="text-white font-bold">{user?.displayName || user?.email}</strong>. View your booking details, confirmation letters, and stay schedules.</>
+                                    <>Welcome back, <strong className="text-white font-bold">{user?.displayName || user?.email}</strong>. View your booking details, invoices, and stay schedules.</>
                                 ) : (
-                                    <>Welcome to Miami Beach Resort. View your saved device reservations, confirmation vouchers, and stay schedules.</>
+                                    <>Welcome to Miami Beach Resort. View your saved device reservations, invoices, and stay schedules.</>
                                 )}
                             </p>
                         </div>
@@ -539,13 +539,13 @@ const MyBookings = () => {
                                                 <Eye size={14} /> View Details
                                             </button>
 
-                                            {/* Confirmation Voucher / Letter button */}
+                                            {/* Confirmation Voucher / Invoice button */}
                                             <button
                                                 type="button"
                                                 onClick={() => setVoucherBooking(b)}
                                                 className="btn btn-sm bg-[#5261d6] hover:bg-[#4351be] text-white rounded-xl gap-1.5 text-xs font-bold shadow-xs border-none"
                                             >
-                                                <Printer size={14} /> Reservation Letter (PDF)
+                                                <Printer size={14} /> Invoice (PDF)
                                             </button>
 
                                             {/* WhatsApp hotline link */}
@@ -719,7 +719,7 @@ const MyBookings = () => {
                                 }}
                                 className="btn btn-sm bg-[#5261d6] hover:bg-[#4351be] text-white rounded-xl gap-1.5 font-bold border-none"
                             >
-                                <Printer size={14} /> Open Reservation Letter (PDF)
+                                <Printer size={14} /> Open Invoice (PDF)
                             </button>
                             <button
                                 type="button"

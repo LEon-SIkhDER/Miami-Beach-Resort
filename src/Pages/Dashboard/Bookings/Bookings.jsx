@@ -580,7 +580,7 @@ const Bookings = () => {
                                                 type="button"
                                                 onClick={() => setVoucherBooking(b)}
                                                 className="btn btn-xs bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200/60 rounded-lg gap-1 font-bold"
-                                                title="Print Invoice / Reservation Letter"
+                                                title="Print Invoice"
                                             >
                                                 <Printer size={13} />
                                                 <span>Print Invoice</span>

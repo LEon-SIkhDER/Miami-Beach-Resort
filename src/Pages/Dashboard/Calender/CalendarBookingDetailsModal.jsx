@@ -659,15 +659,15 @@ const CalendarBookingDetailsModal = ({
                             <ExternalLink size={13} /> Full Details Page
                         </Link>
 
-                        {/* Print / PDF Reservation Letter */}
+                        {/* Print / PDF Invoice */}
                         {booking && (
                             <button
                                 type="button"
                                 onClick={() => setIsVoucherOpen(true)}
                                 className="btn btn-sm btn-outline border-indigo-200 text-indigo-700 hover:bg-indigo-50 rounded-xl gap-1 font-bold"
-                                title="Print / PDF Reservation Letter"
+                                title="Print / PDF Invoice"
                             >
-                                <Printer size={13} /> Letter (PDF)
+                                <Printer size={13} /> Invoice (PDF)
                             </button>
                         )}
 

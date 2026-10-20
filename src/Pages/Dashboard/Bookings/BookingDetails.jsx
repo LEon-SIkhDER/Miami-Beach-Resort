@@ -326,13 +326,13 @@ const BookingDetails = () => {
                         </button>
                     )}
 
-                    {/* Reservation Confirmation Voucher / Letter */}
+                    {/* Reservation Confirmation Voucher / Invoice */}
                     <button 
                         onClick={() => setIsVoucherOpen(true)}
                         className="btn btn-sm bg-[#5261d6] hover:bg-[#4351be] text-white gap-1.5 rounded-xl shadow-xs border-none"
-                        title="Print / Download A4 Reservation Letter PDF"
+                        title="Print / Download A4 Invoice PDF"
                     >
-                        <Printer size={15} /> Reservation Letter (PDF)
+                        <Printer size={15} /> Invoice (PDF)
                     </button>
 
 

@@ -1,4 +1,4 @@
-import React, { useRef } from 'react'
+import React, { useRef, useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { useQuery } from '@tanstack/react-query'
 import useAxiosSecure from '../../../hooks/useAxiosSecure'
@@ -61,6 +61,13 @@ const ReservationVoucherModal = ({
 }) => {
     const axiosSecure = useAxiosSecure()
     const printContainerRef = useRef(null)
+    const [invoiceType, setInvoiceType] = useState("guest")
+
+    useEffect(() => {
+        if (isOpen) {
+            setInvoiceType("guest")
+        }
+    }, [isOpen, bookingId])
 
     // Dedicated Voucher API Query
     const { data: voucherData } = useQuery({
@@ -158,7 +165,8 @@ const ReservationVoucherModal = ({
 
     const handleSavePdf = () => {
         const prevTitle = document.title
-        const fileName = `Reservation_${booking.bookingId || initialBooking?.bookingId || bookingId || 'Voucher'}`
+        const typeSuffix = invoiceType === "authority" ? "_Authority" : ""
+        const fileName = `Invoice${typeSuffix}_${booking.bookingId || initialBooking?.bookingId || bookingId || 'Voucher'}`
         document.title = fileName
         window.print()
         setTimeout(() => {
@@ -182,11 +190,11 @@ const ReservationVoucherModal = ({
             >
                 
                 {/* Modal Action Bar (Hidden in Print) */}
-                <div className="flex items-center justify-between px-6 py-3 border-b border-slate-200 bg-slate-50/90 shrink-0 print:hidden">
+                <div className="flex flex-wrap items-center justify-between gap-2.5 px-4 sm:px-6 py-2.5 sm:py-3 border-b border-slate-200 bg-slate-50/90 shrink-0 print:hidden">
                     <div className="flex items-center gap-2.5">
                         <FileText size={18} className="text-teal-600" />
                         <span className="font-bold text-slate-800 text-sm sm:text-base">
-                            Reservation Letter — {booking.bookingId || initialBooking?.bookingId || bookingId}
+                            Invoice — {booking.bookingId || initialBooking?.bookingId || bookingId}
                         </span>
                         <span className={`badge badge-sm font-bold border-none text-white ${
                             booking.status === "booking_confirmed" || booking.status === "confirmed" ? "bg-[#01966e]" :
@@ -199,7 +207,33 @@ const ReservationVoucherModal = ({
                         </span>
                     </div>
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                        {/* Invoice Type Toggle (Guest / Authority) */}
+                        <div className="inline-flex items-center p-0.5 bg-slate-200/90 rounded-xl text-xs font-semibold">
+                            <button
+                                type="button"
+                                onClick={() => setInvoiceType("guest")}
+                                className={`px-3 py-1 rounded-lg transition-all ${
+                                    invoiceType === "guest"
+                                        ? "bg-white text-teal-800 font-bold shadow-xs"
+                                        : "text-slate-600 hover:text-slate-900"
+                                }`}
+                            >
+                                Guest
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setInvoiceType("authority")}
+                                className={`px-3 py-1 rounded-lg transition-all ${
+                                    invoiceType === "authority"
+                                        ? "bg-white text-teal-800 font-bold shadow-xs"
+                                        : "text-slate-600 hover:text-slate-900"
+                                }`}
+                            >
+                                Authority
+                            </button>
+                        </div>
+
                         <button
                             type="button"
                             onClick={handlePrint}
@@ -257,10 +291,10 @@ const ReservationVoucherModal = ({
                             </p>
                         </div>
 
-                        {/* RESERVATION LETTER TITLE */}
+                        {/* RESERVATION INVOICE TITLE */}
                         <div className="pt-0.5">
                             <h2 className="text-[13px] font-bold text-black">
-                                Reservation Letter
+                                Invoice
                             </h2>
                         </div>
 
@@ -315,7 +349,7 @@ const ReservationVoucherModal = ({
                         {/* SUBJECT & WELCOME GREETING */}
                         <div className="pt-0.5 text-[11px]">
                             <p className="font-bold text-black">
-                                Subject: Room Reservation Letter
+                                Subject: Room Reservation Invoice
                             </p>
                             <p className="text-black">
                                 We truly appreciate your kind patronage in choosing &nbsp; <strong className="font-bold">Miami Beach Resort</strong> . Please refer to the details of your Reservation outlined below.
@@ -366,18 +400,34 @@ const ReservationVoucherModal = ({
                                     tableLayout: 'fixed'
                                 }}
                             >
-                                <colgroup>
-                                    <col style={{ width: '28%' }} />
-                                    <col style={{ width: '13%' }} />
-                                    <col style={{ width: '13%' }} />
-                                    <col style={{ width: '15%' }} />
-                                    <col style={{ width: '9%' }} />
-                                    <col style={{ width: '10%' }} />
-                                    <col style={{ width: '12%' }} />
-                                </colgroup>
+                                {invoiceType === "authority" ? (
+                                    <colgroup>
+                                        <col style={{ width: '22%' }} />
+                                        <col style={{ width: '11%' }} />
+                                        <col style={{ width: '12%' }} />
+                                        <col style={{ width: '12%' }} />
+                                        <col style={{ width: '14%' }} />
+                                        <col style={{ width: '8%' }} />
+                                        <col style={{ width: '9%' }} />
+                                        <col style={{ width: '12%' }} />
+                                    </colgroup>
+                                ) : (
+                                    <colgroup>
+                                        <col style={{ width: '28%' }} />
+                                        <col style={{ width: '13%' }} />
+                                        <col style={{ width: '13%' }} />
+                                        <col style={{ width: '15%' }} />
+                                        <col style={{ width: '9%' }} />
+                                        <col style={{ width: '10%' }} />
+                                        <col style={{ width: '12%' }} />
+                                    </colgroup>
+                                )}
                                 <thead>
                                     <tr className="font-bold text-black" style={{ borderBottom: '1px solid #000000' }}>
                                         <th style={{ border: '1px solid #000000', padding: '3px 4px', textAlign: 'left' }}>Room Type</th>
+                                        {invoiceType === "authority" && (
+                                            <th style={{ border: '1px solid #000000', padding: '3px 4px', textAlign: 'center' }}>Room Number</th>
+                                        )}
                                         <th style={{ border: '1px solid #000000', padding: '3px 4px', textAlign: 'center' }}>Arrival Date</th>
                                         <th style={{ border: '1px solid #000000', padding: '3px 4px', textAlign: 'center' }}>Departure Date</th>
                                         <th style={{ border: '1px solid #000000', padding: '3px 4px', textAlign: 'center' }}>Room Tariff</th>
@@ -390,6 +440,11 @@ const ReservationVoucherModal = ({
                                     {rawRooms.map((room, idx) => (
                                         <tr key={idx} style={{ borderBottom: '1px solid #000000' }}>
                                             <td style={{ border: '1px solid #000000', padding: '3px 4px', textAlign: 'left', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{room.roomType}</td>
+                                            {invoiceType === "authority" && (
+                                                <td style={{ border: '1px solid #000000', padding: '3px 4px', textAlign: 'center', fontWeight: 'bold' }}>
+                                                    {room.roomNo || room.roomNumber || initialBooking?.roomNo || booking.roomNo || "—"}
+                                                </td>
+                                            )}
                                             <td style={{ border: '1px solid #000000', padding: '3px 4px', textAlign: 'center' }}>{formatVoucherDate(room.arrivalDate)}</td>
                                             <td style={{ border: '1px solid #000000', padding: '3px 4px', textAlign: 'center' }}>{formatVoucherDate(room.departureDate)}</td>
                                             <td style={{ border: '1px solid #000000', padding: '3px 4px', textAlign: 'right' }}>BDT {Number(room.roomTariff || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
@@ -411,14 +466,14 @@ const ReservationVoucherModal = ({
                                                 : `Extra Service - ${sName} (${sQty}):`
                                             return (
                                                 <tr key={`extra-${sIdx}`} style={{ borderBottom: '1px solid #000000' }}>
-                                                    <td colSpan={6} style={{ border: '1px solid #000000', padding: '3px 4px', textAlign: 'right', fontWeight: 'bold' }}>{label}</td>
+                                                    <td colSpan={invoiceType === "authority" ? 7 : 6} style={{ border: '1px solid #000000', padding: '3px 4px', textAlign: 'right', fontWeight: 'bold' }}>{label}</td>
                                                     <td style={{ border: '1px solid #000000', padding: '3px 4px', textAlign: 'right', fontWeight: 'bold' }}>{sTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                                                 </tr>
                                             )
                                         })
                                     ) : extraServiceCost > 0 ? (
                                         <tr style={{ borderBottom: '1px solid #000000' }}>
-                                            <td colSpan={6} style={{ border: '1px solid #000000', padding: '3px 4px', textAlign: 'right', fontWeight: 'bold' }}>Extra Service{extraService ? ` - ${extraService}` : ""} (1):</td>
+                                            <td colSpan={invoiceType === "authority" ? 7 : 6} style={{ border: '1px solid #000000', padding: '3px 4px', textAlign: 'right', fontWeight: 'bold' }}>Extra Service{extraService ? ` - ${extraService}` : ""} (1):</td>
                                             <td style={{ border: '1px solid #000000', padding: '3px 4px', textAlign: 'right', fontWeight: 'bold' }}>{Number(extraServiceCost).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                                         </tr>
                                     ) : null}
@@ -426,24 +481,24 @@ const ReservationVoucherModal = ({
                                     {/* Discount Row if present */}
                                     {discountAmount > 0 && (
                                         <tr style={{ borderBottom: '1px solid #000000' }}>
-                                            <td colSpan={6} style={{ border: '1px solid #000000', padding: '3px 4px', textAlign: 'right', fontWeight: 'bold' }}>Special Discount:</td>
+                                            <td colSpan={invoiceType === "authority" ? 7 : 6} style={{ border: '1px solid #000000', padding: '3px 4px', textAlign: 'right', fontWeight: 'bold' }}>Special Discount:</td>
                                             <td style={{ border: '1px solid #000000', padding: '3px 4px', textAlign: 'right', fontWeight: 'bold' }}>-{Number(discountAmount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                                         </tr>
                                     )}
 
                                     {/* Summary Rows */}
                                     <tr style={{ borderBottom: '1px solid #000000' }}>
-                                        <td colSpan={6} style={{ border: '1px solid #000000', padding: '3px 4px', textAlign: 'right', fontWeight: 'bold' }}>Total:</td>
+                                        <td colSpan={invoiceType === "authority" ? 7 : 6} style={{ border: '1px solid #000000', padding: '3px 4px', textAlign: 'right', fontWeight: 'bold' }}>Total:</td>
                                         <td style={{ border: '1px solid #000000', padding: '3px 4px', textAlign: 'right', fontWeight: 'bold' }}>{Number(payableTotal).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                                     </tr>
 
                                     <tr style={{ borderBottom: '1px solid #000000' }}>
-                                        <td colSpan={6} style={{ border: '1px solid #000000', padding: '3px 4px', textAlign: 'right', fontWeight: 'bold' }}>{advanceRowLabel}</td>
+                                        <td colSpan={invoiceType === "authority" ? 7 : 6} style={{ border: '1px solid #000000', padding: '3px 4px', textAlign: 'right', fontWeight: 'bold' }}>{advanceRowLabel}</td>
                                         <td style={{ border: '1px solid #000000', padding: '3px 4px', textAlign: 'right', fontWeight: 'bold' }}>{Number(paidAmount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                                     </tr>
 
                                     <tr style={{ borderBottom: '1px solid #000000' }}>
-                                        <td colSpan={6} style={{ border: '1px solid #000000', padding: '3px 4px', textAlign: 'right', fontWeight: 'bold' }}>Due :</td>
+                                        <td colSpan={invoiceType === "authority" ? 7 : 6} style={{ border: '1px solid #000000', padding: '3px 4px', textAlign: 'right', fontWeight: 'bold' }}>Due :</td>
                                         <td style={{ border: '1px solid #000000', padding: '3px 4px', textAlign: 'right', fontWeight: 'bold' }}>{Number(dueAmount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                                     </tr>
                                 </tbody>
@@ -522,13 +577,23 @@ const ReservationVoucherModal = ({
                                 Kindly ensure that your personal belongings are kept secure, as the hotel management will not be held responsible for any loss.
                             </p>
 
-                            {/* SIGN OFF WITH INCREASED SIGNATURE SPACE */}
-                            <div className="pt-1">
-                                <p className="font-bold text-black text-[11px]">With Warmest Regards</p>
-                                <div className="h-8 sm:h-9" />
-                                <p className="text-black font-mono text-[11px]">-------------------------------</p>
-                                <p className="font-bold text-black text-[11px]">{creatorName}</p>
-                            </div>
+                            {/* SIGN OFF */}
+                            {invoiceType === "authority" ? (
+                                <div className="pt-2 grid grid-cols-3 gap-x-6 gap-y-4">
+                                    {[...Array(6)].map((_, i) => (
+                                        <div key={i}>
+                                            <div className="h-7 sm:h-8" />
+                                            <div className="border-b border-dotted border-black w-full" style={{ borderBottom: '1.2px dotted #000000' }} />
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="pt-1">
+                                    <p className="font-bold text-black text-[11px]">With Warmest Regards</p>
+                                    <div className="h-8 sm:h-9" />
+                                    <div className="border-b border-dotted border-black w-48" style={{ borderBottom: '1.2px dotted #000000' }} />
+                                </div>
+                            )}
 
                             {/* CANCELLATION POLICY */}
                             <div className="pt-0.5 text-black text-[9.5px] leading-tight">
