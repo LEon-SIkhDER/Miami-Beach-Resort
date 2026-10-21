@@ -43,6 +43,80 @@ const formatPrintDateTime = (dateObj = new Date()) => {
     }
 }
 
+const groupVoucherRooms = (rooms, defaultRoomNo = "") => {
+    if (!Array.isArray(rooms) || rooms.length === 0) return []
+    const groupedMap = new Map()
+
+    rooms.forEach(r => {
+        const catKey = String(r.roomType || r.categoryName || r.category || r.name || "Room").trim().toLowerCase()
+        const checkIn = r.arrivalDate || r.checkIn
+        const checkOut = r.departureDate || r.checkOut
+        const inKey = formatVoucherDate(checkIn)
+        const outKey = formatVoucherDate(checkOut)
+        const groupKey = `${catKey}__${inKey}__${outKey}`
+
+        let nights = Number(r.roomNights || r.nights) || 1
+        if ((!r.roomNights && !r.nights) && checkIn && checkOut) {
+            const start = new Date(checkIn)
+            const end = new Date(checkOut)
+            if (!isNaN(start.getTime()) && !isNaN(end.getTime()) && end > start) {
+                nights = Math.max(1, Math.ceil((end - start) / (1000 * 60 * 60 * 24)))
+            }
+        }
+
+        const qty = Number(r.roomQty || 1)
+        const tariff = Number(r.roomTariff !== undefined ? r.roomTariff : (r.pricePerNight || r.price || 0))
+        const total = Number(r.total !== undefined ? r.total : (tariff * qty * nights))
+
+        const roomNumbers = []
+        const rawNo = r.roomNo || r.roomNumber || ""
+        if (rawNo) {
+            String(rawNo).split(",").map(s => s.trim()).filter(Boolean).forEach(n => {
+                if (!roomNumbers.includes(n)) roomNumbers.push(n)
+            })
+        }
+
+        if (!groupedMap.has(groupKey)) {
+            groupedMap.set(groupKey, {
+                roomType: r.roomType || r.categoryName || r.category || r.name || "Room Category",
+                roomNos: roomNumbers,
+                arrivalDate: checkIn,
+                departureDate: checkOut,
+                roomNights: nights,
+                roomQty: qty,
+                total: total,
+                roomTariff: tariff
+            })
+        } else {
+            const existing = groupedMap.get(groupKey)
+            existing.roomQty += qty
+            existing.total += total
+            roomNumbers.forEach(n => {
+                if (!existing.roomNos.includes(n)) {
+                    existing.roomNos.push(n)
+                }
+            })
+        }
+    })
+
+    return Array.from(groupedMap.values()).map(g => {
+        const totalRoomNights = Number(g.roomNights || 1) * Number(g.roomQty || 1)
+        const effectiveTariff = (totalRoomNights > 0 && g.total > 0)
+            ? (g.total / totalRoomNights)
+            : Number(g.roomTariff || 0)
+
+        return {
+            roomType: g.roomType,
+            roomNo: g.roomNos.length > 0 ? g.roomNos.join(", ") : (defaultRoomNo || ""),
+            arrivalDate: g.arrivalDate,
+            departureDate: g.departureDate,
+            roomTariff: effectiveTariff,
+            roomQty: g.roomQty,
+            roomNights: g.roomNights,
+            total: g.total
+        }
+    })
+}
 const formatStatusLabel = (status) => {
     if (!status) return 'Confirmed'
     if (status === 'booking_confirmed') return 'Confirmed'
@@ -100,12 +174,12 @@ const ReservationVoucherModal = ({
     const checkInDate = booking.details?.arrivalDate || initialBooking?.checkIn || booking.checkIn
     const checkOutDate = booking.details?.departureDate || initialBooking?.checkOut || booking.checkOut
 
-    const rawRooms = Array.isArray(booking.rooms) && booking.rooms.length > 0 
-        ? booking.rooms 
+    const incomingRooms = Array.isArray(booking.rooms) && booking.rooms.length > 0
+        ? booking.rooms
         : Array.isArray(initialBooking?.rooms) && initialBooking.rooms.length > 0
         ? initialBooking.rooms.map(r => {
-            const checkIn = r.checkIn || initialBooking?.checkIn
-            const checkOut = r.checkOut || initialBooking?.checkOut
+            const checkIn = r.checkIn || initialBooking?.checkIn || booking.checkIn
+            const checkOut = r.checkOut || initialBooking?.checkOut || booking.checkOut
             const nights = Number(r.nights) || Math.max(1, checkIn && checkOut ? Math.ceil((new Date(checkOut) - new Date(checkIn)) / (1000 * 60 * 60 * 24)) : 1)
             const tariff = Number(r.pricePerNight || r.price || 0)
             return {
@@ -114,21 +188,23 @@ const ReservationVoucherModal = ({
                 arrivalDate: checkIn,
                 departureDate: checkOut,
                 roomTariff: tariff,
-                roomQty: 1,
+                roomQty: Number(r.roomQty || 1),
                 roomNights: nights,
-                total: tariff * nights
+                total: Number(r.total || (tariff * nights))
             }
         })
         : [{
-            roomType: initialBooking?.category || "Room Category",
-            roomNo: initialBooking?.roomNo || "",
-            arrivalDate: initialBooking?.checkIn,
-            departureDate: initialBooking?.checkOut,
-            roomTariff: Number(initialBooking?.totalAmount || 0),
+            roomType: initialBooking?.category || booking?.category || "Room Category",
+            roomNo: initialBooking?.roomNo || booking?.roomNo || "",
+            arrivalDate: initialBooking?.checkIn || booking?.checkIn,
+            departureDate: initialBooking?.checkOut || booking?.checkOut,
+            roomTariff: Number(initialBooking?.totalAmount || booking?.totalAmount || 0),
             roomQty: 1,
             roomNights: 1,
-            total: Number(initialBooking?.totalAmount || 0)
+            total: Number(initialBooking?.totalAmount || booking?.totalAmount || 0)
         }]
+
+    const rawRooms = groupVoucherRooms(incomingRooms, booking.roomNo || initialBooking?.roomNo || "")
 
     const totalNights = rawRooms.reduce((sum, r) => sum + (Number(r.roomQty || 1) * Number(r.roomNights || 1)), 0) || booking.details?.totalNights || 
         (checkInDate && checkOutDate ? Math.max(1, Math.ceil((new Date(checkOutDate) - new Date(checkInDate)) / (1000 * 60 * 60 * 24))) : 1)
@@ -264,11 +340,11 @@ const ReservationVoucherModal = ({
                 </div>
 
                 {/* Printable A4 Content Area */}
-                <div className="p-4 sm:p-6 overflow-y-auto flex-1 bg-white print:p-0 print:overflow-visible text-black font-sans text-[11px] leading-tight">
+                <div className="p-4 sm:p-6 overflow-auto flex-1 bg-white print:p-0 print:overflow-visible text-black font-sans text-[11px] leading-tight">
                     <div 
                         ref={printContainerRef} 
                         id="printable-reservation-voucher" 
-                        className="max-w-[760px] mx-auto space-y-1.5 print:space-y-1 print:max-w-none print:w-full"
+                        className="w-[760px] min-w-[760px] mx-auto space-y-1.5 print:space-y-1 print:max-w-none print:min-w-0 print:w-full"
                     >
                         
                         {/* RESORT HEADER */}
@@ -440,9 +516,9 @@ const ReservationVoucherModal = ({
                                 <tbody>
                                     {rawRooms.map((room, idx) => (
                                         <tr key={idx} style={{ borderBottom: '1px solid #000000' }}>
-                                            <td style={{ border: '1px solid #000000', padding: '3px 4px', textAlign: 'left', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{room.roomType}</td>
+                                            <td style={{ border: '1px solid #000000', padding: '3px 4px', textAlign: 'left', wordBreak: 'break-word', whiteSpace: 'normal' }}>{room.roomType}</td>
                                             {invoiceType === "authority" && (
-                                                <td style={{ border: '1px solid #000000', padding: '3px 4px', textAlign: 'center', fontWeight: 'bold' }}>
+                                                <td style={{ border: '1px solid #000000', padding: '3px 4px', textAlign: 'center', fontWeight: 'bold', wordBreak: 'break-word', whiteSpace: 'normal' }}>
                                                     {room.roomNo || room.roomNumber || initialBooking?.roomNo || booking.roomNo || "—"}
                                                 </td>
                                             )}
@@ -648,6 +724,7 @@ const ReservationVoucherModal = ({
                         position: static !important;
                         width: 100% !important;
                         max-width: 100% !important;
+                        min-width: 0 !important;
                         margin: 0 auto !important;
                         padding: 0 1.5mm !important;
                         box-sizing: border-box !important;
