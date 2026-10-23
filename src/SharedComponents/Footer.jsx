@@ -26,7 +26,7 @@ const Footer = () => {
     const location = useLocation()
     const navigate = useNavigate()
 
-    const isAuthority = Boolean(user && ["admin", "manager", "agent", "b2b"].includes(role))
+    const isAuthority = Boolean(user && ["admin", "manager", "agent", "front_desk", "b2b"].includes(role))
 
     const handleAnchorClick = (e, targetId) => {
         e.preventDefault()

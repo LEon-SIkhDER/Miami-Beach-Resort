@@ -64,10 +64,10 @@ export const router = createBrowserRouter([
         children: [
             { index: true, Component: DashboardIndex },
             { path: "overview", Component: DashboardHome },
-            { path: "calender", element: <RoleRoute allowedRoles={["admin", "manager", "agent", "b2b"]}><Calender /></RoleRoute> },
+            { path: "calender", element: <RoleRoute allowedRoles={["admin", "manager", "agent", "front_desk", "b2b"]}><Calender /></RoleRoute> },
             { path: "bookings", Component: Bookings },
             { path: "bookings/:id", Component: BookingDetails },
-            { path: "cancellations", element: <RoleRoute allowedRoles={["admin", "manager", "agent"]}><CancelledBookings /></RoleRoute> },
+            { path: "cancellations", element: <RoleRoute allowedRoles={["admin", "manager", "agent", "front_desk"]}><CancelledBookings /></RoleRoute> },
             { path: "income", element: <RoleRoute allowedRoles={["admin", "manager"]}><IncomeAnalytics /></RoleRoute> },
             { path: "workflow", element: <Navigate to="/dashboard/income" replace /> },
             { path: "category&room", element: <RoleRoute allowedRoles={["admin", "manager"]}><CategoryAndPricing /></RoleRoute> },

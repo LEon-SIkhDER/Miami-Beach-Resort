@@ -210,7 +210,7 @@ const MyBookings = () => {
             <div className="max-w-6xl mx-auto space-y-6">
                 
                 {/* Staff Alert Banner */}
-                {["admin", "manager", "agent", "b2b"].includes(role) && (
+                {["admin", "manager", "agent", "front_desk", "b2b"].includes(role) && (
                     <div className="bg-amber-50 border border-amber-200 p-4 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-amber-900 text-xs shadow-xs">
                         <div className="flex items-center gap-2.5">
                             <ShieldCheck size={18} className="text-amber-700 shrink-0" />
@@ -241,9 +241,9 @@ const MyBookings = () => {
                             </h1>
                             <p className="text-xs sm:text-sm text-slate-300 max-w-xl">
                                 {isLoggedIn ? (
-                                    <>Welcome back, <strong className="text-white font-bold">{user?.displayName || user?.email}</strong>. View your booking details, invoices, and stay schedules.</>
+                                    <>Welcome back, <strong className="text-white font-bold">{user?.displayName || user?.email}</strong>. View your booking details, reservation letters, and stay schedules.</>
                                 ) : (
-                                    <>Welcome to Miami Beach Resort. View your saved device reservations, invoices, and stay schedules.</>
+                                    <>Welcome to Miami Beach Resort. View your saved device reservations, reservation letters, and stay schedules.</>
                                 )}
                             </p>
                         </div>
@@ -539,13 +539,13 @@ const MyBookings = () => {
                                                 <Eye size={14} /> View Details
                                             </button>
 
-                                            {/* Confirmation Voucher / Invoice button */}
+                                            {/* Confirmation Voucher / Reservation Letter button */}
                                             <button
                                                 type="button"
                                                 onClick={() => setVoucherBooking(b)}
                                                 className="btn btn-sm bg-[#5261d6] hover:bg-[#4351be] text-white rounded-xl gap-1.5 text-xs font-bold shadow-xs border-none"
                                             >
-                                                <Printer size={14} /> Invoice (PDF)
+                                                <Printer size={14} /> Reservation Letter (PDF)
                                             </button>
 
                                             {/* WhatsApp hotline link */}
@@ -719,7 +719,7 @@ const MyBookings = () => {
                                 }}
                                 className="btn btn-sm bg-[#5261d6] hover:bg-[#4351be] text-white rounded-xl gap-1.5 font-bold border-none"
                             >
-                                <Printer size={14} /> Open Invoice (PDF)
+                                <Printer size={14} /> Open Reservation Letter (PDF)
                             </button>
                             <button
                                 type="button"

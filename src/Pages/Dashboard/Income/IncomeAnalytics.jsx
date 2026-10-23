@@ -253,7 +253,7 @@ const IncomeAnalytics = () => {
     const isWorkerRole = (role) => {
         if (!role) return false
         const r = String(role).trim().toLowerCase()
-        return ["agent", "b2b", "manager", "admin", "authority"].includes(r)
+        return ["agent", "front_desk", "b2b", "manager", "admin", "authority"].includes(r)
     }
 
     // Helper to match a role against the active selectedRole filter
@@ -705,6 +705,7 @@ const IncomeAnalytics = () => {
                             className="select select-sm select-bordered rounded-xl bg-white text-xs font-semibold text-slate-800"
                         >
                             <option value="all">All Worker Roles</option>
+                            <option value="front_desk">Front Desk</option>
                             <option value="agent">Agent (Marketing / Sales)</option>
                             <option value="b2b">B2B Partner</option>
                             <option value="manager">Manager</option>

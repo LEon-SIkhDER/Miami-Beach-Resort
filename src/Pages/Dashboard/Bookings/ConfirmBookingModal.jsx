@@ -256,7 +256,8 @@ const ConfirmBookingModal = ({ booking, isOpen, onClose, onSuccess, targetStatus
                 const unitPrice = s ? Number(s.price || 0) : Number(item.customService?.price || item.customService?.unitPrice || 0)
                 const name = s?.name || item.customService?.name || item.serviceId || "Extra Service"
                 const billingType = s?.billingType || item.customService?.billingType || "One-time"
-                const qty = Math.max(1, Number(item.quantity || 1))
+                const rawQty = item.quantity === "" || item.quantity === undefined || isNaN(Number(item.quantity)) ? 0 : Number(item.quantity)
+                const qty = Math.max(0, rawQty)
                 const totalCost = unitPrice * qty
                 return {
                     id: item.id,
@@ -295,7 +296,7 @@ const ConfirmBookingModal = ({ booking, isOpen, onClose, onSuccess, targetStatus
             {
                 id: `es-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`,
                 serviceId: "",
-                quantity: 1
+                quantity: ""
             }
         ])
     }
@@ -304,17 +305,9 @@ const ConfirmBookingModal = ({ booking, isOpen, onClose, onSuccess, targetStatus
         if (!newServiceId) {
             setSelectedExtraServices(prev => prev.map(item => {
                 if (item.id !== rowId) return item
-                return { ...item, serviceId: "", quantity: 1, customService: null }
+                return { ...item, serviceId: "", quantity: "", customService: null }
             }))
             return
-        }
-
-        const service = dbExtraServices.find(s => String(s._id) === String(newServiceId) || s.name === newServiceId)
-        let defaultQty = 1
-        if (service?.billingType === "Per Night") {
-            defaultQty = defaultStayNights
-        } else if (service?.billingType === "Per Person") {
-            defaultQty = defaultGuestCount
         }
 
         setSelectedExtraServices(prev => prev.map(item => {
@@ -322,17 +315,17 @@ const ConfirmBookingModal = ({ booking, isOpen, onClose, onSuccess, targetStatus
             return {
                 ...item,
                 serviceId: newServiceId,
-                quantity: defaultQty,
+                quantity: item.quantity !== undefined && item.quantity !== null && item.quantity !== "" ? item.quantity : "",
                 customService: null
             }
         }))
     }
 
     const handleQuantityChange = (rowId, newQty) => {
-        const parsed = Math.max(1, parseInt(newQty) || 1)
+        const clean = newQty === "" ? "" : Math.max(1, parseInt(newQty, 10) || 1)
         setSelectedExtraServices(prev => prev.map(item => {
             if (item.id !== rowId) return item
-            return { ...item, quantity: parsed }
+            return { ...item, quantity: clean }
         }))
     }
 
@@ -384,6 +377,12 @@ const ConfirmBookingModal = ({ booking, isOpen, onClose, onSuccess, targetStatus
             return
         }
 
+        const emptyQtyService = selectedExtraServices.find(s => s.serviceId && (!s.quantity || Number(s.quantity) <= 0))
+        if (emptyQtyService) {
+            toast.error("Please enter a valid count/quantity for all added extra services.")
+            return
+        }
+
         // Strict required fields for booking_confirmed
         const missingAdults = assignedRooms.find(r => !r.adults || Number(r.adults) <= 0)
         if (missingAdults) {
@@ -392,23 +391,20 @@ const ConfirmBookingModal = ({ booking, isOpen, onClose, onSuccess, targetStatus
         }
 
         const paidNum = Number(paidAmount || 0)
-        if (paidAmount !== '' && (isNaN(paidNum) || paidNum < 0)) {
-            toast.error("Payment Done amount cannot be negative.")
+        if (isNaN(paidNum) || paidNum <= 0) {
+            toast.error("Payment Done amount must be greater than 0 to confirm reservation. Some payment must be paid.")
             return
         }
 
-        // Only require Payment Method & Transaction ID if advance payment is greater than 0
-        if (paidNum > 0) {
-            if (!paymentMethod.trim()) {
-                toast.error("Please select a Payment Method.")
-                return
-            }
+        if (!paymentMethod.trim()) {
+            toast.error("Please select a Payment Method.")
+            return
+        }
 
-            const isDigitalMethod = !["Cash", "Other", "Pay on Arrival", "Pay on Arrival / Unpaid", "Pending"].some(m => m.toLowerCase() === paymentMethod.trim().toLowerCase())
-            if (isDigitalMethod && !transactionId.trim()) {
-                toast.error(`Transaction ID / Receipt No is required for ${paymentMethod}.`)
-                return
-            }
+        const isDigitalMethod = !["Cash", "Other", "Pay on Arrival", "Pay on Arrival / Unpaid", "Pending"].some(m => m.toLowerCase() === paymentMethod.trim().toLowerCase())
+        if (isDigitalMethod && !transactionId.trim()) {
+            toast.error(`Transaction ID / Receipt No is required for ${paymentMethod}.`)
+            return
         }
 
         if (!reference.trim()) {
@@ -500,7 +496,7 @@ const ConfirmBookingModal = ({ booking, isOpen, onClose, onSuccess, targetStatus
         >
             <div 
                 onClick={(e) => e.stopPropagation()}
-                className="bg-white rounded-3xl shadow-2xl border border-slate-100 w-full max-w-xl max-h-[92vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200"
+                className="bg-white rounded-3xl shadow-2xl border border-slate-100 w-full max-w-3xl max-h-[92vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200"
             >
                 {/* Header */}
                 <div className="flex items-center justify-between px-6 py-4 border-b border-emerald-100 bg-emerald-50/50 shrink-0">
@@ -766,7 +762,7 @@ const ConfirmBookingModal = ({ booking, isOpen, onClose, onSuccess, targetStatus
                                     )
                                     const currentService = dbExtraServices.find(s => String(s._id) === String(item.serviceId) || s.name === item.serviceId)
                                     const unitPrice = currentService ? Number(currentService.price || 0) : Number(item.customService?.price || item.customService?.unitPrice || 0)
-                                    const itemCost = unitPrice * (Number(item.quantity) || 1)
+                                    const itemCost = unitPrice * (item.quantity === "" || isNaN(Number(item.quantity)) ? 0 : Number(item.quantity))
                                     const billingType = currentService?.billingType || item.customService?.billingType || "One-time"
 
                                     return (
@@ -845,7 +841,7 @@ const ConfirmBookingModal = ({ booking, isOpen, onClose, onSuccess, targetStatus
                                                         <input
                                                             type="number"
                                                             min="1"
-                                                            value={item.quantity}
+                                                            value={item.quantity !== undefined && item.quantity !== null ? item.quantity : ""}
                                                             onChange={e => handleQuantityChange(item.id, e.target.value)}
                                                             placeholder="Enter count"
                                                             className="input input-sm input-bordered w-full rounded-xl bg-white text-xs font-bold text-amber-900"
@@ -853,7 +849,7 @@ const ConfirmBookingModal = ({ booking, isOpen, onClose, onSuccess, targetStatus
                                                         <div className="flex items-center justify-between text-[11px] text-amber-900/90 font-medium mt-1 px-1">
                                                             <span>Subtotal:</span>
                                                             <span className="font-bold font-mono text-amber-950">
-                                                                ৳{unitPrice.toLocaleString()} × {item.quantity} = ৳{itemCost.toLocaleString()}
+                                                                ৳{unitPrice.toLocaleString()} × {item.quantity || 0} = ৳{itemCost.toLocaleString()}
                                                             </span>
                                                         </div>
                                                     </div>
@@ -889,35 +885,26 @@ const ConfirmBookingModal = ({ booking, isOpen, onClose, onSuccess, targetStatus
                             <strong className="text-slate-900 font-extrabold text-sm font-mono">Total Payable: ৳{standardTotal.toLocaleString()}</strong>
                         </div>
 
-                        {/* All 3 Payment-Related Fields in 3 Columns */}
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+                        {/* Payment Fields (Responsive 2-Row Layout: Payment Done & Method in 2 Columns, Trx ID full width) */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                             {/* Payment Done / Received Input */}
                             <div className="form-control">
                                 <label className="label py-0.5 block">
                                     <span className="label-text font-bold text-slate-800 text-xs flex items-center gap-1">
-                                        <CreditCard size={13} className="text-teal-600" /> Payment Done (৳)
-                                        <span className="text-slate-400 font-normal text-[10px]">(0 if unpaid)</span>
+                                        <CreditCard size={13} className="text-teal-600" /> Payment Done (৳) <span className="text-rose-500 font-bold">*</span>
                                     </span>
                                 </label>
                                 <input
                                     type="number"
-                                    min="0"
+                                    min="1"
                                     max={finalTotal * 2}
                                     value={paidAmount}
                                     onChange={e => setPaidAmount(e.target.value)}
-                                    placeholder="0"
+                                    placeholder="Enter paid amount"
                                     className="input input-sm input-bordered w-full rounded-xl bg-white text-xs font-bold text-emerald-800"
                                 />
                                 {/* Quick payment helper buttons */}
                                 <div className="flex flex-wrap gap-1 mt-1.5">
-                                    <button
-                                        type="button"
-                                        onClick={() => { setPaidAmount('0'); setPaymentMethod(''); setTransactionId(''); }}
-                                        className="btn btn-xs btn-outline border-amber-300 text-amber-800 hover:bg-amber-50 rounded-lg text-[10px] font-bold px-2"
-                                        title="Confirm with 0 advance (Pay on Arrival)"
-                                    >
-                                        0 (Unpaid)
-                                    </button>
                                     <button
                                         type="button"
                                         onClick={() => setPaidAmount(String(finalTotal))}
@@ -941,15 +928,15 @@ const ConfirmBookingModal = ({ booking, isOpen, onClose, onSuccess, targetStatus
                             <div className="form-control">
                                 <label className="label py-0.5">
                                     <span className="label-text font-bold text-slate-800 text-xs flex items-center gap-1">
-                                        <CreditCard size={13} className="text-teal-600" /> Payment Method {effectivePaid > 0 && <span className="text-red-500 font-bold">*</span>}
+                                        <CreditCard size={13} className="text-teal-600" /> Payment Method <span className="text-rose-500 font-bold">*</span>
                                     </span>
                                 </label>
                                 <select
                                     value={paymentMethod}
                                     onChange={e => setPaymentMethod(e.target.value)}
-                                    className={`select select-sm select-bordered w-full rounded-xl bg-white text-xs font-semibold ${effectivePaid > 0 && !paymentMethod ? 'border-amber-400' : ''}`}
+                                    className={`select select-sm select-bordered w-full rounded-xl bg-white text-xs font-semibold ${!paymentMethod ? 'border-amber-400' : ''}`}
                                 >
-                                    <option value="">{effectivePaid > 0 ? "-- Select Payment Method --" : "-- Pay on Arrival / Unpaid --"}</option>
+                                    <option value="">-- Select Payment Method --</option>
                                     <option value="bKash">bKash (Mobile)</option>
                                     <option value="Nagad">Nagad (Mobile)</option>
                                     <option value="Rocket">Rocket (DBBL)</option>
@@ -964,14 +951,14 @@ const ConfirmBookingModal = ({ booking, isOpen, onClose, onSuccess, targetStatus
                             </div>
 
                             {/* Transaction ID */}
-                            <div className="form-control">
+                            <div className="form-control sm:col-span-2">
                                 <label className="label py-0.5">
                                     <span className="label-text font-bold text-slate-800 text-xs flex items-center justify-between w-full">
                                         <span className="flex items-center gap-1">
-                                            <Receipt size={13} className="text-teal-600" /> Trx / Receipt
+                                            <Receipt size={13} className="text-teal-600" /> Trx / Receipt No
                                         </span>
                                         {effectivePaid > 0 && paymentMethod && !["Cash", "Other", "Pay on Arrival", "Pay on Arrival / Unpaid", "Pending"].some(m => m.toLowerCase() === paymentMethod.trim().toLowerCase()) && (
-                                            <span className="text-red-500 font-bold text-[10px]">* Required</span>
+                                            <span className="text-red-500 font-bold text-[10px]">* Required for {paymentMethod}</span>
                                         )}
                                     </span>
                                 </label>
@@ -980,7 +967,7 @@ const ConfirmBookingModal = ({ booking, isOpen, onClose, onSuccess, targetStatus
                                     required={Boolean(effectivePaid > 0 && paymentMethod && !["Cash", "Other", "Pay on Arrival", "Pay on Arrival / Unpaid", "Pending"].some(m => m.toLowerCase() === paymentMethod.trim().toLowerCase()))}
                                     value={transactionId}
                                     onChange={e => setTransactionId(e.target.value)}
-                                    placeholder={effectivePaid <= 0 || ["Cash", "Other", "Pay on Arrival", "Pay on Arrival / Unpaid", "Pending"].some(m => m.toLowerCase() === (paymentMethod || '').trim().toLowerCase()) ? "Optional" : "e.g. TRX-982314 / Slip No"}
+                                    placeholder={effectivePaid <= 0 || ["Cash", "Other", "Pay on Arrival", "Pay on Arrival / Unpaid", "Pending"].some(m => m.toLowerCase() === (paymentMethod || '').trim().toLowerCase()) ? "Optional for Cash / Other" : "e.g. TRX-982314 or Bank Slip / Receipt No"}
                                     className={`input input-sm input-bordered w-full rounded-xl bg-white text-xs ${effectivePaid > 0 && paymentMethod && !["Cash", "Other", "Pay on Arrival", "Pay on Arrival / Unpaid", "Pending"].some(m => m.toLowerCase() === paymentMethod.trim().toLowerCase()) && !transactionId.trim() ? 'border-amber-400' : ''}`}
                                 />
                             </div>

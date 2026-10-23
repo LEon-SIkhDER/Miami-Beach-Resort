@@ -73,6 +73,8 @@ const UserWorkflowModal = ({ user, isOpen, onClose }) => {
                 return <span className="badge badge-sm bg-amber-100 text-amber-900 border-amber-300 font-bold gap-1"><Shield size={12} /> Admin</span>
             case "manager":
                 return <span className="badge badge-sm bg-purple-100 text-purple-900 border-purple-300 font-bold gap-1"><Briefcase size={12} /> Manager</span>
+            case "front_desk":
+                return <span className="badge badge-sm bg-cyan-100 text-cyan-900 border-cyan-300 font-bold gap-1"><UserCheck size={12} /> Front Desk</span>
             case "agent":
                 return <span className="badge badge-sm bg-teal-100 text-teal-900 border-teal-300 font-bold gap-1"><UserCheck size={12} /> Agent</span>
             case "b2b":
@@ -245,7 +247,13 @@ const UserWorkflowModal = ({ user, isOpen, onClose }) => {
                                         <tbody className="divide-y divide-slate-100">
                                             {filteredBookings.map(b => {
                                                 const bRooms = getBookingRooms(b)
-                                                const dateSummary = getBookingDateSummary(b) || `${b.checkIn || ""} → ${b.checkOut || ""}`
+                                                const validRooms = bRooms.filter(r => r.checkIn && r.checkOut)
+                                                const checkInDate = validRooms.length
+                                                    ? validRooms.map(r => r.checkIn).sort()[0]
+                                                    : (b.checkIn || bRooms[0]?.checkIn)
+                                                const checkOutDate = validRooms.length
+                                                    ? validRooms.map(r => r.checkOut).sort().slice(-1)[0]
+                                                    : (b.checkOut || bRooms[0]?.checkOut)
                                                 const bTotal = getBookingTotal(b)
                                                 const bPaid = getBookingPaidAmount(b)
                                                 const bDue = getBookingDueAmount(b)
@@ -262,8 +270,17 @@ const UserWorkflowModal = ({ user, isOpen, onClose }) => {
                                                         <td className="max-w-[150px] truncate" title={bRooms.map(r => getRoomName(r)).join(", ")}>
                                                             {bRooms.length > 1 ? `${bRooms.length} Rooms` : getRoomName(bRooms[0]) || "Room"}
                                                         </td>
-                                                        <td className="whitespace-nowrap text-slate-600">
-                                                            {dateSummary}
+                                                        <td className="text-xs whitespace-nowrap">
+                                                            <div className="space-y-0.5">
+                                                                <p className="font-semibold text-slate-800 flex items-center gap-1.5">
+                                                                    <span className="text-[9px] font-bold text-teal-800 bg-teal-50 border border-teal-200 px-1 py-0.2 rounded">In</span>
+                                                                    <span>{formatDate(checkInDate) || "—"}</span>
+                                                                </p>
+                                                                <p className="text-slate-500 text-[11px] flex items-center gap-1.5">
+                                                                    <span className="text-[9px] font-bold text-slate-600 bg-slate-100 border border-slate-200 px-1 py-0.2 rounded">Out</span>
+                                                                    <span>{formatDate(checkOutDate) || "—"}</span>
+                                                                </p>
+                                                            </div>
                                                         </td>
                                                         <td className="font-bold text-slate-900 whitespace-nowrap">
                                                             ৳{Number(bTotal).toLocaleString()}

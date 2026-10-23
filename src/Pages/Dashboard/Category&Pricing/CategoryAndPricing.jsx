@@ -60,7 +60,7 @@ const CategoryAndPricing = () => {
                         Manage room categories, pricing, amenities and assigned room numbers.
                     </p>
                 </div>
-                <AddCategory className="btn btn-primary btn-sm rounded-xl gap-2 shadow-sm text-white" refetch={refetch}>
+                <AddCategory className="btn animate-bounce btn-primary btn-sm rounded-xl gap-2 shadow-sm text-white" refetch={refetch}>
                     <Plus size={16} /> Add Category
                 </AddCategory>
             </div>

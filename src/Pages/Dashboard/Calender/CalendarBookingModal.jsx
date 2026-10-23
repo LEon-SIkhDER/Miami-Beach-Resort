@@ -25,7 +25,7 @@ import {
     CheckSquare,
     Square
 } from 'lucide-react'
-import { formatDate } from '../../../utils/bookingUtils'
+import { formatDate, isWebsiteRequestBooking } from '../../../utils/bookingUtils'
 
 const formatLocalDate = (date) => {
     if (!date) return ''
@@ -129,10 +129,14 @@ const CalendarBookingModal = ({
 
     // Active bookings for room conflict check
     const { data: activeBookings = [] } = useQuery({
-        queryKey: ["active-bookings-for-calendar-modal"],
+        queryKey: ["active-bookings-for-calendar-modal", role],
         queryFn: async () => {
             const res = await axiosSecure.get("/bookings")
-            return res.data
+            const list = Array.isArray(res.data) ? res.data : (Array.isArray(res.data?.result) ? res.data.result : [])
+            if (role === "front_desk" || role === "b2b") {
+                return list.filter(b => !isWebsiteRequestBooking(b))
+            }
+            return list
         },
         enabled: isOpen
     })
@@ -315,7 +319,8 @@ const CalendarBookingModal = ({
             .map(item => {
                 const s = dbExtraServices.find(dbS => String(dbS._id) === String(item.serviceId) || dbS.name === item.serviceId)
                 const unitPrice = Number(s?.price || 0)
-                const qty = Math.max(1, Number(item.quantity || 1))
+                const rawQty = item.quantity === "" || item.quantity === undefined || isNaN(Number(item.quantity)) ? 0 : Number(item.quantity)
+                const qty = Math.max(0, rawQty)
                 const totalCost = unitPrice * qty
                 return {
                     id: item.id,
@@ -354,7 +359,7 @@ const CalendarBookingModal = ({
             {
                 id: `es-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`,
                 serviceId: "",
-                quantity: 1
+                quantity: ""
             }
         ])
     }
@@ -363,17 +368,9 @@ const CalendarBookingModal = ({
         if (!newServiceId) {
             setSelectedExtraServices(prev => prev.map(item => {
                 if (item.id !== rowId) return item
-                return { ...item, serviceId: "", quantity: 1 }
+                return { ...item, serviceId: "", quantity: "" }
             }))
             return
-        }
-
-        const service = dbExtraServices.find(s => String(s._id) === String(newServiceId) || s.name === newServiceId)
-        let defaultQty = 1
-        if (service?.billingType === "Per Night") {
-            defaultQty = defaultStayNights
-        } else if (service?.billingType === "Per Person") {
-            defaultQty = defaultGuestCount
         }
 
         setSelectedExtraServices(prev => prev.map(item => {
@@ -381,16 +378,16 @@ const CalendarBookingModal = ({
             return {
                 ...item,
                 serviceId: newServiceId,
-                quantity: defaultQty
+                quantity: item.quantity !== undefined && item.quantity !== null && item.quantity !== "" ? item.quantity : ""
             }
         }))
     }
 
     const handleQuantityChange = (rowId, newQty) => {
-        const parsed = Math.max(1, parseInt(newQty) || 1)
+        const clean = newQty === "" ? "" : Math.max(1, parseInt(newQty, 10) || 1)
         setSelectedExtraServices(prev => prev.map(item => {
             if (item.id !== rowId) return item
-            return { ...item, quantity: parsed }
+            return { ...item, quantity: clean }
         }))
     }
 
@@ -552,6 +549,12 @@ const CalendarBookingModal = ({
             return
         }
 
+        const emptyQtyService = selectedExtraServices.find(s => s.serviceId && (!s.quantity || Number(s.quantity) <= 0))
+        if (emptyQtyService) {
+            toast.error("Please enter a valid count/quantity for all added extra services.")
+            return
+        }
+
         // Adult value required for booking
         const missingAdults = flatBookedRooms.find(r => !r.adults || Number(r.adults) <= 0)
         if (missingAdults) {
@@ -562,23 +565,20 @@ const CalendarBookingModal = ({
         // Strict validation for Confirm Booking (booking_confirmed)
         if (targetStatus === "booking_confirmed") {
             const paidNum = Number(paidAmount || 0)
-            if (paidAmount !== '' && (isNaN(paidNum) || paidNum < 0)) {
-                toast.error("Payment Done amount cannot be negative.")
+            if (isNaN(paidNum) || paidNum <= 0) {
+                toast.error("Payment Done amount must be greater than 0 to confirm reservation. Some payment must be paid.")
                 return
             }
 
-            // Only require Payment Method & Transaction ID if advance payment is provided (> 0)
-            if (paidNum > 0) {
-                if (!paymentMethod.trim()) {
-                    toast.error("Payment Method is required when advance payment is provided.")
-                    return
-                }
+            if (!paymentMethod.trim()) {
+                toast.error("Please select a Payment Method.")
+                return
+            }
 
-                const isNoTrxMethod = ["Cash", "Other", "Pay on Arrival", "Pay on Arrival / Unpaid", "Pending"].some(m => m.toLowerCase() === paymentMethod.trim().toLowerCase())
-                if (!isNoTrxMethod && !transactionId.trim()) {
-                    toast.error(`Transaction ID / Receipt No is required for ${paymentMethod}.`)
-                    return
-                }
+            const isNoTrxMethod = ["Cash", "Other", "Pay on Arrival", "Pay on Arrival / Unpaid", "Pending"].some(m => m.toLowerCase() === paymentMethod.trim().toLowerCase())
+            if (!isNoTrxMethod && !transactionId.trim()) {
+                toast.error(`Transaction ID / Receipt No is required for ${paymentMethod}.`)
+                return
             }
 
             // Reference is required
@@ -819,7 +819,7 @@ const CalendarBookingModal = ({
                             <button
                                 type="button"
                                 onClick={handleAddCategory}
-                                className="btn btn-xs bg-teal-50 hover:bg-teal-100 text-teal-800 border border-teal-300 rounded-xl gap-1 font-bold shadow-2xs"
+                                className="btn animate-bounce btn-xs bg-teal-50 hover:bg-teal-100 text-teal-800 border border-teal-300 rounded-xl gap-1 font-bold shadow-2xs"
                             >
                                 <Plus size={13} /> Add Category
                             </button>
@@ -1142,7 +1142,7 @@ const CalendarBookingModal = ({
                                     )
                                     const currentService = dbExtraServices.find(s => String(s._id) === String(item.serviceId) || s.name === item.serviceId)
                                     const unitPrice = Number(currentService?.price || 0)
-                                    const itemCost = unitPrice * (Number(item.quantity) || 1)
+                                    const itemCost = unitPrice * (item.quantity === "" || isNaN(Number(item.quantity)) ? 0 : Number(item.quantity))
                                     const billingType = currentService?.billingType || "One-time"
 
                                     return (
@@ -1216,7 +1216,7 @@ const CalendarBookingModal = ({
                                                         <input
                                                             type="number"
                                                             min="1"
-                                                            value={item.quantity}
+                                                            value={item.quantity !== undefined && item.quantity !== null ? item.quantity : ""}
                                                             onChange={e => handleQuantityChange(item.id, e.target.value)}
                                                             placeholder="Enter count"
                                                             className="input input-sm input-bordered w-full rounded-xl bg-white text-xs font-bold text-amber-900"
@@ -1224,7 +1224,7 @@ const CalendarBookingModal = ({
                                                         <div className="flex items-center justify-between text-[11px] text-amber-900/90 font-medium mt-1 px-1">
                                                             <span>Subtotal:</span>
                                                             <span className="font-bold font-mono text-amber-950">
-                                                                ৳{unitPrice.toLocaleString()} × {item.quantity} = ৳{itemCost.toLocaleString()}
+                                                                ৳{unitPrice.toLocaleString()} × {item.quantity || 0} = ৳{itemCost.toLocaleString()}
                                                             </span>
                                                         </div>
                                                     </div>
@@ -1305,14 +1305,6 @@ const CalendarBookingModal = ({
                                         />
                                         {/* Quick payment helper buttons */}
                                         <div className="flex flex-wrap items-center gap-1 mt-1.5">
-                                            <button
-                                                type="button"
-                                                onClick={() => { setPaidAmount('0'); setPaymentMethod(''); setTransactionId(''); }}
-                                                className="btn btn-xs btn-outline border-amber-300 text-amber-800 hover:bg-amber-50 rounded-lg text-[10px] font-bold px-2"
-                                                title="Reserve with 0 advance (Pay on Arrival)"
-                                            >
-                                                0 (Unpaid)
-                                            </button>
                                             <button
                                                 type="button"
                                                 onClick={() => setPaidAmount(String(finalTotal))}

@@ -239,3 +239,35 @@ export const clearGuestBookingIds = () => {
         console.error("Failed to clear guest booking IDs from localStorage:", e)
     }
 }
+
+/**
+ * Checks whether a booking is a request/pending reservation originating directly from the website.
+ * Used to filter out website requests from Front Desk role views while preserving internal front-desk/staff requests.
+ */
+export const isWebsiteRequestBooking = (booking) => {
+    if (!booking) return false
+    const status = String(booking.status || "").toLowerCase().trim()
+    const isRequest = status === "request_booking" || status === "pending"
+    if (!isRequest) return false
+
+    const requestedByRole = String(booking.requestedByRole || booking.bookedBy?.role || booking.createdBy?.role || "").toLowerCase().trim()
+    const guestType = String(booking.guestType || "").toUpperCase().trim()
+    const reference = String(booking.reference || "").toLowerCase().trim()
+
+    // Internal staff roles are not website requests
+    if (["admin", "manager", "agent", "front_desk", "b2b"].includes(requestedByRole)) {
+        return false
+    }
+
+    // Explicit walk-in / front-desk references
+    if (guestType === "WALK-IN" || reference.includes("front desk") || reference.includes("frontdesk") || reference.includes("walk-in")) {
+        return false
+    }
+
+    // Direct website booking requests
+    if (guestType === "WEB" || reference.includes("website") || requestedByRole === "user" || !requestedByRole) {
+        return true
+    }
+
+    return false
+}

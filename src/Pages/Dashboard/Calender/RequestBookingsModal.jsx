@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useMemo } from 'react'
 import { createPortal } from 'react-dom'
 import { Link } from 'react-router'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
@@ -36,7 +36,8 @@ import {
     getBookingRooms, 
     getBookingTotal, 
     getNightCount, 
-    getRoomName 
+    getRoomName,
+    isWebsiteRequestBooking 
 } from '../../../utils/bookingUtils'
 import ConfirmBookingModal from '../Bookings/ConfirmBookingModal'
 import EditBookingModal from '../Bookings/EditBookingModal'
@@ -80,7 +81,15 @@ const RequestBookingsModal = ({ isOpen, onClose, requestBookings = EMPTY_ARRAY, 
     const [copiedId, setCopiedId] = useState(null)
     const isB2B = role === "b2b"
     const canDelete = ["admin", "manager"].includes(role)
-    const canEdit = ["admin", "manager", "agent"].includes(role)
+    const canEdit = ["admin", "manager", "agent", "front_desk"].includes(role)
+
+    const visibleBookings = useMemo(() => {
+        const list = Array.isArray(requestBookings) ? requestBookings : []
+        if (role === "front_desk" || role === "b2b") {
+            return list.filter(b => !isWebsiteRequestBooking(b))
+        }
+        return list
+    }, [requestBookings, role])
 
     const handleCopyBookingId = (bookingId) => {
         if (!bookingId) return
@@ -154,7 +163,7 @@ const RequestBookingsModal = ({ isOpen, onClose, requestBookings = EMPTY_ARRAY, 
                             <div className="flex items-center gap-2">
                                 <h3 className="font-bold text-slate-900 text-base sm:text-lg">Pending Booking Requests</h3>
                                 <span className="badge badge-sm bg-amber-500 text-white font-bold border-none">
-                                    {requestBookings.length} Request{requestBookings.length !== 1 ? 's' : ''}
+                                    {visibleBookings.length} Request{visibleBookings.length !== 1 ? 's' : ''}
                                 </span>
                             </div>
                             <p className="text-xs text-slate-500">
@@ -173,7 +182,7 @@ const RequestBookingsModal = ({ isOpen, onClose, requestBookings = EMPTY_ARRAY, 
 
                 {/* Modal Body */}
                 <div className="p-4 sm:p-6 overflow-y-auto space-y-4 flex-1">
-                    {requestBookings.length === 0 ? (
+                    {visibleBookings.length === 0 ? (
                         <div className="text-center py-16 text-slate-400 space-y-2">
                             <Clock size={44} className="mx-auto opacity-40 text-amber-500" />
                             <p className="font-bold text-slate-700 text-base">No pending booking requests</p>
@@ -181,7 +190,7 @@ const RequestBookingsModal = ({ isOpen, onClose, requestBookings = EMPTY_ARRAY, 
                         </div>
                     ) : (
                         <div className="space-y-4">
-                            {requestBookings.map((b) => {
+                            {visibleBookings.map((b) => {
                                 const bookingRooms = getBookingRooms(b)
                                 const guestTotals = getBookingGuestTotals(b)
                                 const totalAmount = getBookingTotal(b)

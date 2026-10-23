@@ -13,7 +13,7 @@ import OutOfOrderModal from "./OutOfOrderModal";
 import CalendarFilterSettingsModal from "./CalendarFilterSettingsModal";
 import { Clock, RefreshCw, BedDouble, Wrench, AlertTriangle, Wallet, Filter, ChevronLeft, ChevronRight, ChevronDown, Calendar as CalendarIcon, SlidersHorizontal } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { getBookingRooms, getBookingTotal, getBookingPaidAmount, getBookingDueAmount } from "../../../utils/bookingUtils";
+import { getBookingRooms, getBookingTotal, getBookingPaidAmount, getBookingDueAmount, isWebsiteRequestBooking } from "../../../utils/bookingUtils";
 import toast from "react-hot-toast";
 
 const EMPTY_ARRAY = [];
@@ -100,10 +100,14 @@ const Calender = () => {
         data: requestBookings = EMPTY_ARRAY,
         refetch: refetchRequestBookings
     } = useQuery({
-        queryKey: ["requestBookings"],
+        queryKey: ["requestBookings", role],
         queryFn: async () => {
             const { data: result } = await axiosSecure.get("/bookings?status=request_booking");
-            return result;
+            const list = Array.isArray(result) ? result : [];
+            if (role === "front_desk" || role === "b2b") {
+                return list.filter(b => !isWebsiteRequestBooking(b));
+            }
+            return list;
         }
     });
 
@@ -133,11 +137,15 @@ const Calender = () => {
         isLoading: isBookingsLoading,
         refetch: refetchBookings
     } = useQuery({
-        queryKey: ["all-bookings-for-calendar", startIso, endIso],
+        queryKey: ["all-bookings-for-calendar", startIso, endIso, role],
         queryFn: async () => {
             if (!startIso || !endIso) return EMPTY_ARRAY;
             const res = await axiosSecure.get(`/bookings?startDate=${startIso}&endDate=${endIso}`);
-            return res.data;
+            const list = Array.isArray(res.data) ? res.data : [];
+            if (role === "front_desk" || role === "b2b") {
+                return list.filter(b => !isWebsiteRequestBooking(b));
+            }
+            return list;
         },
         enabled: !!startIso && !!endIso,
         placeholderData: (previousData) => previousData

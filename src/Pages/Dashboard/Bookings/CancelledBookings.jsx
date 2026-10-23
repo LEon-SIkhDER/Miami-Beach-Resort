@@ -38,8 +38,8 @@ const CancelledBookings = () => {
         queryKey: ["cancelled-bookings", user?.email, role],
         enabled: !!user && role !== undefined,
         queryFn: async () => {
-            const isAdminOrManager = ["admin", "manager"].includes(role)
-            const url = isAdminOrManager ? `/bookings?status=cancel` : `/bookings?status=cancel&email=${encodeURIComponent(user?.email || '')}`
+            const canViewAll = ["admin", "manager", "agent", "front_desk"].includes(role)
+            const url = canViewAll ? `/bookings?status=cancel` : `/bookings?status=cancel&email=${encodeURIComponent(user?.email || '')}`
             const res = await axiosSecure.get(url)
             return res.data
         }
@@ -71,6 +71,8 @@ const CancelledBookings = () => {
                 return <span className="badge badge-xs bg-purple-100 text-purple-800 border-none font-bold">Manager</span>
             case "agent":
                 return <span className="badge badge-xs bg-teal-100 text-teal-800 border-none font-bold">Agent</span>
+            case "front_desk":
+                return <span className="badge badge-xs bg-cyan-100 text-cyan-800 border-none font-bold">Front Desk</span>
             case "b2b":
                 return <span className="badge badge-xs bg-blue-100 text-blue-800 border-none font-bold">B2B</span>
             default:

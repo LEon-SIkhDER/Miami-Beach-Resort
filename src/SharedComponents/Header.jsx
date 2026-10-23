@@ -34,7 +34,7 @@ const Header = () => {
     const [scrolled, setScrolled] = useState(false)
     const dropdownRef = useRef(null)
 
-    const isStaffRole = ["admin", "manager", "agent", "b2b"].includes(role)
+    const isStaffRole = ["admin", "manager", "agent", "front_desk", "b2b"].includes(role)
 
     // Handle scroll effect
     useEffect(() => {
@@ -113,6 +113,8 @@ const Header = () => {
                 return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-700 text-white shadow-xs"><ShieldCheck size={11} /> Manager</span>
             case "agent":
                 return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-700 text-white shadow-xs"><ShieldCheck size={11} /> Concierge Agent</span>
+            case "front_desk":
+                return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-cyan-700 text-white shadow-xs"><ShieldCheck size={11} /> Front Desk</span>
             case "b2b":
                 return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-700 text-white shadow-xs"><ShieldCheck size={11} /> Corporate Partner</span>
             default:

@@ -24,7 +24,7 @@ const Register = () => {
                     photo: user.photoURL
                 })
                 toast.success("Account created and logged in!")
-                navigate("/dashboard")
+                navigate("/")
             })
             .catch(err => {
                 console.log(err)
@@ -44,7 +44,7 @@ const Register = () => {
                 phone: data.phone,
             })
             toast.success("Account created successfully!")
-            navigate("/dashboard")
+            navigate("/")
         } catch (err) {
             console.log(err)
             toast.error(err.message || "Registration failed")

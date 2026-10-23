@@ -34,7 +34,7 @@ import {
     ChevronLeft,
     ChevronRight
 } from 'lucide-react'
-import { formatDate, getBookingDateSummary, getBookingGuestTotals, getBookingRooms, getBookingTotal, getRoomName } from '../../../utils/bookingUtils'
+import { formatDate, getBookingDateSummary, getBookingGuestTotals, getBookingPaidAmount, getBookingRooms, getBookingTotal, getRoomName, isWebsiteRequestBooking } from '../../../utils/bookingUtils'
 import ConfirmBookingModal from './ConfirmBookingModal'
 import EditBookingModal from './EditBookingModal'
 import CancelBookingModal from './CancelBookingModal'
@@ -68,6 +68,8 @@ const getActorRoleBadge = (actorRole) => {
             return <span className="badge badge-xs bg-purple-100 text-purple-900 border-purple-300 font-bold">Manager</span>
         case "agent":
             return <span className="badge badge-xs bg-teal-100 text-teal-900 border-teal-300 font-bold">Agent</span>
+        case "front_desk":
+            return <span className="badge badge-xs bg-cyan-100 text-cyan-900 border-cyan-300 font-bold">Front Desk</span>
         case "b2b":
             return <span className="badge badge-xs bg-blue-100 text-blue-900 border-blue-300 font-bold">B2B</span>
         default:
@@ -120,10 +122,10 @@ const Bookings = () => {
     const [voucherBooking, setVoucherBooking] = useState(null)
 
     const isAdminOrManager = ["admin", "manager"].includes(role)
-    const canFilterByReference = isAdminOrManager
-    const canViewAllBookings = isAdminOrManager
-    const isStaff = ["admin", "manager", "agent"].includes(role)
-    const canEdit = ["admin", "manager", "agent"].includes(role)
+    const canFilterByReference = ["admin", "manager", "agent", "front_desk"].includes(role)
+    const canViewAllBookings = ["admin", "manager", "agent", "front_desk", "b2b"].includes(role)
+    const isStaff = ["admin", "manager", "agent", "front_desk"].includes(role)
+    const canEdit = ["admin", "manager", "agent", "front_desk"].includes(role)
     const canDelete = ["admin", "manager"].includes(role)
 
     // Fetch distinct references for filter dropdown (Admin & Manager only)
@@ -163,6 +165,19 @@ const Bookings = () => {
             params.set("limit", limit)
             params.set("skip", (pageState - 1) * limit)
             const res = await axiosSecure.get(`/bookings?${params.toString()}`)
+            if ((role === "front_desk" || role === "b2b") && res.data) {
+                if (Array.isArray(res.data.bookings)) {
+                    const filtered = res.data.bookings.filter(b => !isWebsiteRequestBooking(b))
+                    const diff = res.data.bookings.length - filtered.length
+                    return {
+                        ...res.data,
+                        bookings: filtered,
+                        totalBookings: Math.max(0, (res.data.totalBookings || 0) - diff)
+                    }
+                } else if (Array.isArray(res.data)) {
+                    return res.data.filter(b => !isWebsiteRequestBooking(b))
+                }
+            }
             return res.data
         },
         placeholderData: (previousData) => previousData,
@@ -198,6 +213,7 @@ const Bookings = () => {
             await queryClient.invalidateQueries({ queryKey: ["user-bookings-summary"] })
             await queryClient.invalidateQueries({ queryKey: ["admin-overview"] })
             await queryClient.invalidateQueries({ queryKey: ["reserved-dates"] })
+            await queryClient.invalidateQueries({ queryKey: ["overdue-checkouts"] })
             toast.dismiss(context?.toastId)
             toast.success(`Status changed to ${statusText(variables.status)}.`)
         },
@@ -217,6 +233,7 @@ const Bookings = () => {
             await queryClient.invalidateQueries({ queryKey: ["bookings"] })
             await queryClient.invalidateQueries({ queryKey: ["admin-overview"] })
             await queryClient.invalidateQueries({ queryKey: ["reserved-dates"] })
+            await queryClient.invalidateQueries({ queryKey: ["overdue-checkouts"] })
             toast.dismiss(context?.toastId)
             toast.success("Reservation deleted.")
         },
@@ -244,6 +261,12 @@ const Bookings = () => {
             const missingRoom = bookingRooms.find(r => !r.roomNo || !String(r.roomNo).trim())
             if (missingRoom) {
                 toast.error(`Please assign a physical room number before setting to ${statusText(status)}.`)
+                return
+            }
+
+            const paid = getBookingPaidAmount(booking)
+            if (paid <= 0) {
+                toast.error(`Cannot set status to ${statusText(status)}: A booking must have some amount paid before confirmation or check-in.`)
                 return
             }
 
@@ -337,6 +360,10 @@ const Bookings = () => {
             rolePillClass = "bg-purple-50 text-purple-800 border-purple-200"
             IconComponent = Briefcase
             displayRole = "Manager"
+        } else if (actorRole === "front_desk") {
+            rolePillClass = "bg-cyan-50 text-cyan-800 border-cyan-200"
+            IconComponent = UserCheck
+            displayRole = "Front Desk"
         } else if (actorRole === "agent") {
             rolePillClass = "bg-teal-50 text-teal-800 border-teal-200"
             IconComponent = UserCheck
@@ -580,10 +607,10 @@ const Bookings = () => {
                                                 type="button"
                                                 onClick={() => setVoucherBooking(b)}
                                                 className="btn btn-xs bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200/60 rounded-lg gap-1 font-bold"
-                                                title="Print Invoice"
+                                                title="Print Reservation Letter"
                                             >
                                                 <Printer size={13} />
-                                                <span>Print Invoice</span>
+                                                <span>Print Reservation Letter</span>
                                             </button> */}
 
                                                 <div className="dropdown dropdown-end">
@@ -597,7 +624,7 @@ const Bookings = () => {
                                                                 onClick={() => setVoucherBooking(b)}
                                                                 className="text-slate-600 hover:text-teal-700 hover:bg-teal-50"
                                                             >
-                                                                <Printer size={15} /> Print Invoice
+                                                                <Printer size={15} /> Print Reservation Letter
                                                             </button>
                                                         </li>
                                                         <li>
@@ -719,9 +746,9 @@ const Bookings = () => {
                                             type="button"
                                             onClick={() => setVoucherBooking(b)}
                                             className="btn btn-sm bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200/60 rounded-xl gap-1 font-semibold"
-                                            title="Print Invoice"
+                                            title="Print Reservation Letter"
                                         >
-                                            <Printer size={14} /> Invoice
+                                            <Printer size={14} /> Reservation Letter
                                         </button>
                                         {canEdit && (
                                             <button
@@ -744,7 +771,7 @@ const Bookings = () => {
                                                     onClick={() => setVoucherBooking(b)}
                                                     className="text-slate-600 hover:text-teal-700 hover:bg-teal-50"
                                                 >
-                                                    <Printer size={15} /> Print Invoice
+                                                    <Printer size={15} /> Print Reservation Letter
                                                 </button>
                                             </li>
                                             {getStatusActions(b).map(status => (
@@ -845,6 +872,7 @@ const Bookings = () => {
                     onSuccess={() => {
                         queryClient.invalidateQueries({ queryKey: ["bookings"] })
                         queryClient.invalidateQueries({ queryKey: ["admin-overview"] })
+                        queryClient.invalidateQueries({ queryKey: ["overdue-checkouts"] })
                     }}
                 />
             )}
@@ -858,6 +886,7 @@ const Bookings = () => {
                     onSuccess={() => {
                         queryClient.invalidateQueries({ queryKey: ["bookings"] })
                         queryClient.invalidateQueries({ queryKey: ["admin-overview"] })
+                        queryClient.invalidateQueries({ queryKey: ["overdue-checkouts"] })
                     }}
                 />
             )}
@@ -871,13 +900,14 @@ const Bookings = () => {
                     onSuccess={() => {
                         queryClient.invalidateQueries({ queryKey: ["bookings"] })
                         queryClient.invalidateQueries({ queryKey: ["admin-overview"] })
+                        queryClient.invalidateQueries({ queryKey: ["overdue-checkouts"] })
                     }}
                     currentUser={currentUser}
                     role={role}
                 />
             )}
 
-            {/* Reservation Voucher / Printable Invoice Modal (createPortal) */}
+            {/* Reservation Voucher / Printable Reservation Letter Modal (createPortal) */}
             {voucherBooking && (
                 <ReservationVoucherModal
                     isOpen={!!voucherBooking}

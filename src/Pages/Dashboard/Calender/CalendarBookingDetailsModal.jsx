@@ -46,7 +46,8 @@ import {
     getEffectivePaymentHistory,
     getNightCount, 
     getRoomName, 
-    getBookingGuestTotals 
+    getBookingGuestTotals,
+    isWebsiteRequestBooking 
 } from '../../../utils/bookingUtils'
 import ConfirmBookingModal from '../Bookings/ConfirmBookingModal'
 import EditBookingModal from '../Bookings/EditBookingModal'
@@ -98,7 +99,7 @@ const CalendarBookingDetailsModal = ({
 
     const isB2B = role === "b2b"
     const canDelete = ["admin", "manager"].includes(role)
-    const canEdit = ["admin", "manager", "agent"].includes(role)
+    const canEdit = ["admin", "manager", "agent", "front_desk"].includes(role)
 
     // Fetch live complete booking details
     const { 
@@ -106,10 +107,13 @@ const CalendarBookingDetailsModal = ({
         isLoading, 
         refetch: refetchBookingDetails 
     } = useQuery({
-        queryKey: ["calendar-booking-detail", bookingId],
+        queryKey: ["calendar-booking-detail", bookingId, role],
         queryFn: async () => {
             if (!bookingId) return null
             const res = await axiosSecure.get(`/booking/${bookingId}`)
+            if ((role === "front_desk" || role === "b2b") && res.data && isWebsiteRequestBooking(res.data)) {
+                return null
+            }
             return res.data
         },
         enabled: !!isOpen && !!bookingId
@@ -150,6 +154,12 @@ const CalendarBookingDetailsModal = ({
             const missingRoom = bookingRooms.find(r => !r.roomNo || !String(r.roomNo).trim())
             if (missingRoom) {
                 toast.error(`Please assign a physical room number before setting to ${actionLabel}.`)
+                return
+            }
+
+            const paid = getBookingPaidAmount(booking)
+            if (paid <= 0) {
+                toast.error(`Cannot mark as ${actionLabel}: A booking must have some amount paid before confirmation or check-in.`)
                 return
             }
 
@@ -659,15 +669,15 @@ const CalendarBookingDetailsModal = ({
                             <ExternalLink size={13} /> Full Details Page
                         </Link>
 
-                        {/* Print / PDF Invoice */}
+                        {/* Print / PDF Reservation Letter */}
                         {booking && (
                             <button
                                 type="button"
                                 onClick={() => setIsVoucherOpen(true)}
                                 className="btn btn-sm btn-outline border-indigo-200 text-indigo-700 hover:bg-indigo-50 rounded-xl gap-1 font-bold"
-                                title="Print / PDF Invoice"
+                                title="Print / PDF Reservation Letter"
                             >
-                                <Printer size={13} /> Invoice (PDF)
+                                <Printer size={13} /> Reservation Letter (PDF)
                             </button>
                         )}
 

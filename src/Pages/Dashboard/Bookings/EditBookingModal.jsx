@@ -402,7 +402,8 @@ const EditBookingModal = ({ booking, isOpen, onClose, onSuccess }) => {
                 const unitPrice = s ? Number(s.price || 0) : Number(item.customService?.price || item.customService?.unitPrice || 0)
                 const name = s?.name || item.customService?.name || item.serviceId || "Extra Service"
                 const billingType = s?.billingType || item.customService?.billingType || "One-time"
-                const qty = Math.max(1, Number(item.quantity || 1))
+                const rawQty = item.quantity === "" || item.quantity === undefined || isNaN(Number(item.quantity)) ? 0 : Number(item.quantity)
+                const qty = Math.max(0, rawQty)
                 const totalCost = unitPrice * qty
                 return {
                     id: item.id,
@@ -441,7 +442,7 @@ const EditBookingModal = ({ booking, isOpen, onClose, onSuccess }) => {
             {
                 id: `es-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`,
                 serviceId: "",
-                quantity: 1
+                quantity: ""
             }
         ])
     }
@@ -450,17 +451,9 @@ const EditBookingModal = ({ booking, isOpen, onClose, onSuccess }) => {
         if (!newServiceId) {
             setSelectedExtraServices(prev => prev.map(item => {
                 if (item.id !== rowId) return item
-                return { ...item, serviceId: "", quantity: 1, customService: null }
+                return { ...item, serviceId: "", quantity: "", customService: null }
             }))
             return
-        }
-
-        const service = dbExtraServices.find(s => String(s._id) === String(newServiceId) || s.name === newServiceId)
-        let defaultQty = 1
-        if (service?.billingType === "Per Night") {
-            defaultQty = defaultStayNights
-        } else if (service?.billingType === "Per Person") {
-            defaultQty = defaultGuestCount
         }
 
         setSelectedExtraServices(prev => prev.map(item => {
@@ -468,17 +461,17 @@ const EditBookingModal = ({ booking, isOpen, onClose, onSuccess }) => {
             return {
                 ...item,
                 serviceId: newServiceId,
-                quantity: defaultQty,
+                quantity: item.quantity !== undefined && item.quantity !== null && item.quantity !== "" ? item.quantity : "",
                 customService: null
             }
         }))
     }
 
     const handleQuantityChange = (rowId, newQty) => {
-        const parsed = Math.max(1, parseInt(newQty) || 1)
+        const clean = newQty === "" ? "" : Math.max(1, parseInt(newQty, 10) || 1)
         setSelectedExtraServices(prev => prev.map(item => {
             if (item.id !== rowId) return item
-            return { ...item, quantity: parsed }
+            return { ...item, quantity: clean }
         }))
     }
 
@@ -611,6 +604,12 @@ const EditBookingModal = ({ booking, isOpen, onClose, onSuccess }) => {
             return
         }
 
+        const emptyQtyService = selectedExtraServices.find(s => s.serviceId && (!s.quantity || Number(s.quantity) <= 0))
+        if (emptyQtyService) {
+            toast.error("Please enter a valid count/quantity for all added extra services.")
+            return
+        }
+
         // Validate room conflicts
         for (let i = 0; i < flatBookedRooms.length; i++) {
             const r = flatBookedRooms[i]
@@ -642,23 +641,20 @@ const EditBookingModal = ({ booking, isOpen, onClose, onSuccess }) => {
             }
 
             const paidNum = Number(paidAmount)
-            if (paidAmount !== '' && (isNaN(paidNum) || paidNum < 0)) {
-                toast.error("Payment Done amount cannot be negative.")
+            if (isNaN(paidNum) || paidNum <= 0) {
+                toast.error("Payment Done amount must be greater than 0 for confirmed reservations. Some payment must be paid.")
                 return
             }
 
-            // Only require Payment Method & Transaction ID if payment is provided (> 0)
-            if (paidNum > 0) {
-                if (!paymentMethod.trim()) {
-                    toast.error("Payment Method is required when payment is provided.")
-                    return
-                }
+            if (!paymentMethod.trim()) {
+                toast.error("Payment Method is required for confirmed reservations.")
+                return
+            }
 
-                const isNoTrxMethod = ["Cash", "Other", "Pay on Arrival", "Pay on Arrival / Unpaid", "Pending"].some(m => m.toLowerCase() === paymentMethod.trim().toLowerCase())
-                if (!isNoTrxMethod && !transactionId.trim()) {
-                    toast.error(`Transaction ID / Receipt No is required for ${paymentMethod}.`)
-                    return
-                }
+            const isNoTrxMethod = ["Cash", "Other", "Pay on Arrival", "Pay on Arrival / Unpaid", "Pending"].some(m => m.toLowerCase() === paymentMethod.trim().toLowerCase())
+            if (!isNoTrxMethod && !transactionId.trim()) {
+                toast.error(`Transaction ID / Receipt No is required for ${paymentMethod}.`)
+                return
             }
 
             if (!reference.trim()) {
@@ -1004,7 +1000,7 @@ const EditBookingModal = ({ booking, isOpen, onClose, onSuccess }) => {
                                         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                                             <div className="form-control">
                                                 <label className="label py-0.5">
-                                                    <span className="label-text font-semibold text-slate-700 text-xs">Adults / Room</span>
+                                                    <span className="label-text font-semibold text-slate-700 text-xs">Adults / Room <span className="text-red-500 font-bold">*</span></span>
                                                 </label>
                                                 <input
                                                     type="number"
@@ -1189,7 +1185,7 @@ const EditBookingModal = ({ booking, isOpen, onClose, onSuccess }) => {
                                     )
                                     const currentService = dbExtraServices.find(s => String(s._id) === String(item.serviceId) || s.name === item.serviceId)
                                     const unitPrice = currentService ? Number(currentService.price || 0) : Number(item.customService?.price || item.customService?.unitPrice || 0)
-                                    const itemCost = unitPrice * (Number(item.quantity) || 1)
+                                    const itemCost = unitPrice * (item.quantity === "" || isNaN(Number(item.quantity)) ? 0 : Number(item.quantity))
                                     const billingType = currentService?.billingType || item.customService?.billingType || "One-time"
 
                                     return (
@@ -1268,7 +1264,7 @@ const EditBookingModal = ({ booking, isOpen, onClose, onSuccess }) => {
                                                         <input
                                                             type="number"
                                                             min="1"
-                                                            value={item.quantity}
+                                                            value={item.quantity !== undefined && item.quantity !== null ? item.quantity : ""}
                                                             onChange={e => handleQuantityChange(item.id, e.target.value)}
                                                             placeholder="Enter count"
                                                             className="input input-sm input-bordered w-full rounded-xl bg-white text-xs font-bold text-amber-900"
@@ -1276,7 +1272,7 @@ const EditBookingModal = ({ booking, isOpen, onClose, onSuccess }) => {
                                                         <div className="flex items-center justify-between text-[11px] text-amber-900/90 font-medium mt-1 px-1">
                                                             <span>Subtotal:</span>
                                                             <span className="font-bold font-mono text-amber-950">
-                                                                ৳{unitPrice.toLocaleString()} × {item.quantity} = ৳{itemCost.toLocaleString()}
+                                                                ৳{unitPrice.toLocaleString()} × {item.quantity || 0} = ৳{itemCost.toLocaleString()}
                                                             </span>
                                                         </div>
                                                     </div>
@@ -1338,14 +1334,6 @@ const EditBookingModal = ({ booking, isOpen, onClose, onSuccess }) => {
                                     />
                                     {/* Quick payment helper buttons */}
                                     <div className="flex items-center gap-1.5 mt-1.5">
-                                        <button
-                                            type="button"
-                                            onClick={() => { setPaidAmount('0'); setPaymentMethod(''); setTransactionId(''); }}
-                                            className="btn btn-xs btn-outline border-amber-300 text-amber-800 hover:bg-amber-50 rounded-lg text-[10px] font-bold"
-                                            title="Set to 0 (Pay on Arrival / Unpaid)"
-                                        >
-                                            0 (Unpaid)
-                                        </button>
                                         <button
                                             type="button"
                                             onClick={() => setPaidAmount(String(netPayable))}

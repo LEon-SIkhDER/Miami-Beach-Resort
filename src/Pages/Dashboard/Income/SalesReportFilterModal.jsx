@@ -216,6 +216,7 @@ const SalesReportFilterModal = ({
                             className="select select-bordered select-sm w-full h-9 text-xs font-semibold text-slate-800 bg-slate-50 border-slate-300 rounded-xl focus:border-teal-500 focus:outline-none"
                         >
                             <option value="all">All Worker Roles</option>
+                            <option value="front_desk">Front Desk</option>
                             <option value="agent">Agent (Marketing / Sales)</option>
                             <option value="b2b">B2B Partner</option>
                             <option value="manager">Manager</option>

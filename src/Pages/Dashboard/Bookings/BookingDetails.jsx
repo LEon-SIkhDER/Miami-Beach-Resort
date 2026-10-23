@@ -52,7 +52,8 @@ import {
     getEffectivePaymentHistory,
     getNightCount, 
     getRoomName, 
-    getRoomTotal 
+    getRoomTotal,
+    isWebsiteRequestBooking 
 } from '../../../utils/bookingUtils'
 import ConfirmBookingModal from './ConfirmBookingModal'
 import EditBookingModal from './EditBookingModal'
@@ -119,29 +120,39 @@ const BookingDetails = () => {
     const [isAddPaymentOpen, setIsAddPaymentOpen] = useState(false)
     const [isVoucherOpen, setIsVoucherOpen] = useState(false)
 
-    const canEdit = ["admin", "manager", "agent"].includes(role)
+    const canEdit = ["admin", "manager", "agent", "front_desk"].includes(role)
     const canDelete = ["admin", "manager"].includes(role)
-    const canRecordPayment = ["admin", "manager", "agent"].includes(role)
-    const canConfirm = ["admin", "manager", "agent"].includes(role)
-    const canCancel = ["admin", "manager", "agent"].includes(role)
+    const canRecordPayment = ["admin", "manager", "agent", "front_desk"].includes(role)
+    const canConfirm = ["admin", "manager", "agent", "front_desk"].includes(role)
+    const canCancel = ["admin", "manager", "agent", "front_desk"].includes(role)
     const canViewAuditLogs = ["admin", "manager", "moderator"].includes(role?.toLowerCase())
 
     // Fetch booking details by ID
     const { data: booking, isLoading, isError } = useQuery({
-        queryKey: ["booking-details", id, currentUser?.email],
+        queryKey: ["booking-details", id, currentUser?.email, role],
         enabled: !!id,
         queryFn: async () => {
             if (currentUser) {
                 try {
                     const res = await axiosSecure.get(`/booking/${id}`)
-                    if (res.data) return res.data
+                    if (res.data) {
+                        if ((role === "front_desk" || role === "b2b") && isWebsiteRequestBooking(res.data)) {
+                            return null
+                        }
+                        return res.data
+                    }
                 } catch (e) {
                     console.log("Direct booking fetch fallback", e)
                 }
                 try {
                     const listRes = await axiosSecure.get(`/bookings`)
                     const matched = listRes.data.find(b => b._id === id || b.bookingId === id)
-                    if (matched) return matched
+                    if (matched) {
+                        if ((role === "front_desk" || role === "b2b") && isWebsiteRequestBooking(matched)) {
+                            return null
+                        }
+                        return matched
+                    }
                 } catch (e) {
                     console.log("Bookings list fetch fallback", e)
                 }
@@ -152,7 +163,11 @@ const BookingDetails = () => {
                 const apiBase = import.meta.env.VITE_API_URL || "http://localhost:5000"
                 const publicRes = await axios.post(`${apiBase}/bookings/by-ids`, { bookingIds: [id] })
                 if (publicRes.data && Array.isArray(publicRes.data) && publicRes.data.length > 0) {
-                    return publicRes.data[0]
+                    const found = publicRes.data[0]
+                    if ((role === "front_desk" || role === "b2b") && isWebsiteRequestBooking(found)) {
+                        return null
+                    }
+                    return found
                 }
             } catch (err) {
                 console.error("Guest booking fetch error:", err)
@@ -171,6 +186,7 @@ const BookingDetails = () => {
         onSuccess: async (_, __, context) => {
             await queryClient.invalidateQueries({ queryKey: ["bookings"] })
             await queryClient.invalidateQueries({ queryKey: ["admin-overview"] })
+            await queryClient.invalidateQueries({ queryKey: ["overdue-checkouts"] })
             toast.dismiss(context?.toastId)
             toast.success("🗑️ Reservation deleted successfully.")
             navigate("/dashboard/bookings")
@@ -252,6 +268,8 @@ const BookingDetails = () => {
                 return <span className="badge badge-xs bg-indigo-100 text-indigo-800 border-none font-bold">Moderator</span>
             case "agent":
                 return <span className="badge badge-xs bg-teal-100 text-teal-800 border-none font-bold">Agent</span>
+            case "front_desk":
+                return <span className="badge badge-xs bg-cyan-100 text-cyan-800 border-none font-bold">Front Desk</span>
             case "b2b":
                 return <span className="badge badge-xs bg-blue-100 text-blue-800 border-none font-bold">B2B</span>
             default:
@@ -326,13 +344,13 @@ const BookingDetails = () => {
                         </button>
                     )}
 
-                    {/* Reservation Confirmation Voucher / Invoice */}
+                    {/* Reservation Confirmation Voucher / Reservation Letter */}
                     <button 
                         onClick={() => setIsVoucherOpen(true)}
                         className="btn btn-sm bg-[#5261d6] hover:bg-[#4351be] text-white gap-1.5 rounded-xl shadow-xs border-none"
-                        title="Print / Download A4 Invoice PDF"
+                        title="Print / Download A4 Reservation Letter PDF"
                     >
-                        <Printer size={15} /> Invoice (PDF)
+                        <Printer size={15} /> Reservation Letter (PDF)
                     </button>
 
 
@@ -985,6 +1003,7 @@ const BookingDetails = () => {
                     onSuccess={() => {
                         queryClient.invalidateQueries({ queryKey: ["booking-details", id] })
                         queryClient.invalidateQueries({ queryKey: ["bookings"] })
+                        queryClient.invalidateQueries({ queryKey: ["overdue-checkouts"] })
                     }}
                 />
             )}
@@ -998,6 +1017,7 @@ const BookingDetails = () => {
                     onSuccess={() => {
                         queryClient.invalidateQueries({ queryKey: ["booking-details", id] })
                         queryClient.invalidateQueries({ queryKey: ["bookings"] })
+                        queryClient.invalidateQueries({ queryKey: ["overdue-checkouts"] })
                     }}
                 />
             )}
@@ -1011,6 +1031,7 @@ const BookingDetails = () => {
                     onSuccess={() => {
                         queryClient.invalidateQueries({ queryKey: ["booking-details", id] })
                         queryClient.invalidateQueries({ queryKey: ["bookings"] })
+                        queryClient.invalidateQueries({ queryKey: ["overdue-checkouts"] })
                     }}
                     currentUser={currentUser}
                     role={role}
@@ -1027,7 +1048,8 @@ const BookingDetails = () => {
                         await Promise.all([
                             queryClient.invalidateQueries({ queryKey: ["booking-details", id] }),
                             queryClient.invalidateQueries({ queryKey: ["bookings"] }),
-                            queryClient.invalidateQueries({ queryKey: ["all-bookings-for-calendar"] })
+                            queryClient.invalidateQueries({ queryKey: ["all-bookings-for-calendar"] }),
+                            queryClient.invalidateQueries({ queryKey: ["overdue-checkouts"] })
                         ])
                     }}
                     currentUser={currentUser}

@@ -414,7 +414,7 @@ const ManageBillingTypesModal = ({ isOpen, onClose, extraServices = [] }) => {
                     <div className="bg-slate-50 rounded-xl p-3 text-[11px] text-slate-500 flex items-start gap-2 border border-slate-200/60">
                         <Info size={14} className="text-teal-600 shrink-0 mt-0.5" />
                         <p>
-                            Billing types saved here automatically populate the Extra Services creation dropdowns and dynamically adjust pricing labels across Calendar Reservations, Booking Edit, and Invoices.
+                            Billing types saved here automatically populate the Extra Services creation dropdowns and dynamically adjust pricing labels across Calendar Reservations, Booking Edit, and Reservation Letters.
                         </p>
                     </div>
                 </div>

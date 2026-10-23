@@ -12,29 +12,58 @@ import {
     XCircle,
     DollarSign,
     TrendingUp,
+    TrendingDown,
+    Minus,
     BedDouble,
     ArrowUpRight,
     Calendar,
-    UserCheck,
-    Building2,
     Users,
-    Search,
-    Activity,
-    ExternalLink
+    ExternalLink,
+    LogIn,
+    LogOut,
+    CalendarClock
 } from 'lucide-react'
 import { formatDate } from '../../../utils/bookingUtils'
-import UserWorkflowModal from '../Users/UserWorkflowModal'
+import { format } from 'date-fns'
 
+const formatChartDate = (dateStr) => {
+    if (!dateStr) return { day: '', date: '', label: '' }
+    try {
+        const d = typeof dateStr === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateStr)
+            ? new Date(`${dateStr}T00:00:00`)
+            : new Date(dateStr)
+        if (isNaN(d.getTime())) return { day: dateStr, date: '', label: dateStr }
+        return {
+            day: format(d, 'EEE'), // 'Sat', 'Sun', 'Mon'
+            date: format(d, 'MMM d'), // 'Oct 22'
+            label: format(d, 'EEE, MMM d'),
+            full: format(d, 'EEEE, MMM d, yyyy')
+        }
+    } catch {
+        return { day: dateStr, date: '', label: dateStr }
+    }
+}
+
+const renderDayTick = ({ x, y, payload }) => {
+    const parsed = formatChartDate(payload?.value)
+    return (
+        <g transform={`translate(${x},${y})`}>
+            <text x={0} y={0} dy={10} textAnchor="middle" fill="#0f172a" fontSize={11} fontWeight={600}>
+                {parsed.day}
+            </text>
+            {parsed.date && (
+                <text x={0} y={0} dy={23} textAnchor="middle" fill="#64748b" fontSize={10}>
+                    {parsed.date}
+                </text>
+            )}
+        </g>
+    )
+}
 const DashboardHome = () => {
     const { user } = useContext(AuthContext)
     const { role } = useRole()
     const axiosSecure = useAxiosSecure()
     const isAdminOrManager = role === "admin" || role === "manager"
-
-    // Partner search & filter tab on admin/manager dashboard
-    const [partnerTab, setPartnerTab] = useState("all") // "all" | "agent" | "b2b"
-    const [partnerSearch, setPartnerSearch] = useState("")
-    const [selectedWorkflowUser, setSelectedWorkflowUser] = useState(null)
 
     // user bookings summary for regular guests
     const { data: userBookings = [] } = useQuery({
@@ -46,23 +75,13 @@ const DashboardHome = () => {
         }
     })
 
-    // admin / manager overview
+    // admin / manager overview (lightweight aggregate metrics & partner summary)
     const { data: overview = {}, isLoading: overviewLoading } = useQuery({
         queryKey: ["admin-overview"],
         enabled: isAdminOrManager,
         queryFn: async () => {
             const res = await axiosSecure.get("/admin/overview")
             return res.data
-        }
-    })
-
-    // all users for agent & b2b partner workflow
-    const { data: allUsers = [], isLoading: usersLoading } = useQuery({
-        queryKey: ["admin-manager-partner-users"],
-        enabled: isAdminOrManager,
-        queryFn: async () => {
-            const res = await axiosSecure.get("/users")
-            return Array.isArray(res.data) ? res.data : []
         }
     })
 
@@ -83,6 +102,15 @@ const DashboardHome = () => {
                             </div>
                         ))}
                     </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+                        {[1, 2, 3, 4, 5, 6].map(n => (
+                            <div key={n} className="p-4 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-2">
+                                <div className="w-7 h-7 rounded-lg bg-slate-200"></div>
+                                <div className="h-6 bg-slate-200 rounded w-12"></div>
+                                <div className="h-3 bg-slate-200 rounded w-24"></div>
+                            </div>
+                        ))}
+                    </div>
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                         <div className="bg-white p-6 rounded-2xl border border-slate-200 h-80"></div>
                         <div className="bg-white p-6 rounded-2xl border border-slate-200 h-80"></div>
@@ -90,6 +118,82 @@ const DashboardHome = () => {
                 </div>
             )
         }
+
+        const opStats = overview.operationalStats || {}
+        const operationalCards = [
+            {
+                title: "Check-in Today",
+                value: opStats.checkInToday?.value ?? 0,
+                unit: "Rooms",
+                icon: <LogIn size={15} className="text-teal-600" />,
+                bg: "bg-teal-50",
+                border: "border-teal-100",
+                trend: opStats.checkInToday?.trend || "neutral",
+                trendText: opStats.checkInToday?.text || "0% from yesterday",
+                link: "/dashboard/bookings?status=checked_id",
+                subtext: "Rooms checked in today"
+            },
+            {
+                title: "Check-out Today",
+                value: opStats.checkOutToday?.value ?? 0,
+                unit: "Rooms",
+                icon: <LogOut size={15} className="text-blue-600" />,
+                bg: "bg-blue-50",
+                border: "border-blue-100",
+                trend: opStats.checkOutToday?.trend || "neutral",
+                trendText: opStats.checkOutToday?.text || "0% from yesterday",
+                link: "/dashboard/bookings?status=checked_out",
+                subtext: "Rooms checked out today"
+            },
+            {
+                title: "In-House Guests",
+                value: opStats.inHouseGuests?.value ?? 0,
+                unit: "Guests",
+                icon: <Users size={15} className="text-purple-600" />,
+                bg: "bg-purple-50",
+                border: "border-purple-100",
+                trend: opStats.inHouseGuests?.trend || "neutral",
+                trendText: opStats.inHouseGuests?.text || "0% from yesterday",
+                link: "/dashboard/bookings?status=checked_id",
+                subtext: `Across ${opStats.inHouseGuests?.roomsCount || 0} occupied rooms`
+            },
+            {
+                title: "Expected Arrival",
+                value: opStats.expectedArrivals?.value ?? 0,
+                unit: "Bookings",
+                icon: <CalendarCheck size={15} className="text-emerald-600" />,
+                bg: "bg-emerald-50",
+                border: "border-emerald-100",
+                trend: opStats.expectedArrivals?.trend || "neutral",
+                trendText: opStats.expectedArrivals?.text || "0% from yesterday",
+                link: "/dashboard/bookings?status=booking_confirmed",
+                subtext: "Reservations scheduled today"
+            },
+            {
+                title: "Expected Departure",
+                value: opStats.expectedDepartures?.value ?? 0,
+                unit: "Bookings",
+                icon: <CalendarClock size={15} className="text-amber-600" />,
+                bg: "bg-amber-50",
+                border: "border-amber-100",
+                trend: opStats.expectedDepartures?.trend || "neutral",
+                trendText: opStats.expectedDepartures?.text || "0% from yesterday",
+                link: "/dashboard/bookings?status=checked_id",
+                subtext: "In-house reservations departing"
+            },
+            {
+                title: "Occupancy Rate",
+                value: `${opStats.occupancyRate?.value ?? 0}%`,
+                unit: "",
+                icon: <BedDouble size={15} className="text-indigo-600" />,
+                bg: "bg-indigo-50",
+                border: "border-indigo-100",
+                trend: opStats.occupancyRate?.trend || "neutral",
+                trendText: opStats.occupancyRate?.text || "0% from yesterday",
+                link: "/dashboard/calender",
+                subtext: `${opStats.occupancyRate?.roomsOccupied || 0} / ${opStats.occupancyRate?.totalRooms || 38} Rooms occupied`
+            }
+        ]
 
         const stats = [
             {
@@ -166,27 +270,16 @@ const DashboardHome = () => {
             { _id: 'Balcony Room', count: 0 }
         ]
 
-        // Agent & B2B partners workflow data
-        const partnerUsers = allUsers.filter(u => u.role === "agent" || u.role === "b2b")
-        const agentCount = partnerUsers.filter(u => u.role === "agent").length
-        const b2bCount = partnerUsers.filter(u => u.role === "b2b").length
-        const totalPartnerBookings = partnerUsers.reduce((sum, p) => sum + (p.stats?.totalBookings || 0), 0)
-        const totalPartnerSales = partnerUsers.reduce((sum, p) => sum + (p.stats?.totalSales || 0), 0)
-        const totalPartnerPaid = partnerUsers.reduce((sum, p) => sum + (p.stats?.totalPaid || 0), 0)
-        const totalPartnerDue = partnerUsers.reduce((sum, p) => sum + (p.stats?.totalDue || 0), 0)
-
-        const filteredPartners = partnerUsers.filter(p => {
-            if (partnerTab === "agent" && p.role !== "agent") return false
-            if (partnerTab === "b2b" && p.role !== "b2b") return false
-            if (partnerSearch) {
-                const s = partnerSearch.toLowerCase()
-                const nameMatch = (p.name || "").toLowerCase().includes(s)
-                const emailMatch = (p.email || "").toLowerCase().includes(s)
-                const phoneMatch = (p.phone || "").toLowerCase().includes(s)
-                return nameMatch || emailMatch || phoneMatch
-            }
-            return true
-        })
+        // Agent & B2B partner performance metrics from overview API
+        const partnerSummary = overview.partnerSummary || {
+            partnerCount: 0,
+            agentCount: 0,
+            b2bCount: 0,
+            totalBookings: 0,
+            totalSales: 0,
+            totalPaid: 0,
+            totalDue: 0
+        }
 
         return (
             <div className="space-y-8">
@@ -230,11 +323,6 @@ const DashboardHome = () => {
                                 <div className={`w-7 h-7 rounded-lg ${s.bg} flex items-center justify-center`}>
                                     {s.icon}
                                 </div>
-                                {/* <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                                    s.highlight ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'
-                                }`}>
-                                    {s.badge}
-                                </span> */}
                             </div>
                             <div>
                                 <h3 className={`text-lg sm:text-xl font-black mt-0.5 tracking-tight ${s.highlight ? 'text-teal-900' : 'text-slate-900'
@@ -242,12 +330,81 @@ const DashboardHome = () => {
                                     {s.value}
                                 </h3>
                             </div>
-                            {/* <div className="mt-3 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] font-semibold text-teal-700 opacity-0 group-hover:opacity-100 transition-opacity">
-                                <span>Details</span>
-                                <ArrowUpRight size={13} />
-                            </div> */}
                         </Link>
                     ))}
+                </div>
+
+                {/* Today's Front Desk Operations */}
+                <div className="space-y-3">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                        <div>
+                            <div className="flex items-center gap-2">
+                                <h2 className="text-lg sm:text-xl font-bold text-slate-900 font-serif">
+                                    Today's Front Desk Operations
+                                </h2>
+                                <span className="text-[11px] font-mono font-bold px-2.5 py-0.5 rounded-full bg-teal-50 text-teal-800 border border-teal-200/80">
+                                    {opStats.date ? formatDate(opStats.date) : "Today"}
+                                </span>
+                            </div>
+                            <p className="text-xs text-slate-500 mt-0.5">
+                                Live room turnovers, in-house guests, and expected daily check-in/out movement compared to yesterday.
+                            </p>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
+                        {operationalCards.map((card, idx) => (
+                            <Link
+                                key={idx}
+                                to={card.link}
+                                className={`group p-3 sm:p-4 rounded-2xl bg-white border ${card.border} shadow-xs hover:shadow-md transition-all duration-200 hover:-translate-y-0.5 flex flex-col justify-between`}
+                            >
+                                <div>
+                                    <div className="flex items-center justify-between mb-2">
+                                        <p className="text-xs font-semibold text-slate-600 line-clamp-1">{card.title}</p>
+                                        <div className={`w-7 h-7 rounded-lg ${card.bg} flex items-center justify-center shrink-0`}>
+                                            {card.icon}
+                                        </div>
+                                    </div>
+                                    <div className="flex items-baseline gap-1.5">
+                                        <h3 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
+                                            {card.value}
+                                        </h3>
+                                        {card.unit && (
+                                            <span className="text-xs font-bold text-slate-400">
+                                                {card.unit}
+                                            </span>
+                                        )}
+                                    </div>
+                                    <p className="text-[11px] text-slate-400 mt-0.5 line-clamp-1">
+                                        {card.subtext}
+                                    </p>
+                                </div>
+
+                                <div className="mt-3 pt-2 border-t border-slate-100 flex items-center justify-between">
+                                    {card.trend === 'up' && (
+                                        <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200/60 px-1.5 py-0.5 rounded-full">
+                                            <TrendingUp size={11} className="text-emerald-600" />
+                                            <span>{card.trendText}</span>
+                                        </span>
+                                    )}
+                                    {card.trend === 'down' && (
+                                        <span className="inline-flex items-center gap-1 text-[10px] font-bold text-rose-700 bg-rose-50 border border-rose-200/60 px-1.5 py-0.5 rounded-full">
+                                            <TrendingDown size={11} className="text-rose-600" />
+                                            <span>{card.trendText}</span>
+                                        </span>
+                                    )}
+                                    {card.trend === 'neutral' && (
+                                        <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-slate-500 bg-slate-100 border border-slate-200/60 px-1.5 py-0.5 rounded-full">
+                                            <Minus size={11} className="text-slate-400" />
+                                            <span>{card.trendText}</span>
+                                        </span>
+                                    )}
+                                    <ArrowUpRight size={13} className="text-slate-300 group-hover:text-teal-600 transition-colors" />
+                                </div>
+                            </Link>
+                        ))}
+                    </div>
                 </div>
 
                 {/* Analytics Charts */}
@@ -264,11 +421,21 @@ const DashboardHome = () => {
                             <ResponsiveContainer width="100%" height="100%">
                                 <BarChart data={dayChartData}>
                                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                                    <XAxis dataKey="_id" tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} />
+                                    <XAxis 
+                                        dataKey="_id" 
+                                        tick={renderDayTick} 
+                                        height={42} 
+                                        axisLine={false} 
+                                        tickLine={false} 
+                                    />
                                     <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} />
                                     <Tooltip
                                         contentStyle={{ backgroundColor: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
                                         labelStyle={{ fontWeight: 'bold', color: '#0f172a' }}
+                                        labelFormatter={(val) => {
+                                            const parsed = formatChartDate(val)
+                                            return parsed.full || val
+                                        }}
                                     />
                                     <Bar dataKey="count" fill="#0d9488" radius={[6, 6, 0, 0]} name="Reservations" />
                                 </BarChart>
@@ -313,11 +480,11 @@ const DashboardHome = () => {
                                     Agent & B2B Partner Workflow
                                 </h2>
                                 <span className="badge badge-sm bg-teal-100 text-teal-900 font-bold">
-                                    {partnerUsers.length} Partners
+                                    {partnerSummary.partnerCount} Partners
                                 </span>
                             </div>
                             <p className="text-xs text-slate-500 mt-0.5">
-                                Live sales performance, booking counts, and detailed audit activities of all verified Agents and B2B Corporate Partners.
+                                Live sales performance, booking counts, and operational metrics of verified Agents and B2B Corporate Partners.
                             </p>
                         </div>
 
@@ -339,7 +506,7 @@ const DashboardHome = () => {
                                 <Users size={16} className="text-teal-600" />
                             </div>
                             <p className="text-xl font-black text-slate-900">
-                                {partnerUsers.length} <span className="text-xs font-semibold text-slate-400">({agentCount} Agents · {b2bCount} B2B)</span>
+                                {partnerSummary.partnerCount} <span className="text-xs font-semibold text-slate-400">({partnerSummary.agentCount} Agents · {partnerSummary.b2bCount} B2B)</span>
                             </p>
                         </div>
 
@@ -349,7 +516,7 @@ const DashboardHome = () => {
                                 <CalendarCheck size={16} className="text-blue-600" />
                             </div>
                             <p className="text-xl font-black text-slate-900">
-                                {totalPartnerBookings} <span className="text-xs font-semibold text-slate-400">Bookings</span>
+                                {partnerSummary.totalBookings} <span className="text-xs font-semibold text-slate-400">Bookings</span>
                             </p>
                         </div>
 
@@ -359,7 +526,7 @@ const DashboardHome = () => {
                                 <TrendingUp size={16} className="text-emerald-600" />
                             </div>
                             <p className="text-xl font-black text-emerald-800">
-                                ৳{totalPartnerSales.toLocaleString()}
+                                ৳{partnerSummary.totalSales.toLocaleString()}
                             </p>
                         </div>
 
@@ -369,210 +536,20 @@ const DashboardHome = () => {
                                 <DollarSign size={16} className="text-indigo-600" />
                             </div>
                             <p className="text-sm font-bold text-slate-900">
-                                <span className="text-emerald-700">৳{totalPartnerPaid.toLocaleString()}</span>
-                                {totalPartnerDue > 0 && (
-                                    <span className="text-orange-600 ml-1 font-semibold text-xs">/ Due ৳{totalPartnerDue.toLocaleString()}</span>
+                                <span className="text-emerald-700">৳{partnerSummary.totalPaid.toLocaleString()}</span>
+                                {partnerSummary.totalDue > 0 && (
+                                    <span className="text-orange-600 ml-1 font-semibold text-xs">/ Due ৳{partnerSummary.totalDue.toLocaleString()}</span>
                                 )}
                             </p>
                         </div>
                     </div>
-
-                    {/* Partner Workflow Table Container */}
-                    <div className="bg-white border border-slate-200 shadow-xs space-y-3 p-4 sm:p-6">
-                        {/* Filter Tabs & Search */}
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                            {/* Role Filter Tabs */}
-                            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
-                                <button
-                                    type="button"
-                                    onClick={() => setPartnerTab("all")}
-                                    className={`btn btn-xs rounded-xl font-bold gap-1.5 ${partnerTab === "all"
-                                            ? "bg-teal-600 text-white shadow-xs border-teal-600"
-                                            : "btn-ghost bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200/60"
-                                        }`}
-                                >
-                                    <Users size={12} />
-                                    <span>All Partners</span>
-                                    <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-slate-200/60 text-slate-700 font-mono">
-                                        {partnerUsers.length}
-                                    </span>
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => setPartnerTab("agent")}
-                                    className={`btn btn-xs rounded-xl font-bold gap-1.5 ${partnerTab === "agent"
-                                            ? "bg-teal-700 text-white shadow-xs border-teal-700"
-                                            : "btn-ghost bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200/60"
-                                        }`}
-                                >
-                                    <UserCheck size={12} />
-                                    <span>Agents</span>
-                                    <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-slate-200/60 text-slate-700 font-mono">
-                                        {agentCount}
-                                    </span>
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => setPartnerTab("b2b")}
-                                    className={`btn btn-xs rounded-xl font-bold gap-1.5 ${partnerTab === "b2b"
-                                            ? "bg-blue-600 text-white shadow-xs border-blue-600"
-                                            : "btn-ghost bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200/60"
-                                        }`}
-                                >
-                                    <Building2 size={12} />
-                                    <span>B2B Partners</span>
-                                    <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-slate-200/60 text-slate-700 font-mono">
-                                        {b2bCount}
-                                    </span>
-                                </button>
-                            </div>
-
-                            {/* Search Box */}
-                            <div className="relative w-full sm:w-64">
-                                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                                <input
-                                    type="text"
-                                    placeholder="Search partner name, email..."
-                                    className="input input-sm input-bordered pl-8.5 pr-7 rounded-xl w-full bg-slate-50 focus:bg-white text-xs"
-                                    value={partnerSearch}
-                                    onChange={e => setPartnerSearch(e.target.value)}
-                                />
-                                {partnerSearch && (
-                                    <button
-                                        type="button"
-                                        onClick={() => setPartnerSearch("")}
-                                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs"
-                                    >
-                                        ✕
-                                    </button>
-                                )}
-                            </div>
-                        </div>
-
-                        {/* Partner Table View */}
-                        <div className="overflow-x-auto rounded-xl border border-slate-200">
-                            <table className="table table-zebra w-full whitespace-nowrap text-xs">
-                                <thead className="bg-slate-50 text-slate-600 uppercase font-bold border-b border-slate-200">
-                                    <tr>
-                                        <th>#</th>
-                                        <th>Partner Name & Contact</th>
-                                        <th>Role</th>
-                                        <th>Total Bookings</th>
-                                        <th>Sales Volume</th>
-                                        <th>Paid / Due</th>
-                                        <th>Joined Date</th>
-                                        <th className="text-center">Workflow & Activity</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-slate-100">
-                                    {usersLoading ? (
-                                        [1, 2, 3].map(n => (
-                                            <tr key={n} className="animate-pulse">
-                                                <td><div className="h-4 bg-slate-200 rounded w-4"></div></td>
-                                                <td><div className="h-4 bg-slate-200 rounded w-36"></div></td>
-                                                <td><div className="h-5 bg-slate-200 rounded-full w-16"></div></td>
-                                                <td><div className="h-4 bg-slate-200 rounded w-16"></div></td>
-                                                <td><div className="h-4 bg-slate-200 rounded w-20"></div></td>
-                                                <td><div className="h-4 bg-slate-200 rounded w-24"></div></td>
-                                                <td><div className="h-4 bg-slate-200 rounded w-20"></div></td>
-                                                <td className="text-center"><div className="h-6 bg-slate-200 rounded w-24 mx-auto"></div></td>
-                                            </tr>
-                                        ))
-                                    ) : filteredPartners.length === 0 ? (
-                                        <tr>
-                                            <td colSpan={8} className="text-center py-10 text-slate-400">
-                                                <Users size={32} className="mx-auto mb-2 opacity-50" />
-                                                {partnerUsers.length === 0
-                                                    ? "No Agents or B2B Partners registered yet. Change user roles in the Users & Roles tab."
-                                                    : "No partners found matching your search filter."}
-                                            </td>
-                                        </tr>
-                                    ) : (
-                                        filteredPartners.map((p, idx) => {
-                                            const bookingsCount = p.stats?.totalBookings || 0
-                                            const salesAmount = p.stats?.totalSales || 0
-                                            const paidAmount = p.stats?.totalPaid || 0
-                                            const dueAmount = p.stats?.totalDue || 0
-
-                                            return (
-                                                <tr key={p._id} className="hover:bg-slate-50/80 transition-colors">
-                                                    <td className="font-mono text-slate-400">{idx + 1}</td>
-                                                    <td>
-                                                        <div className="flex items-center gap-2.5">
-                                                            <div className="w-8 h-8 rounded-full bg-teal-100 text-teal-800 font-bold text-xs flex items-center justify-center shrink-0">
-                                                                {p.name ? p.name.charAt(0).toUpperCase() : p.email?.charAt(0).toUpperCase() || 'P'}
-                                                            </div>
-                                                            <div>
-                                                                <div className="font-bold text-slate-900 text-sm">{p.name || "Unnamed Partner"}</div>
-                                                                <div className="text-[11px] text-slate-400">{p.email}</div>
-                                                                {p.phone && <div className="text-[10px] text-teal-700 font-semibold">{p.phone}</div>}
-                                                            </div>
-                                                        </div>
-                                                    </td>
-                                                    <td>
-                                                        {p.role === "agent" ? (
-                                                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-teal-50 text-teal-800 border border-teal-200">
-                                                                <UserCheck size={12} className="text-teal-600" /> Agent
-                                                            </span>
-                                                        ) : (
-                                                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-50 text-blue-800 border border-blue-200">
-                                                                <Building2 size={12} className="text-blue-600" /> B2B Partner
-                                                            </span>
-                                                        )}
-                                                    </td>
-                                                    <td>
-                                                        <span className="font-bold text-teal-900">
-                                                            {bookingsCount} Booking{bookingsCount !== 1 ? 's' : ''}
-                                                        </span>
-                                                    </td>
-                                                    <td className="font-bold text-emerald-800 text-sm">
-                                                        ৳{salesAmount.toLocaleString()}
-                                                    </td>
-                                                    <td>
-                                                        <div className="text-slate-700 font-semibold">
-                                                            <span className="text-emerald-700">৳{paidAmount.toLocaleString()}</span>
-                                                            {dueAmount > 0 && (
-                                                                <span className="text-orange-600 block text-[10px] font-bold">Due: ৳{dueAmount.toLocaleString()}</span>
-                                                            )}
-                                                        </div>
-                                                    </td>
-                                                    <td className="text-slate-500 text-[11px]">
-                                                        {p.created_At ? formatDate(p.created_At) : "N/A"}
-                                                    </td>
-                                                    <td className="text-center">
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => setSelectedWorkflowUser(p)}
-                                                            className="btn btn-xs btn-primary text-white gap-1 rounded-lg shadow-2xs font-bold"
-                                                            title="Inspect full workflow, reservation history, and timeline activities"
-                                                        >
-                                                            <Activity size={12} /> View Workflow
-                                                        </button>
-                                                    </td>
-                                                </tr>
-                                            )
-                                        })
-                                    )}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
                 </div>
-
-                {/* Workflow Modal Pop-up */}
-                {selectedWorkflowUser && (
-                    <UserWorkflowModal
-                        user={selectedWorkflowUser}
-                        isOpen={!!selectedWorkflowUser}
-                        onClose={() => setSelectedWorkflowUser(null)}
-                    />
-                )}
             </div>
         )
     }
 
     // Personal Sales overview for Agent / B2B Staff Roles
-    const isPartnerStaff = role === "agent" || role === "b2b"
+    const isPartnerStaff = role === "agent" || role === "b2b" || role === "front_desk"
     const { data: salesOverview = {}, isLoading: salesLoading } = useQuery({
         queryKey: ["my-sales-overview", user?.email, user?.displayName],
         enabled: isPartnerStaff && !!user?.email,

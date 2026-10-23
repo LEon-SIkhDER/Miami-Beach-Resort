@@ -27,6 +27,7 @@ import {
 import { showConfirmAlert } from '../../utils/customSwal'
 import logo from '../../assets/logo.png'
 import { setStatusBarThemeColor } from '../../utils/themeColor'
+import OverdueCheckoutAlert from '../../Components/OverdueCheckoutAlert'
 
 const Dashboard = () => {
     const { user, logOut } = useContext(AuthContext)
@@ -91,7 +92,7 @@ const Dashboard = () => {
     ]
     const b2bLinks = [
         { to: "/dashboard/overview", label: "Sales Overview", icon: <LayoutDashboard size={18} /> },
-        // { to: "/dashboard/bookings", label: "My Bookings", icon: <CalendarCheck size={18} /> },
+        { to: "/dashboard/bookings", label: "All Bookings", icon: <CalendarCheck size={18} /> },
         { to: "/dashboard/calender", label: "Booking Calendar", icon: <CalendarDays size={18} /> },
     ]
     const agentLinks = [
@@ -123,7 +124,8 @@ const Dashboard = () => {
         switch (role) {
             case "admin": return adminLinks
             case "manager": return managerLinks
-            case "agent": return agentLinks
+            case "agent":
+            case "front_desk": return agentLinks
             case "b2b": return b2bLinks
             default: return userLinks
         }
@@ -140,6 +142,8 @@ const Dashboard = () => {
                 return <span className={`badge ${sizeClass} font-bold bg-purple-600 text-white border-none`}>Manager</span>
             case "agent":
                 return <span className={`badge ${sizeClass} font-bold bg-teal-600 text-white border-none`}>Agent</span>
+            case "front_desk":
+                return <span className={`badge ${sizeClass} font-bold bg-cyan-600 text-white border-none`}>Front Desk</span>
             case "b2b":
                 return <span className={`badge ${sizeClass} font-bold bg-blue-600 text-white border-none`}>B2B Partner</span>
             default:
@@ -317,6 +321,9 @@ const Dashboard = () => {
                     <Outlet />
                 </main>
             </div>
+
+            {/* Overdue Checkouts Warning Floating Ball & Modal */}
+            <OverdueCheckoutAlert />
         </div>
     )
 }

@@ -5,6 +5,8 @@ import useAxiosSecure from '../../../hooks/useAxiosSecure'
 import logo from '../../../assets/logo.png'
 import masterCardLogo from '../../../assets/masterc-card-logo.png'
 import visaCardLogo from '../../../assets/visa-card-logo.png'
+import bkashLogo from '../../../assets/BKash-bKash-Logo.png'
+import nagadLogo from '../../../assets/Nagad-Logo.png'
 import { Printer, X, FileText, Download } from 'lucide-react'
 import { format } from 'date-fns'
 import { getBookingGuestTotals } from '../../../utils/bookingUtils'
@@ -55,18 +57,25 @@ const groupVoucherRooms = (rooms, defaultRoomNo = "") => {
         const outKey = formatVoucherDate(checkOut)
         const groupKey = `${catKey}__${inKey}__${outKey}`
 
-        let nights = Number(r.roomNights || r.nights) || 1
-        if ((!r.roomNights && !r.nights) && checkIn && checkOut) {
+        let stayNights = Number(r.stayNights || r.nights) || 0
+        if (!stayNights && checkIn && checkOut) {
             const start = new Date(checkIn)
             const end = new Date(checkOut)
             if (!isNaN(start.getTime()) && !isNaN(end.getTime()) && end > start) {
-                nights = Math.max(1, Math.ceil((end - start) / (1000 * 60 * 60 * 24)))
+                stayNights = Math.max(1, Math.ceil((end - start) / (1000 * 60 * 60 * 24)))
             }
+        }
+        if (!stayNights) {
+            const rawRoomNights = Number(r.roomNights) || 1
+            const rawQty = Number(r.roomQty) || 1
+            stayNights = rawQty > 1 && rawRoomNights % rawQty === 0
+                ? rawRoomNights / rawQty
+                : rawRoomNights
         }
 
         const qty = Number(r.roomQty || 1)
         const tariff = Number(r.roomTariff !== undefined ? r.roomTariff : (r.pricePerNight || r.price || 0))
-        const total = Number(r.total !== undefined ? r.total : (tariff * qty * nights))
+        const total = Number(r.total !== undefined ? r.total : (tariff * qty * stayNights))
 
         const roomNumbers = []
         const rawNo = r.roomNo || r.roomNumber || ""
@@ -82,7 +91,7 @@ const groupVoucherRooms = (rooms, defaultRoomNo = "") => {
                 roomNos: roomNumbers,
                 arrivalDate: checkIn,
                 departureDate: checkOut,
-                roomNights: nights,
+                stayNights: stayNights,
                 roomQty: qty,
                 total: total,
                 roomTariff: tariff
@@ -100,7 +109,7 @@ const groupVoucherRooms = (rooms, defaultRoomNo = "") => {
     })
 
     return Array.from(groupedMap.values()).map(g => {
-        const totalRoomNights = Number(g.roomNights || 1) * Number(g.roomQty || 1)
+        const totalRoomNights = Number(g.stayNights || 1) * Number(g.roomQty || 1)
         const effectiveTariff = (totalRoomNights > 0 && g.total > 0)
             ? (g.total / totalRoomNights)
             : Number(g.roomTariff || 0)
@@ -112,7 +121,8 @@ const groupVoucherRooms = (rooms, defaultRoomNo = "") => {
             departureDate: g.departureDate,
             roomTariff: effectiveTariff,
             roomQty: g.roomQty,
-            roomNights: g.roomNights,
+            stayNights: g.stayNights,
+            roomNights: totalRoomNights,
             total: g.total
         }
     })
@@ -135,11 +145,11 @@ const ReservationVoucherModal = ({
 }) => {
     const axiosSecure = useAxiosSecure()
     const printContainerRef = useRef(null)
-    const [invoiceType, setInvoiceType] = useState("guest")
+    const [letterType, setLetterType] = useState("guest")
 
     useEffect(() => {
         if (isOpen) {
-            setInvoiceType("guest")
+            setLetterType("guest")
         }
     }, [isOpen, bookingId])
 
@@ -182,15 +192,17 @@ const ReservationVoucherModal = ({
             const checkOut = r.checkOut || initialBooking?.checkOut || booking.checkOut
             const nights = Number(r.nights) || Math.max(1, checkIn && checkOut ? Math.ceil((new Date(checkOut) - new Date(checkIn)) / (1000 * 60 * 60 * 24)) : 1)
             const tariff = Number(r.pricePerNight || r.price || 0)
+            const qty = Number(r.roomQty || 1)
             return {
                 roomType: r.categoryName || r.category || "Room",
                 roomNo: r.roomNo || "",
                 arrivalDate: checkIn,
                 departureDate: checkOut,
                 roomTariff: tariff,
-                roomQty: Number(r.roomQty || 1),
-                roomNights: nights,
-                total: Number(r.total || (tariff * nights))
+                roomQty: qty,
+                stayNights: nights,
+                roomNights: nights * qty,
+                total: Number(r.total || (tariff * qty * nights))
             }
         })
         : [{
@@ -200,13 +212,14 @@ const ReservationVoucherModal = ({
             departureDate: initialBooking?.checkOut || booking?.checkOut,
             roomTariff: Number(initialBooking?.totalAmount || booking?.totalAmount || 0),
             roomQty: 1,
+            stayNights: 1,
             roomNights: 1,
             total: Number(initialBooking?.totalAmount || booking?.totalAmount || 0)
         }]
 
     const rawRooms = groupVoucherRooms(incomingRooms, booking.roomNo || initialBooking?.roomNo || "")
 
-    const totalNights = rawRooms.reduce((sum, r) => sum + (Number(r.roomQty || 1) * Number(r.roomNights || 1)), 0) || booking.details?.totalNights || 
+    const totalNights = rawRooms.reduce((sum, r) => sum + Number(r.roomNights || 0), 0) || booking.details?.totalNights || 
         (checkInDate && checkOutDate ? Math.max(1, Math.ceil((new Date(checkOutDate) - new Date(checkInDate)) / (1000 * 60 * 60 * 24))) : 1)
 
     const rawExtraServices = Array.isArray(booking.extraServices) && booking.extraServices.length > 0 
@@ -242,8 +255,8 @@ const ReservationVoucherModal = ({
 
     const handleSavePdf = () => {
         const prevTitle = document.title
-        const typeSuffix = invoiceType === "authority" ? "_Authority" : ""
-        const fileName = `Invoice${typeSuffix}_${booking.bookingId || initialBooking?.bookingId || bookingId || 'Voucher'}`
+        const typeSuffix = letterType === "authority" ? "_Authority" : ""
+        const fileName = `Reservation_Letter${typeSuffix}_${booking.bookingId || initialBooking?.bookingId || bookingId || 'Letter'}`
         document.title = fileName
         window.print()
         setTimeout(() => {
@@ -271,7 +284,7 @@ const ReservationVoucherModal = ({
                     <div className="flex items-center gap-2.5">
                         <FileText size={18} className="text-teal-600" />
                         <span className="font-bold text-slate-800 text-sm sm:text-base">
-                            Invoice — {booking.bookingId || initialBooking?.bookingId || bookingId}
+                            Reservation Letter — {booking.bookingId || initialBooking?.bookingId || bookingId}
                         </span>
                         <span className={`badge badge-sm font-bold border-none text-white ${
                             booking.status === "booking_confirmed" || booking.status === "confirmed" ? "bg-[#01966e]" :
@@ -285,13 +298,13 @@ const ReservationVoucherModal = ({
                     </div>
 
                     <div className="flex flex-wrap items-center gap-2">
-                        {/* Invoice Type Toggle (Guest / Authority) */}
+                        {/* Reservation Letter Type Toggle (Guest / Authority) */}
                         <div className="inline-flex items-center p-0.5 bg-slate-200/90 rounded-xl text-xs font-semibold">
                             <button
                                 type="button"
-                                onClick={() => setInvoiceType("guest")}
+                                onClick={() => setLetterType("guest")}
                                 className={`px-3 py-1 rounded-lg transition-all ${
-                                    invoiceType === "guest"
+                                    letterType === "guest"
                                         ? "bg-white text-teal-800 font-bold shadow-xs"
                                         : "text-slate-600 hover:text-slate-900"
                                 }`}
@@ -300,9 +313,9 @@ const ReservationVoucherModal = ({
                             </button>
                             <button
                                 type="button"
-                                onClick={() => setInvoiceType("authority")}
+                                onClick={() => setLetterType("authority")}
                                 className={`px-3 py-1 rounded-lg transition-all ${
-                                    invoiceType === "authority"
+                                    letterType === "authority"
                                         ? "bg-white text-teal-800 font-bold shadow-xs"
                                         : "text-slate-600 hover:text-slate-900"
                                 }`}
@@ -368,11 +381,16 @@ const ReservationVoucherModal = ({
                             </p>
                         </div>
 
-                        {/* RESERVATION INVOICE TITLE */}
+                        {/* RESERVATION LETTER TITLE */}
                         <div className="pt-0.5">
-                            <h2 className="text-[13px] font-bold text-black">
-                                Invoice
-                            </h2>
+                            <div 
+                                className="bg-slate-100 px-2 py-0.5 border border-slate-300 rounded-xs" 
+                                style={{ backgroundColor: '#f1f5f9', border: '1px solid #cbd5e1' }}
+                            >
+                                <h2 className="text-[12.5px] font-bold text-black">
+                                    Reservation Letter
+                                </h2>
+                            </div>
                         </div>
 
                         {/* TOP METADATA 2-COLUMN GRID */}
@@ -426,7 +444,7 @@ const ReservationVoucherModal = ({
                         {/* SUBJECT & WELCOME GREETING */}
                         <div className="pt-0.5 text-[11px]">
                             <p className="font-bold text-black">
-                                Subject: Room Reservation Invoice
+                                Subject: Room Reservation Letter
                             </p>
                             <p className="text-black">
                                 We truly appreciate your kind patronage in choosing &nbsp; <strong className="font-bold">Miami Beach Resort</strong> . Please refer to the details of your Reservation outlined below.
@@ -477,7 +495,7 @@ const ReservationVoucherModal = ({
                                     tableLayout: 'fixed'
                                 }}
                             >
-                                {invoiceType === "authority" ? (
+                                {letterType === "authority" ? (
                                     <colgroup>
                                         <col style={{ width: '22%' }} />
                                         <col style={{ width: '11%' }} />
@@ -502,7 +520,7 @@ const ReservationVoucherModal = ({
                                 <thead>
                                     <tr className="font-bold text-black" style={{ borderBottom: '1px solid #000000' }}>
                                         <th style={{ border: '1px solid #000000', padding: '3px 4px', textAlign: 'left' }}>Room Type</th>
-                                        {invoiceType === "authority" && (
+                                        {letterType === "authority" && (
                                             <th style={{ border: '1px solid #000000', padding: '3px 4px', textAlign: 'center' }}>Room Number</th>
                                         )}
                                         <th style={{ border: '1px solid #000000', padding: '3px 4px', textAlign: 'center' }}>Arrival Date</th>
@@ -517,7 +535,7 @@ const ReservationVoucherModal = ({
                                     {rawRooms.map((room, idx) => (
                                         <tr key={idx} style={{ borderBottom: '1px solid #000000' }}>
                                             <td style={{ border: '1px solid #000000', padding: '3px 4px', textAlign: 'left', wordBreak: 'break-word', whiteSpace: 'normal' }}>{room.roomType}</td>
-                                            {invoiceType === "authority" && (
+                                            {letterType === "authority" && (
                                                 <td style={{ border: '1px solid #000000', padding: '3px 4px', textAlign: 'center', fontWeight: 'bold', wordBreak: 'break-word', whiteSpace: 'normal' }}>
                                                     {room.roomNo || room.roomNumber || initialBooking?.roomNo || booking.roomNo || "—"}
                                                 </td>
@@ -543,14 +561,14 @@ const ReservationVoucherModal = ({
                                                 : `Extra Service - ${sName} (${sQty}):`
                                             return (
                                                 <tr key={`extra-${sIdx}`} style={{ borderBottom: '1px solid #000000' }}>
-                                                    <td colSpan={invoiceType === "authority" ? 7 : 6} style={{ border: '1px solid #000000', padding: '3px 4px', textAlign: 'right', fontWeight: 'bold' }}>{label}</td>
+                                                    <td colSpan={letterType === "authority" ? 7 : 6} style={{ border: '1px solid #000000', padding: '3px 4px', textAlign: 'right', fontWeight: 'bold' }}>{label}</td>
                                                     <td style={{ border: '1px solid #000000', padding: '3px 4px', textAlign: 'right', fontWeight: 'bold' }}>{sTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                                                 </tr>
                                             )
                                         })
                                     ) : extraServiceCost > 0 ? (
                                         <tr style={{ borderBottom: '1px solid #000000' }}>
-                                            <td colSpan={invoiceType === "authority" ? 7 : 6} style={{ border: '1px solid #000000', padding: '3px 4px', textAlign: 'right', fontWeight: 'bold' }}>Extra Service{extraService ? ` - ${extraService}` : ""} (1):</td>
+                                            <td colSpan={letterType === "authority" ? 7 : 6} style={{ border: '1px solid #000000', padding: '3px 4px', textAlign: 'right', fontWeight: 'bold' }}>Extra Service{extraService ? ` - ${extraService}` : ""} (1):</td>
                                             <td style={{ border: '1px solid #000000', padding: '3px 4px', textAlign: 'right', fontWeight: 'bold' }}>{Number(extraServiceCost).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                                         </tr>
                                     ) : null}
@@ -558,24 +576,24 @@ const ReservationVoucherModal = ({
                                     {/* Discount Row if present */}
                                     {discountAmount > 0 && (
                                         <tr style={{ borderBottom: '1px solid #000000' }}>
-                                            <td colSpan={invoiceType === "authority" ? 7 : 6} style={{ border: '1px solid #000000', padding: '3px 4px', textAlign: 'right', fontWeight: 'bold' }}>Special Discount:</td>
+                                            <td colSpan={letterType === "authority" ? 7 : 6} style={{ border: '1px solid #000000', padding: '3px 4px', textAlign: 'right', fontWeight: 'bold' }}>Special Discount:</td>
                                             <td style={{ border: '1px solid #000000', padding: '3px 4px', textAlign: 'right', fontWeight: 'bold' }}>-{Number(discountAmount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                                         </tr>
                                     )}
 
                                     {/* Summary Rows */}
                                     <tr style={{ borderBottom: '1px solid #000000' }}>
-                                        <td colSpan={invoiceType === "authority" ? 7 : 6} style={{ border: '1px solid #000000', padding: '3px 4px', textAlign: 'right', fontWeight: 'bold' }}>Total:</td>
+                                        <td colSpan={letterType === "authority" ? 7 : 6} style={{ border: '1px solid #000000', padding: '3px 4px', textAlign: 'right', fontWeight: 'bold' }}>Total:</td>
                                         <td style={{ border: '1px solid #000000', padding: '3px 4px', textAlign: 'right', fontWeight: 'bold' }}>{Number(payableTotal).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                                     </tr>
 
                                     <tr style={{ borderBottom: '1px solid #000000' }}>
-                                        <td colSpan={invoiceType === "authority" ? 7 : 6} style={{ border: '1px solid #000000', padding: '3px 4px', textAlign: 'right', fontWeight: 'bold' }}>{advanceRowLabel}</td>
+                                        <td colSpan={letterType === "authority" ? 7 : 6} style={{ border: '1px solid #000000', padding: '3px 4px', textAlign: 'right', fontWeight: 'bold' }}>{advanceRowLabel}</td>
                                         <td style={{ border: '1px solid #000000', padding: '3px 4px', textAlign: 'right', fontWeight: 'bold' }}>{Number(paidAmount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                                     </tr>
 
                                     <tr style={{ borderBottom: '1px solid #000000' }}>
-                                        <td colSpan={invoiceType === "authority" ? 7 : 6} style={{ border: '1px solid #000000', padding: '3px 4px', textAlign: 'right', fontWeight: 'bold' }}>Due :</td>
+                                        <td colSpan={letterType === "authority" ? 7 : 6} style={{ border: '1px solid #000000', padding: '3px 4px', textAlign: 'right', fontWeight: 'bold' }}>Due :</td>
                                         <td style={{ border: '1px solid #000000', padding: '3px 4px', textAlign: 'right', fontWeight: 'bold' }}>{Number(dueAmount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                                     </tr>
                                 </tbody>
@@ -607,7 +625,7 @@ const ReservationVoucherModal = ({
                             {/* Right: Accepted Cards Badges & Check-in Times */}
                             <div className="flex flex-col items-center justify-center text-center space-y-1">
                                 <span className="font-bold text-black text-[11px]">We Accept</span>
-                                <div className="flex items-center justify-center gap-3">
+                                <div className="flex flex-wrap items-center justify-center gap-3">
                                     <img 
                                         src={masterCardLogo} 
                                         alt="MasterCard" 
@@ -616,6 +634,16 @@ const ReservationVoucherModal = ({
                                     <img 
                                         src={visaCardLogo} 
                                         alt="VISA" 
+                                        className="h-6 object-contain" 
+                                    />
+                                    <img 
+                                        src={bkashLogo} 
+                                        alt="bKash" 
+                                        className="h-6 object-contain" 
+                                    />
+                                    <img 
+                                        src={nagadLogo} 
+                                        alt="Nagad" 
                                         className="h-6 object-contain" 
                                     />
                                 </div>
@@ -627,21 +655,46 @@ const ReservationVoucherModal = ({
 
                         {/* POLICIES, TERMS & GUEST REMARKS */}
                         <div className="space-y-0.5 text-[10px] text-black leading-snug pt-0.5">
-                            <p className="font-bold text-red-600">
-                                5% Service Charge Will Be Added on Top of the Room Rent.
-                            </p>
-                            <p className="font-bold text-black">
-                                Important: National ID(Bangladeshi) OR Passport with valid Visa (Foreign Guests) Are Mandatory.
-                            </p>
-                            <p className="text-black">
-                                Conversion Rate : USD 1$ = BDT 123.00 (Variable without notice).
-                            </p>
-                            <p className="font-bold text-black">
-                                Meal Plan : BED ONLY
-                            </p>
+                            <div 
+                                className="bg-slate-100 px-2 py-0.5 border border-slate-300 rounded-xs" 
+                                style={{ backgroundColor: '#f1f5f9', border: '1px solid #cbd5e1' }}
+                            >
+                                <p className="font-bold text-red-600">
+                                    5% Service Charge Will Be Added on Top of the Room Rent.
+                                </p>
+                            </div>
+                            <div 
+                                className="bg-slate-100 px-2 py-0.5 border border-slate-300 rounded-xs" 
+                                style={{ backgroundColor: '#f1f5f9', border: '1px solid #cbd5e1' }}
+                            >
+                                <p className="font-bold text-black">
+                                    Important: National ID(Bangladeshi) OR Passport with valid Visa (Foreign Guests) Are Mandatory.
+                                </p>
+                            </div>
+                            <div 
+                                className="bg-slate-100 px-2 py-0.5 border border-slate-300 rounded-xs" 
+                                style={{ backgroundColor: '#f1f5f9', border: '1px solid #cbd5e1' }}
+                            >
+                                <p className="text-black">
+                                    Conversion Rate : USD 1$ = BDT 123.00 (Variable without notice).
+                                </p>
+                            </div>
+                            <div 
+                                className="bg-slate-100 px-2 py-0.5 border border-slate-300 rounded-xs" 
+                                style={{ backgroundColor: '#f1f5f9', border: '1px solid #cbd5e1' }}
+                            >
+                                <p className="font-bold text-black">
+                                    Meal Plan : BED ONLY
+                                </p>
+                            </div>
 
                             <div className="pt-0.5 space-y-0">
-                                <p className="font-bold text-black">Guest Remarks :</p>
+                                <div 
+                                    className="bg-slate-100 px-2 py-0.5 border border-slate-300 rounded-xs mb-0.5" 
+                                    style={{ backgroundColor: '#f1f5f9', border: '1px solid #cbd5e1' }}
+                                >
+                                    <p className="font-bold text-black">Guest Remarks :</p>
+                                </div>
                                 <p className="font-bold text-black">**Outside food & in room visitors are not allowed**</p>
                                 <p className="font-bold text-black">**Weapons are not allowed on the hotel premises**</p>
                                 <p className="font-bold text-black">**Pets are not allowed**</p>
@@ -655,7 +708,7 @@ const ReservationVoucherModal = ({
                             </p>
 
                             {/* SIGN OFF */}
-                            {invoiceType === "authority" ? (
+                            {letterType === "authority" ? (
                                 <div className="pt-2 grid grid-cols-3 gap-x-6 gap-y-4">
                                     {[...Array(6)].map((_, i) => (
                                         <div key={i}>
@@ -683,7 +736,12 @@ const ReservationVoucherModal = ({
 
                         {/* HOTEL ADDRESS FOOTER */}
                         <div className="text-center text-[10.5px] text-black pt-1.5 border-t border-slate-300">
-                            <p className="font-bold text-black">Hotel Address:</p>
+                            <div 
+                                className="bg-slate-100 px-2 py-0.5 border border-slate-300 rounded-xs mb-0.5" 
+                                style={{ backgroundColor: '#f1f5f9', border: '1px solid #cbd5e1' }}
+                            >
+                                <p className="font-bold text-black">Hotel Address:</p>
+                            </div>
                             <p className="text-black">Marin Drive Road,South Kolatoli, Cox's Bazar. 4700 | 01341849375 | miamibeachresort@gmail.com</p>
                         </div>
                     </div>

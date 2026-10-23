@@ -26,6 +26,7 @@ import UserWorkflowModal from './UserWorkflowModal'
 
 const ROLE_LABELS = {
     manager: "Manager",
+    front_desk: "Front Desk",
     agent: "Agent",
     b2b: "B2B Partner",
     admin: "Admin",
@@ -36,6 +37,7 @@ const ROLE_FILTER_OPTIONS = [
     { value: "all", label: "All Roles", icon: <UsersIcon size={13} />, activeClass: "bg-teal-600 text-white shadow-xs border-teal-600" },
     { value: "admin", label: "Admins", icon: <Shield size={13} />, activeClass: "bg-amber-500 text-white shadow-xs border-amber-500" },
     { value: "manager", label: "Managers", icon: <Briefcase size={13} />, activeClass: "bg-purple-600 text-white shadow-xs border-purple-600" },
+    { value: "front_desk", label: "Front Desk", icon: <UserCheck size={13} />, activeClass: "bg-cyan-700 text-white shadow-xs border-cyan-700" },
     { value: "agent", label: "Agents", icon: <UserCheck size={13} />, activeClass: "bg-teal-700 text-white shadow-xs border-teal-700" },
     { value: "b2b", label: "B2B Partners", icon: <Building2 size={13} />, activeClass: "bg-blue-600 text-white shadow-xs border-blue-600" },
     { value: "user", label: "Guests / Users", icon: <User size={13} />, activeClass: "bg-slate-700 text-white shadow-xs border-slate-700" }
@@ -104,6 +106,7 @@ const Users = () => {
         all: allUsers.length || users.length,
         admin: allUsers.filter(u => u.role === "admin").length,
         manager: allUsers.filter(u => u.role === "manager").length,
+        front_desk: allUsers.filter(u => u.role === "front_desk").length,
         agent: allUsers.filter(u => u.role === "agent").length,
         b2b: allUsers.filter(u => u.role === "b2b").length,
         user: allUsers.filter(u => !u.role || u.role === "user").length
@@ -162,6 +165,12 @@ const Users = () => {
                 return (
                     <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-purple-50 text-purple-800 border border-purple-200 whitespace-nowrap">
                         <Briefcase size={12} className="text-purple-600" /> Manager
+                    </span>
+                )
+            case "front_desk":
+                return (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-cyan-50 text-cyan-800 border border-cyan-200 whitespace-nowrap">
+                        <UserCheck size={12} className="text-cyan-600" /> Front Desk
                     </span>
                 )
             case "agent":
@@ -347,6 +356,7 @@ const Users = () => {
                                     const isCurrentAdmin = u.email?.toLowerCase() === currentUser?.email?.toLowerCase() || (currentUser?.uid && u.uid === currentUser.uid)
                                     const totalBookings = u.stats?.totalBookings || 0
                                     const totalSales = u.stats?.totalSales || 0
+                                    const hasWorkflow = Boolean(u.role && u.role !== "user")
 
                                     return (
                                         <tr key={u._id} className="hover:bg-slate-50/80 transition-colors">
@@ -374,15 +384,25 @@ const Users = () => {
                                                 {getRoleBadge(u.role)}
                                             </td>
                                             <td className="whitespace-nowrap">
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setSelectedWorkflowUser(u)}
-                                                    className="badge badge-sm bg-teal-50 text-teal-800 hover:bg-teal-100 border border-teal-200 font-bold cursor-pointer transition-colors"
-                                                    title="Click to view full bookings workflow"
-                                                >
-                                                    <CalendarCheck size={12} className="mr-1" />
-                                                    {totalBookings} Booking{totalBookings !== 1 ? 's' : ''}
-                                                </button>
+                                                {hasWorkflow ? (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setSelectedWorkflowUser(u)}
+                                                        className="badge badge-sm bg-teal-50 text-teal-800 hover:bg-teal-100 border border-teal-200 font-bold cursor-pointer transition-colors"
+                                                        title="Click to view full bookings workflow"
+                                                    >
+                                                        <CalendarCheck size={12} className="mr-1" />
+                                                        {totalBookings} Booking{totalBookings !== 1 ? 's' : ''}
+                                                    </button>
+                                                ) : (
+                                                    <span
+                                                        className="badge badge-sm bg-teal-50 text-teal-800 border border-teal-200 font-bold"
+                                                        title="Total bookings"
+                                                    >
+                                                        <CalendarCheck size={12} className="mr-1" />
+                                                        {totalBookings} Booking{totalBookings !== 1 ? 's' : ''}
+                                                    </span>
+                                                )}
                                             </td>
                                             <td className="whitespace-nowrap font-bold text-slate-900">
                                                 <span className={totalSales > 0 ? "text-teal-800 font-extrabold" : "text-slate-400 font-normal"}>
@@ -395,15 +415,17 @@ const Users = () => {
                                             <td className="text-center whitespace-nowrap">
                                                 <div className="flex items-center justify-center gap-1.5">
                                                     {/* Quick View Workflow Button */}
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => setSelectedWorkflowUser(u)}
-                                                        className="btn btn-xs btn-outline border-teal-300 text-teal-700 hover:bg-teal-50 hover:border-teal-400 gap-1 rounded-lg font-semibold"
-                                                        title="View user bookings and sales workflow"
-                                                    >
-                                                        <Activity size={12} />
-                                                        <span>Workflow</span>
-                                                    </button>
+                                                    {hasWorkflow && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setSelectedWorkflowUser(u)}
+                                                            className="btn btn-xs btn-outline border-teal-300 text-teal-700 hover:bg-teal-50 hover:border-teal-400 gap-1 rounded-lg font-semibold"
+                                                            title="View user bookings and sales workflow"
+                                                        >
+                                                            <Activity size={12} />
+                                                            <span>Workflow</span>
+                                                        </button>
+                                                    )}
 
                                                     {isCurrentAdmin ? (
                                                         <span className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-400 bg-slate-100 px-2 py-1 rounded-lg whitespace-nowrap">
@@ -415,16 +437,20 @@ const Users = () => {
                                                                 <EllipsisVertical size={16} />
                                                             </div>
                                                             <ul tabIndex={-1} className="dropdown-content menu bg-base-100 rounded-box z-10 w-56 p-2 shadow-lg border border-slate-100">
-                                                                <li>
-                                                                    <button
-                                                                        type="button"
-                                                                        onClick={() => setSelectedWorkflowUser(u)}
-                                                                        className="text-teal-700 hover:bg-teal-50 font-medium"
-                                                                    >
-                                                                        <Eye size={14} /> View Workflow & Sells
-                                                                    </button>
-                                                                </li>
-                                                                <div className="divider my-1"></div>
+                                                                {hasWorkflow && (
+                                                                    <>
+                                                                        <li>
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={() => setSelectedWorkflowUser(u)}
+                                                                                className="text-teal-700 hover:bg-teal-50 font-medium"
+                                                                            >
+                                                                                <Eye size={14} /> View Workflow & Sells
+                                                                            </button>
+                                                                        </li>
+                                                                        <div className="divider my-1"></div>
+                                                                    </>
+                                                                )}
                                                                 {u.role !== "manager" && (
                                                                     <li>
                                                                         <button
@@ -433,6 +459,17 @@ const Users = () => {
                                                                             className="text-purple-700 hover:bg-purple-50 font-medium"
                                                                         >
                                                                             <Briefcase size={14} /> Approve as Manager
+                                                                        </button>
+                                                                    </li>
+                                                                )}
+                                                                {u.role !== "front_desk" && (
+                                                                    <li>
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => handleRoleChange(u, "front_desk")}
+                                                                            className="text-cyan-700 hover:bg-cyan-50 font-medium"
+                                                                        >
+                                                                            <UserCheck size={14} /> Approve as Front Desk
                                                                         </button>
                                                                     </li>
                                                                 )}
@@ -518,6 +555,7 @@ const Users = () => {
                         const isCurrentAdmin = u.email?.toLowerCase() === currentUser?.email?.toLowerCase() || (currentUser?.uid && u.uid === currentUser.uid)
                         const totalBookings = u.stats?.totalBookings || 0
                         const totalSales = u.stats?.totalSales || 0
+                        const hasWorkflow = Boolean(u.role && u.role !== "user")
 
                         return (
                             <div key={u._id} className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs space-y-3">
@@ -563,20 +601,22 @@ const Users = () => {
                                 )}
 
                                 <div className="flex items-center justify-between pt-1 border-t border-slate-100 text-xs text-slate-500">
-                                    <button
-                                        type="button"
-                                        onClick={() => setSelectedWorkflowUser(u)}
-                                        className="btn btn-xs btn-primary text-white gap-1 rounded-lg"
-                                    >
-                                        <Activity size={12} /> View Workflow
-                                    </button>
+                                    {hasWorkflow && (
+                                        <button
+                                            type="button"
+                                            onClick={() => setSelectedWorkflowUser(u)}
+                                            className="btn btn-xs btn-primary text-white gap-1 rounded-lg"
+                                        >
+                                            <Activity size={12} /> View Workflow
+                                        </button>
+                                    )}
                                     
                                     {isCurrentAdmin ? (
-                                        <span className="inline-flex items-center gap-1 text-xs font-medium text-slate-400 bg-slate-50 px-2 py-0.5 rounded-md">
+                                        <span className={`inline-flex items-center gap-1 text-xs font-medium text-slate-400 bg-slate-50 px-2 py-0.5 rounded-md ${!hasWorkflow ? 'ml-auto' : ''}`}>
                                             <CheckCircle2 size={12} className="text-teal-600" /> Current Admin
                                         </span>
                                     ) : (
-                                        <div className="dropdown dropdown-left">
+                                        <div className={`dropdown dropdown-left ${!hasWorkflow ? 'ml-auto' : ''}`}>
                                             <div tabIndex={0} role="button" className="cursor-pointer rounded-full hover:bg-gray-100 p-1.5 border border-transparent hover:border-gray-200">
                                                 <EllipsisVertical size={16} />
                                             </div>
@@ -589,6 +629,17 @@ const Users = () => {
                                                             className="text-purple-700 hover:bg-purple-50 font-medium"
                                                         >
                                                             <Briefcase size={14} /> Approve as Manager
+                                                        </button>
+                                                    </li>
+                                                )}
+                                                {u.role !== "front_desk" && (
+                                                    <li>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleRoleChange(u, "front_desk")}
+                                                            className="text-cyan-700 hover:bg-cyan-50 font-medium"
+                                                        >
+                                                            <UserCheck size={14} /> Approve as Front Desk
                                                         </button>
                                                     </li>
                                                 )}
@@ -647,7 +698,7 @@ const Users = () => {
             </div>
 
             {/* User Workflow Analytics & Drilldown Modal */}
-            {selectedWorkflowUser && (
+            {selectedWorkflowUser && selectedWorkflowUser.role && selectedWorkflowUser.role !== "user" && (
                 <UserWorkflowModal
                     user={selectedWorkflowUser}
                     isOpen={!!selectedWorkflowUser}
